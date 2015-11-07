@@ -1,4 +1,4 @@
-/* $Rev: 100877 $ */
+/* $Rev: 102792 $ */
 /** @file
  * VBoxDrv - The VirtualBox Support Driver - Linux specifics.
  */
@@ -24,9 +24,10 @@
  * terms and conditions of either the GPL or the CDDL or both.
  */
 
-/*******************************************************************************
-*   Header Files                                                               *
-*******************************************************************************/
+
+/*********************************************************************************************************************************
+*   Header Files                                                                                                                 *
+*********************************************************************************************************************************/
 #define LOG_GROUP LOG_GROUP_SUP_DRV
 #include "../SUPDrvInternal.h"
 #include "the-linux-kernel.h"
@@ -66,10 +67,9 @@
 #include <iprt/asm-amd64-x86.h>
 
 
-
-/*******************************************************************************
-*   Defined Constants And Macros                                               *
-*******************************************************************************/
+/*********************************************************************************************************************************
+*   Defined Constants And Macros                                                                                                 *
+*********************************************************************************************************************************/
 /* check kernel version */
 # ifndef SUPDRV_AGNOSTIC
 #  if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 0)
@@ -90,15 +90,23 @@
 # error "CONFIG_X86_HIGH_ENTRY is not supported by VBoxDrv at this time."
 #endif
 
-/* to include the version number of VirtualBox into kernel backtraces */
+/* We cannot include x86.h, so we copy the defines we need here: */
+#define X86_EFL_IF          RT_BIT(9)
+#define X86_EFL_AC          RT_BIT(18)
+#define X86_EFL_DF          RT_BIT(10)
+#define X86_EFL_IOPL        (RT_BIT(12) | RT_BIT(13))
+
+/* To include the version number of VirtualBox into kernel backtraces: */
 #define VBoxDrvLinuxVersion RT_CONCAT3(RT_CONCAT(VBOX_VERSION_MAJOR, _), \
                                        RT_CONCAT(VBOX_VERSION_MINOR, _), \
                                        VBOX_VERSION_BUILD)
 #define VBoxDrvLinuxIOCtl RT_CONCAT(VBoxDrvLinuxIOCtl_,VBoxDrvLinuxVersion)
 
-/*******************************************************************************
-*   Internal Functions                                                         *
-*******************************************************************************/
+
+
+/*********************************************************************************************************************************
+*   Internal Functions                                                                                                           *
+*********************************************************************************************************************************/
 static int  VBoxDrvLinuxInit(void);
 static void VBoxDrvLinuxUnload(void);
 static int  VBoxDrvLinuxCreateSys(struct inode *pInode, struct file *pFilp);
@@ -124,9 +132,9 @@ static void VBoxDevRelease(struct device *pDev);
 #endif
 
 
-/*******************************************************************************
-*   Global Variables                                                           *
-*******************************************************************************/
+/*********************************************************************************************************************************
+*   Global Variables                                                                                                             *
+*********************************************************************************************************************************/
 /**
  * Device extention & session data association structure.
  */
@@ -463,9 +471,7 @@ static int __init VBoxDrvLinuxInit(void)
  */
 static void __exit VBoxDrvLinuxUnload(void)
 {
-    int                 rc;
     Log(("VBoxDrvLinuxUnload\n"));
-    NOREF(rc);
 
 #ifdef VBOX_WITH_SUSPEND_NOTIFICATION
     platform_device_unregister(&gPlatformDevice);
@@ -477,16 +483,8 @@ static void __exit VBoxDrvLinuxUnload(void)
      * opened, at least we'll blindly assume that here.
      */
 #ifdef CONFIG_VBOXDRV_AS_MISC
-    rc = misc_deregister(&gMiscDeviceUsr);
-    if (rc < 0)
-    {
-        Log(("misc_deregister failed with rc=%#x on vboxdrvu\n", rc));
-    }
-    rc = misc_deregister(&gMiscDeviceSys);
-    if (rc < 0)
-    {
-        Log(("misc_deregister failed with rc=%#x on vboxdrv\n", rc));
-    }
+    misc_deregister(&gMiscDeviceUsr);
+    misc_deregister(&gMiscDeviceSys);
 #else  /* !CONFIG_VBOXDRV_AS_MISC */
 # ifdef CONFIG_DEVFS_FS
     /*
@@ -649,6 +647,25 @@ static int VBoxDrvLinuxIOCtl(struct inode *pInode, struct file *pFilp, unsigned 
 {
     PSUPDRVSESSION pSession = (PSUPDRVSESSION)pFilp->private_data;
     int rc;
+#if defined(VBOX_STRICT) || defined(VBOX_WITH_EFLAGS_AC_SET_IN_VBOXDRV)
+    RTCCUINTREG fSavedEfl;
+
+    /*
+     * Refuse all I/O control calls if we've ever detected EFLAGS.AC being cleared.
+     *
+     * This isn't a problem, as there is absolutely nothing in the kernel context that
+     * depend on user context triggering cleanups.  That would be pretty wild, right?
+     */
+    if (RT_UNLIKELY(g_DevExt.cBadContextCalls > 0))
+    {
+        SUPR0Printf("VBoxDrvLinuxIOCtl: EFLAGS.AC=0 detected %u times, refusing all I/O controls!\n", g_DevExt.cBadContextCalls);
+        return ESPIPE;
+    }
+
+    fSavedEfl = ASMAddFlags(X86_EFL_AC);
+# else
+    stac();
+# endif
 
     /*
      * Deal with the two high-speed IOCtl that takes it's arguments from
@@ -659,14 +676,9 @@ static int VBoxDrvLinuxIOCtl(struct inode *pInode, struct file *pFilp, unsigned 
                       || uCmd == SUP_IOCTL_FAST_DO_HM_RUN
                       || uCmd == SUP_IOCTL_FAST_DO_NOP)
                   && pSession->fUnrestricted == true))
-    {
-        stac();
         rc = supdrvIOCtlFast(uCmd, ulArg, &g_DevExt, pSession);
-        clac();
-        return rc;
-    }
-    return VBoxDrvLinuxIOCtlSlow(pFilp, uCmd, ulArg, pSession);
-
+    else
+        rc = VBoxDrvLinuxIOCtlSlow(pFilp, uCmd, ulArg, pSession);
 #else   /* !HAVE_UNLOCKED_IOCTL */
     unlock_kernel();
     if (RT_LIKELY(   (   uCmd == SUP_IOCTL_FAST_DO_RAW_RUN
@@ -677,8 +689,25 @@ static int VBoxDrvLinuxIOCtl(struct inode *pInode, struct file *pFilp, unsigned 
     else
         rc = VBoxDrvLinuxIOCtlSlow(pFilp, uCmd, ulArg, pSession);
     lock_kernel();
-    return rc;
 #endif  /* !HAVE_UNLOCKED_IOCTL */
+
+#if defined(VBOX_STRICT) || defined(VBOX_WITH_EFLAGS_AC_SET_IN_VBOXDRV)
+    /*
+     * Before we restore AC and the rest of EFLAGS, check if the IOCtl handler code
+     * accidentially modified it or some other important flag.
+     */
+    if (RT_UNLIKELY(   (ASMGetFlags() & (X86_EFL_AC | X86_EFL_IF | X86_EFL_DF | X86_EFL_IOPL))
+                    != ((fSavedEfl    & (X86_EFL_AC | X86_EFL_IF | X86_EFL_DF | X86_EFL_IOPL)) | X86_EFL_AC) ))
+    {
+        char szTmp[48];
+        RTStrPrintf(szTmp, sizeof(szTmp), "uCmd=%#x: %#x->%#x!", _IOC_NR(uCmd), (uint32_t)fSavedEfl, (uint32_t)ASMGetFlags());
+        supdrvBadContext(&g_DevExt, "SUPDrv-linux.c",  __LINE__, szTmp);
+    }
+    ASMSetFlags(fSavedEfl);
+#else
+    clac();
+#endif
+    return rc;
 }
 
 
@@ -702,7 +731,7 @@ static int VBoxDrvLinuxIOCtlSlow(struct file *pFilp, unsigned int uCmd, unsigned
     /*
      * Read the header.
      */
-    if (RT_UNLIKELY(copy_from_user(&Hdr, (void *)ulArg, sizeof(Hdr))))
+    if (RT_FAILURE(RTR0MemUserCopyFrom(&Hdr, ulArg, sizeof(Hdr))))
     {
         Log(("VBoxDrvLinuxIOCtl: copy_from_user(,%#lx,) failed; uCmd=%#x\n", ulArg, uCmd));
         return -EFAULT;
@@ -733,7 +762,7 @@ static int VBoxDrvLinuxIOCtlSlow(struct file *pFilp, unsigned int uCmd, unsigned
         OSDBGPRINT(("VBoxDrvLinuxIOCtl: failed to allocate buffer of %d bytes for uCmd=%#x\n", cbBuf, uCmd));
         return -ENOMEM;
     }
-    if (RT_UNLIKELY(copy_from_user(pHdr, (void *)ulArg, Hdr.cbIn)))
+    if (RT_FAILURE(RTR0MemUserCopyFrom(pHdr, ulArg, Hdr.cbIn)))
     {
         Log(("VBoxDrvLinuxIOCtl: copy_from_user(,%#lx, %#x) failed; uCmd=%#x\n", ulArg, Hdr.cbIn, uCmd));
         RTMemFree(pHdr);
@@ -745,9 +774,7 @@ static int VBoxDrvLinuxIOCtlSlow(struct file *pFilp, unsigned int uCmd, unsigned
     /*
      * Process the IOCtl.
      */
-    stac();
     rc = supdrvIOCtl(uCmd, &g_DevExt, pSession, pHdr, cbBuf);
-    clac();
 
     /*
      * Copy ioctl data and output buffer back to user space.
@@ -760,7 +787,7 @@ static int VBoxDrvLinuxIOCtlSlow(struct file *pFilp, unsigned int uCmd, unsigned
             OSDBGPRINT(("VBoxDrvLinuxIOCtl: too much output! %#x > %#x; uCmd=%#x!\n", cbOut, cbBuf, uCmd));
             cbOut = cbBuf;
         }
-        if (RT_UNLIKELY(copy_to_user((void *)ulArg, pHdr, cbOut)))
+        if (RT_FAILURE(RTR0MemUserCopyTo(ulArg, pHdr, cbOut)))
         {
             /* this is really bad! */
             OSDBGPRINT(("VBoxDrvLinuxIOCtl: copy_to_user(%#lx,,%#x); uCmd=%#x!\n", ulArg, cbOut, uCmd));
@@ -945,12 +972,14 @@ int VBOXCALL    supdrvOSMsrProberRead(uint32_t uMsr, RTCPUID idCpu, uint64_t *pu
     uint32_t u32Low, u32High;
     int rc;
 
+    IPRT_LINUX_SAVE_EFL_AC();
     if (idCpu == NIL_RTCPUID)
         rc = rdmsr_safe(uMsr, &u32Low, &u32High);
     else if (RTMpIsCpuOnline(idCpu))
         rc = rdmsr_safe_on_cpu(idCpu, uMsr, &u32Low, &u32High);
     else
         return VERR_CPU_OFFLINE;
+    IPRT_LINUX_RESTORE_EFL_AC();
     if (rc == 0)
     {
         *puValue = RT_MAKE_U64(u32Low, u32High);
@@ -968,12 +997,15 @@ int VBOXCALL    supdrvOSMsrProberWrite(uint32_t uMsr, RTCPUID idCpu, uint64_t uV
 # ifdef SUPDRV_LINUX_HAS_SAFE_MSR_API
     int rc;
 
+    IPRT_LINUX_SAVE_EFL_AC();
     if (idCpu == NIL_RTCPUID)
         rc = wrmsr_safe(uMsr, RT_LODWORD(uValue), RT_HIDWORD(uValue));
     else if (RTMpIsCpuOnline(idCpu))
         rc = wrmsr_safe_on_cpu(idCpu, uMsr, RT_LODWORD(uValue), RT_HIDWORD(uValue));
     else
         return VERR_CPU_OFFLINE;
+    IPRT_LINUX_RESTORE_EFL_AC();
+
     if (rc == 0)
         return VINF_SUCCESS;
     return VERR_ACCESS_DENIED;
@@ -1095,6 +1127,7 @@ RTDECL(int) SUPR0Printf(const char *pszFormat, ...)
 {
     va_list va;
     char    szMsg[512];
+    IPRT_LINUX_SAVE_EFL_AC();
 
     va_start(va, pszFormat);
     RTStrPrintfV(szMsg, sizeof(szMsg) - 1, pszFormat, va);
@@ -1102,18 +1135,23 @@ RTDECL(int) SUPR0Printf(const char *pszFormat, ...)
     szMsg[sizeof(szMsg) - 1] = '\0';
 
     printk("%s", szMsg);
+
+    IPRT_LINUX_RESTORE_EFL_AC();
     return 0;
 }
 
 
-/**
- * Returns configuration flags of the host kernel.
- */
 SUPR0DECL(uint32_t) SUPR0GetKernelFeatures(void)
 {
     uint32_t fFlags = 0;
 #ifdef CONFIG_PAX_KERNEXEC
     fFlags |= SUPKERNELFEATURES_GDT_READ_ONLY;
+#endif
+#if defined(VBOX_STRICT) || defined(VBOX_WITH_EFLAGS_AC_SET_IN_VBOXDRV)
+    fFlags |= SUPKERNELFEATURES_SMAP;
+#elif defined(CONFIG_X86_SMAP)
+    if (ASMGetCR4() & X86_CR4_SMAP)
+        fFlags |= SUPKERNELFEATURES_SMAP;
 #endif
     return fFlags;
 }

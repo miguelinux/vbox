@@ -77,9 +77,9 @@
  */
 
 
-/*******************************************************************************
-*   Header Files                                                               *
-*******************************************************************************/
+/*********************************************************************************************************************************
+*   Header Files                                                                                                                 *
+*********************************************************************************************************************************/
 #define LOG_GROUP LOG_GROUP_DEV_OHCI
 #include <VBox/pci.h>
 #include <VBox/vmm/pdm.h>
@@ -102,9 +102,9 @@
 #include "VBoxDD.h"
 
 
-/*******************************************************************************
-*   Structures and Typedefs                                                    *
-*******************************************************************************/
+/*********************************************************************************************************************************
+*   Structures and Typedefs                                                                                                      *
+*********************************************************************************************************************************/
 /** The saved state version. */
 #define OHCI_SAVED_STATE_VERSION            5
 // The saved state with support of 8 ports
@@ -740,9 +740,11 @@ typedef struct ohci_opreg
 
 
 #ifndef VBOX_DEVICE_STRUCT_TESTCASE
-/*******************************************************************************
-*   Global Variables                                                           *
-*******************************************************************************/
+
+
+/*********************************************************************************************************************************
+*   Global Variables                                                                                                             *
+*********************************************************************************************************************************/
 #if defined(LOG_ENABLED) && defined(IN_RING3)
 static bool g_fLogBulkEPs = false;
 static bool g_fLogControlEPs = false;
@@ -793,9 +795,9 @@ static SSMFIELD const g_aOhciFields[] =
 #endif
 
 
-/*******************************************************************************
-*   Internal Functions                                                         *
-*******************************************************************************/
+/*********************************************************************************************************************************
+*   Internal Functions                                                                                                           *
+*********************************************************************************************************************************/
 RT_C_DECLS_BEGIN
 #ifdef IN_RING3
 /* Update host controller state to reflect a device attach */
@@ -2467,7 +2469,7 @@ static void ohciRhXferCompleteGeneralURB(POHCI pThis, PVUSBURB pUrb, POHCIED pEd
             if (    DoneInt != 0x7
                 &&  DoneInt < pThis->dqic)
                 pThis->dqic = DoneInt;
-            Log(("%s: ohciRhXferCompleteGeneralURB: ED=%#010x TD=%#010x Age=%d cbTotal=%#x NewCbp=%#010RX32 dqic=%d\n",
+            Log(("%s: ohciRhXferCompleteGeneralURB: ED=%#010x TD=%#010x Age=%d enmStatus=%d cbTotal=%#x NewCbp=%#010RX32 dqic=%d\n",
                  pUrb->pszDesc, pUrb->Hci.EdAddr, TdAddr, cFmAge, pUrb->enmStatus, Buf.cbTotal, NewCbp, pThis->dqic));
         }
         else
@@ -2639,7 +2641,7 @@ static DECLCALLBACK(bool) ohciRhXferError(PVUSBIROOTHUBPORT pInterface, PVUSBURB
      */
     if (pUrb->enmStatus == VUSBSTATUS_STALL)
     {
-        Log2(("%s: ohciRhXferError: STALL, giving up.\n", pUrb->pszDesc, pUrb->enmStatus));
+        Log2(("%s: ohciRhXferError: STALL, giving up.\n", pUrb->pszDesc));
         return true;
     }
 
@@ -3953,8 +3955,8 @@ static DECLCALLBACK(int) ohciR3ThreadFrame(PPDMDEVINS pDevIns, PPDMTHREAD pThrea
             else if (tsBeginServicing + (cFramesProcessed + 100) * RT_NS_1MS < tsNow)
             {
                 /* If we lag to far behind stop trying to catch up. */
-                LogRel(("OHCI#%u: Lagging too far behind, not trying to catch up anymore. Expect glitches with USB devices\n",
-                        pThis->pDevInsR3->iInstance));
+                LogRelMax(10, ("OHCI#%u: Lagging too far behind, not trying to catch up anymore. Expect glitches with USB devices\n",
+                               pThis->pDevInsR3->iInstance));
                 tsBeginServicing = tsNow;
                 cFramesProcessed = 0;
             }
@@ -4668,7 +4670,7 @@ static int HcLSThreshold_r(PCOHCI pThis, uint32_t iReg, uint32_t *pu32Value)
  */
 static int HcLSThreshold_w(POHCI pThis, uint32_t iReg, uint32_t val)
 {
-    Log2(("HcLSThreshold_w(%#010x) => LST=0x%03x(%d)\n", val, val & 0x0fff));
+    Log2(("HcLSThreshold_w(%#010x) => LST=0x%03x(%d)\n", val, val & 0x0fff, val & 0x0fff));
     AssertMsg(val == OHCI_LS_THRESH,
               ("HCD tried to write bad LS threshold: 0x%x (see function header)\n", val));
     /** @todo the HCD can change this. */
@@ -5007,7 +5009,7 @@ static int HcRhPortStatus_w(POHCI pThis, uint32_t iReg, uint32_t val)
         else if (p->fReg & OHCI_PORT_R_RESET_STATUS)
         {
             /* the guest is getting impatient. */
-            Log2(("HcRhPortStatus_w(): port %u: Impatient guest!\n"));
+            Log2(("HcRhPortStatus_w(): port %u: Impatient guest!\n", i));
             RTThreadYield();
         }
     }

@@ -16,9 +16,9 @@
  */
 
 
-/*******************************************************************************
-*   Header Files                                                               *
-*******************************************************************************/
+/*********************************************************************************************************************************
+*   Header Files                                                                                                                 *
+*********************************************************************************************************************************/
 #define LOG_GROUP LOG_GROUP_USB_CARDREADER
 #include "UsbCardReader.h"
 #include "ConsoleImpl.h"
@@ -30,9 +30,9 @@
 #include <iprt/req.h>
 
 
-/*******************************************************************************
-*   Structures and Typedefs                                                    *
-*******************************************************************************/
+/*********************************************************************************************************************************
+*   Structures and Typedefs                                                                                                      *
+*********************************************************************************************************************************/
 typedef struct USBCARDREADER USBCARDREADER;
 typedef struct USBCARDREADER *PUSBCARDREADER;
 
@@ -606,7 +606,7 @@ static DECLCALLBACK(int) drvCardReaderThreadCmdWakeup(PPDMDRVINS pDrvIns, PPDMTH
 
     PRTREQ pReq;
     int rc = RTReqQueueCall(pThis->hReqQCardReaderCmd, &pReq, 10000, (PFNRT)drvCardReaderWakeupFunc, 1, pThis);
-    AssertMsgRC(rc, ("Inserting request into queue failed rc=%Rrc\n"));
+    AssertMsgRC(rc, ("Inserting request into queue failed rc=%Rrc\n", rc));
 
     if (RT_SUCCESS(rc))
         RTReqRelease(pReq);
@@ -1854,8 +1854,7 @@ int UsbCardReader::SetAttrib(struct USBCARDREADER *pDrv,
         pThis->hReqQCardReaderCmd = NIL_RTREQQUEUE;
     }
 
-    /** @todo r=bird: why doesn't this set pThis->pUsbCardReader->mpDrv to NULL like
-     *        everyone else? */
+    pThis->pUsbCardReader->mpDrv = NULL;
     pThis->pUsbCardReader = NULL;
     LogFlowFuncLeave();
 }

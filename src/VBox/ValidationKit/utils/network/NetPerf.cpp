@@ -25,9 +25,9 @@
  */
 
 
-/*******************************************************************************
-*   Header Files                                                               *
-*******************************************************************************/
+/*********************************************************************************************************************************
+*   Header Files                                                                                                                 *
+*********************************************************************************************************************************/
 #include <iprt/asm.h>
 #include <iprt/assert.h>
 #include <iprt/ctype.h>
@@ -49,9 +49,9 @@
 #include <iprt/timer.h>
 
 
-/*******************************************************************************
-*   Defined Constants And Macros                                               *
-*******************************************************************************/
+/*********************************************************************************************************************************
+*   Defined Constants And Macros                                                                                                 *
+*********************************************************************************************************************************/
 /** Default TCP port (update help text if you change this) */
 #define NETPERF_DEFAULT_PORT                    5002
 
@@ -90,9 +90,9 @@
 #define NETPERF_LEN_PREFIX                      4
 
 
-/*******************************************************************************
-*   Structures and Typedefs                                                    *
-*******************************************************************************/
+/*********************************************************************************************************************************
+*   Structures and Typedefs                                                                                                      *
+*********************************************************************************************************************************/
 typedef enum NETPERFPROTO
 {
     NETPERFPROTO_INVALID = 0,
@@ -201,9 +201,9 @@ typedef struct NETPERFHDR
 /** @} */
 
 
-/*******************************************************************************
-*   Global Variables                                                           *
-*******************************************************************************/
+/*********************************************************************************************************************************
+*   Global Variables                                                                                                             *
+*********************************************************************************************************************************/
 /** Connection start/identifier to make sure other end is NetPerf. */
 static const char g_ConnectStart[]  = "yo! waaazzzzzaaaaup dude?";
 /** Start of parameters proposal made by the client. */
@@ -319,7 +319,7 @@ static void Usage(PRTSTREAM pStrm)
  * @param   pvUser              Pointer to the stop variable.
  * @param   iTick               The tick, ignored.
  */
-static void netperfStopTimerCallback(RTTIMERLR hTimer, void *pvUser, uint64_t iTick)
+static DECLCALLBACK(void) netperfStopTimerCallback(RTTIMERLR hTimer, void *pvUser, uint64_t iTick)
 {
     bool volatile *pfStop = (bool volatile *)pvUser;
 /*    RTPrintf("Time's Up!\n");*/
@@ -359,10 +359,10 @@ static int netperfSendStats(NETPERFSTATS const *pStats, RTSOCKET hSocket)
      */
     rc = RTTcpRead(hSocket, szBuf, sizeof(g_szAck) - 1, NULL);
     if (RT_FAILURE(rc))
-        return RTTestIFailedRc(rc, "stats: failed to write stats: %Rrc\n", szBuf, rc);
+        return RTTestIFailedRc(rc, "stats: failed to write stats: %Rrc\n", rc);
     szBuf[sizeof(g_szAck) - 1] = '\0';
     if (!strcmp(szBuf, g_szNegative))
-        return RTTestIFailedRc(rc, "stats: client failed to parse them\n", szBuf);
+        return RTTestIFailedRc(rc, "stats: client failed to parse them\n");
     if (strcmp(szBuf, g_szAck))
         return RTTestIFailedRc(rc, "stats: got '%s' in instead of ack/nack\n", szBuf);
 
@@ -1722,7 +1722,7 @@ static RTEXITCODE netperfClient(NETPERFPROTO enmProto, const char *pszServer, vo
         }
 
         default:
-            RTTestIFailed("Protocol not supported.\n", g_pStdErr);
+            RTTestIFailed("Protocol not supported.\n");
             return RTEXITCODE_FAILURE;
     }
 }
@@ -1863,7 +1863,7 @@ int main(int argc, char *argv[])
                 return RTEXITCODE_SUCCESS;
 
             case 'V':
-                RTPrintf("$Revision: 101402 $\n");
+                RTPrintf("$Revision: 102181 $\n");
                 return RTEXITCODE_SUCCESS;
 
             case 'w':

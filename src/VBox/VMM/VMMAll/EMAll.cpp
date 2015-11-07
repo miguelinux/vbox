@@ -15,9 +15,10 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-/*******************************************************************************
-*   Header Files                                                               *
-*******************************************************************************/
+
+/*********************************************************************************************************************************
+*   Header Files                                                                                                                 *
+*********************************************************************************************************************************/
 #define LOG_GROUP LOG_GROUP_EM
 #include <VBox/vmm/em.h>
 #include <VBox/vmm/mm.h>
@@ -60,9 +61,9 @@
 #endif
 
 
-/*******************************************************************************
-*   Defined Constants And Macros                                               *
-*******************************************************************************/
+/*********************************************************************************************************************************
+*   Defined Constants And Macros                                                                                                 *
+*********************************************************************************************************************************/
 /** @def EM_ASSERT_FAULT_RETURN
  * Safety check.
  *
@@ -79,18 +80,18 @@
 #endif
 
 
-/*******************************************************************************
-*   Internal Functions                                                         *
-*******************************************************************************/
+/*********************************************************************************************************************************
+*   Internal Functions                                                                                                           *
+*********************************************************************************************************************************/
 #if !defined(VBOX_WITH_IEM) || defined(VBOX_COMPARE_IEM_AND_EM)
 DECLINLINE(VBOXSTRICTRC) emInterpretInstructionCPUOuter(PVMCPU pVCpu, PDISCPUSTATE pDis, PCPUMCTXCORE pRegFrame,
                                                         RTGCPTR pvFault, EMCODETYPE enmCodeType, uint32_t *pcbSize);
 #endif
 
 
-/*******************************************************************************
-*   Global Variables                                                           *
-*******************************************************************************/
+/*********************************************************************************************************************************
+*   Global Variables                                                                                                             *
+*********************************************************************************************************************************/
 #ifdef VBOX_COMPARE_IEM_AND_EM
 static const uint32_t g_fInterestingFFs = VMCPU_FF_TO_R3
     | VMCPU_FF_CSAM_PENDING_ACTION | VMCPU_FF_CSAM_SCAN_PAGE | VMCPU_FF_INHIBIT_INTERRUPTS
@@ -1162,7 +1163,7 @@ static int emInterpretIret(PVM pVM, PVMCPU pVCpu, PDISCPUSTATE pDis, PCPUMCTXCOR
             rc |= emRCStackRead(pVM, pVCpu, pRegFrame, &ss,       (RTGCPTR)(pIretStack + 16), 4);
             AssertRCReturn(rc, VERR_EM_INTERPRETER);
             Log(("emInterpretIret: return to different privilege level (rpl=%d cpl=%d)\n", rpl, cpl));
-            Log(("emInterpretIret: SS:ESP=%04X:08X\n", ss, esp));
+            Log(("emInterpretIret: SS:ESP=%04x:%08x\n", ss, esp));
             pRegFrame->ss.Sel = ss;
             pRegFrame->esp    = esp;
         }
@@ -2381,7 +2382,7 @@ static int emInterpretLockOrXorAnd(PVM pVM, PVMCPU pVCpu, PDISCPUSTATE pDis, PCP
     DISQPVPARAMVAL param1, param2;
     NOREF(pvFault);
 
-#if HC_ARCH_BITS == 32 && !defined(VBOX_WITH_HYBRID_32BIT_KERNEL_IN_R0)
+#if HC_ARCH_BITS == 32
     Assert(pDis->Param1.cb <= 4);
 #endif
 
@@ -3013,7 +3014,7 @@ static int emInterpretCmpXchg(PVM pVM, PVMCPU pVCpu, PDISCPUSTATE pDis, PCPUMCTX
     DISQPVPARAMVAL param1, param2;
     NOREF(pvFault);
 
-#if HC_ARCH_BITS == 32 && !defined(VBOX_WITH_HYBRID_32BIT_KERNEL_IN_R0)
+#if HC_ARCH_BITS == 32
     Assert(pDis->Param1.cb <= 4);
 #endif
 
@@ -3123,7 +3124,7 @@ static int emInterpretCmpXchg8b(PVM pVM, PVMCPU pVCpu, PDISCPUSTATE pDis, PCPUMC
         return VERR_EM_INTERPRETER;
     }
 
-    LogFlow(("%s %RGv=%08x eax=%08x\n", emGetMnemonic(pDis), pvParam1, pRegFrame->eax));
+    LogFlow(("%s %RGv=%p eax=%08x\n", emGetMnemonic(pDis), GCPtrPar1, pvParam1, pRegFrame->eax));
 
 #ifndef VBOX_COMPARE_IEM_AND_EM
     if (pDis->fPrefix & DISPREFIX_LOCK)
@@ -3136,7 +3137,7 @@ static int emInterpretCmpXchg8b(PVM pVM, PVMCPU pVCpu, PDISCPUSTATE pDis, PCPUMC
     int rc2 = emRamWrite(pVM, pVCpu, pRegFrame, GCPtrPar1, &u64, sizeof(u64)); AssertRCSuccess(rc2);
 #endif /* VBOX_COMPARE_IEM_AND_EM */
 
-    LogFlow(("%s %RGv=%08x eax=%08x ZF=%d\n", emGetMnemonic(pDis), pvParam1, pRegFrame->eax, !!(eflags & X86_EFL_ZF)));
+    LogFlow(("%s %RGv=%p eax=%08x ZF=%d\n", emGetMnemonic(pDis), GCPtrPar1, pvParam1, pRegFrame->eax, !!(eflags & X86_EFL_ZF)));
 
     /* Update guest's eflags and finish; note that *only* ZF is affected. */
     pRegFrame->eflags.u32 =   (pRegFrame->eflags.u32 & ~(X86_EFL_ZF))
@@ -3727,16 +3728,6 @@ DECLINLINE(VBOXSTRICTRC) emInterpretInstructionCPU(PVM pVM, PVMCPU pVCpu, PDISCP
             &&  uOpCode != OP_BTS
             &&  uOpCode != OP_BTR
             &&  uOpCode != OP_BTC
-# ifdef VBOX_WITH_HYBRID_32BIT_KERNEL_IN_R0
-            &&  uOpCode != OP_CMPXCHG /* solaris */
-            &&  uOpCode != OP_AND     /* windows */
-            &&  uOpCode != OP_OR      /* windows */
-            &&  uOpCode != OP_XOR     /* because we can */
-            &&  uOpCode != OP_ADD     /* windows (dripple) */
-            &&  uOpCode != OP_ADC     /* because we can */
-            &&  uOpCode != OP_SUB     /* because we can */
-            /** @todo OP_BTS or is that a different kind of failure? */
-# endif
             )
         {
 # ifdef VBOX_WITH_STATISTICS

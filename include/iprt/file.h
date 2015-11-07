@@ -270,7 +270,7 @@ RTDECL(int)  RTFileOpen(PRTFILE pFile, const char *pszFilename, uint64_t fOpen);
  *                          be opened. (UTF-8)
  * @param   ...             Arguments to the format string.
  */
-RTDECL(int)  RTFileOpenF(PRTFILE pFile, uint64_t fOpen, const char *pszFilenameFmt, ...);
+RTDECL(int)  RTFileOpenF(PRTFILE pFile, uint64_t fOpen, const char *pszFilenameFmt, ...) RT_IPRT_FORMAT_ATTR(3, 4);
 
 /**
  * Open a file given as a format string.
@@ -283,7 +283,7 @@ RTDECL(int)  RTFileOpenF(PRTFILE pFile, uint64_t fOpen, const char *pszFilenameF
  *                          be opened. (UTF-8)
  * @param   va              Arguments to the format string.
  */
-RTDECL(int)  RTFileOpenV(PRTFILE pFile, uint64_t fOpen, const char *pszFilenameFmt, va_list va);
+RTDECL(int)  RTFileOpenV(PRTFILE pFile, uint64_t fOpen, const char *pszFilenameFmt, va_list va) RT_IPRT_FORMAT_ATTR(3, 0);
 
 /**
  * Open the bit bucket (aka /dev/null or nul).
@@ -776,6 +776,20 @@ RTDECL(int) RTFileCreateTemp(char *pszTemplate, RTFMODE fMode);
  *                             file name on success. Empty string on failure.
  */
 RTDECL(int) RTFileCreateTempSecure(char *pszTemplate);
+
+/**
+ * Opens a new file with a unique name in the temp directory.
+ *
+ * @returns iprt status code.
+ * @param   pszTemplate     The file name template on input. The actual file
+ *                          name on success. Empty string on failure.
+ * @param   fMode           The mode to create the file with.  Use 0600 unless
+ *                          you have reason not to.
+ *
+ * @remarks If actual control over the filename or location is required, we'll
+ *          create an extended edition of this API.
+ */
+RTDECL(int) RTFileOpenTemp(PRTFILE pFile, char *pszFilename, size_t cbFilename, uint64_t fOpen);
 
 
 /** @page   pg_rt_filelock      RT File locking API description

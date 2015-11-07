@@ -132,24 +132,24 @@
         <translation>I moduli del kernel non corrispondono a questa versione di VirtualBox. L&apos;installazione di VirtualBox sembra non essere riuscita. Potrebbe essere d&apos;aiuto la completa disinstallazione e reinstallazione di VirtualBox.</translation>
     </message>
     <message>
-        <source>The VirtualBox kernel modules do not match this version of VirtualBox. The installation of VirtualBox was apparently not successful. Executing&lt;br/&gt;&lt;br/&gt;  &lt;font color=blue&gt;&apos;/etc/init.d/vboxdrv setup&apos;&lt;/font&gt;&lt;br/&gt;&lt;br/&gt;may correct this. Make sure that you do not mix the OSE version and the PUEL version of VirtualBox.</source>
-        <translation>I moduli del kernel non corrispondono a questa versione di VirtualBox. L&apos;installazione di VirtualBox sembra non essere riuscita. L&apos;esecuzione di &lt;br/&gt;&lt;br/&gt;  &lt;font color=blue&gt;&apos;/etc/init.d/vboxdrv setup&apos;&lt;/font&gt;&lt;br/&gt;&lt;br/&gt;potrebbe risolvere il problema. Assicurati di non mischiare la versione OSE con la versione PUEL di VirtualBox.</translation>
+        <source>The VirtualBox kernel modules do not match this version of VirtualBox. The installation of VirtualBox was apparently not successful. Executing&lt;br/&gt;&lt;br/&gt;  &lt;font color=blue&gt;&apos;/sbin/vboxconfig&apos;&lt;/font&gt;&lt;br/&gt;&lt;br/&gt;may correct this. Make sure that you do not mix the OSE version and the PUEL version of VirtualBox.</source>
+        <translation>I moduli del kernel non corrispondono a questa versione di VirtualBox. L&apos;installazione di VirtualBox sembra non essere riuscita. L&apos;esecuzione di &lt;br/&gt;&lt;br/&gt;  &lt;font color=blue&gt;&apos;/sbin/vboxconfig&apos;&lt;/font&gt;&lt;br/&gt;&lt;br/&gt;potrebbe risolvere il problema. Assicurati di non mischiare la versione OSE con la versione PUEL di VirtualBox.</translation>
     </message>
     <message>
         <source>This error means that the kernel driver was either not able to allocate enough memory or that some mapping operation failed.</source>
         <translation>Questo errore significa che il driver del kernel non è stato in grado di allocare memoria sufficiente o che alcune operazioni di mappatura non sono riuscite.</translation>
     </message>
     <message>
-        <source>The VirtualBox Linux kernel driver (vboxdrv) is either not loaded or there is a permission problem with /dev/vboxdrv. Please reinstall the kernel module by executing&lt;br/&gt;&lt;br/&gt;  &lt;font color=blue&gt;&apos;/etc/init.d/vboxdrv setup&apos;&lt;/font&gt;&lt;br/&gt;&lt;br/&gt;as root. If it is available in your distribution, you should install the DKMS package first. This package keeps track of Linux kernel changes and recompiles the vboxdrv kernel module if necessary.</source>
-        <translation>Il driver del kernel Linux di VirtualBox (vboxdrv) non è stato caricato o esiste un problema di permessi con /dev/vboxdrv. Installa nuovamente il modulo del kernel eseguendo&lt;br/&gt;&lt;br/&gt;  &lt;font color=blue&gt;&apos;/etc/init.d/vboxdrv setup&apos;&lt;/font&gt;&lt;br/&gt;&lt;br/&gt;come root. Se è disponibile nella tua distribuzione, dovresti installare prima il pacchetto DKMS. Questo pacchetto tiene traccia dei cambiamenti del kernel Linux e ricompila il modulo vboxdrv se necessario.</translation>
+        <source>The VirtualBox Linux kernel driver (vboxdrv) is either not loaded or there is a permission problem with /dev/vboxdrv. Please reinstall the kernel module by executing&lt;br/&gt;&lt;br/&gt;  &lt;font color=blue&gt;&apos;/sbin/vboxconfig&apos;&lt;/font&gt;&lt;br/&gt;&lt;br/&gt;as root. If it is available in your distribution, you should install the DKMS package first. This package keeps track of Linux kernel changes and recompiles the vboxdrv kernel module if necessary.</source>
+        <translation>Il driver del kernel Linux di VirtualBox (vboxdrv) non è stato caricato o esiste un problema di permessi con /dev/vboxdrv. Installa nuovamente il modulo del kernel eseguendo&lt;br/&gt;&lt;br/&gt;  &lt;font color=blue&gt;&apos;/sbin/vboxconfig&apos;&lt;/font&gt;&lt;br/&gt;&lt;br/&gt;come root. Se è disponibile nella tua distribuzione, dovresti installare prima il pacchetto DKMS. Questo pacchetto tiene traccia dei cambiamenti del kernel Linux e ricompila il modulo vboxdrv se necessario.</translation>
     </message>
     <message>
-        <source>This error means that the kernel driver was either not able to allocate enough memory or that some mapping operation failed.&lt;br/&gt;&lt;br/&gt;There are known problems with Linux 2.6.29. If you are running such a kernel, please edit /usr/src/vboxdrv-*/Makefile and enable &lt;i&gt;VBOX_USE_INSERT_PAGE = 1&lt;/i&gt;. After that, re-compile the kernel module by executing&lt;br/&gt;&lt;br/&gt;  &lt;font color=blue&gt;&apos;/etc/init.d/vboxdrv setup&apos;&lt;/font&gt;&lt;br/&gt;&lt;br/&gt;as root.</source>
-        <translation type="obsolete">Questo errore indica che il driver del kernel non è in grado di allocare memoria sufficiente o che l&apos;operazione di mappatura non è riuscita.&lt;br/&gt;&lt;br/&gt;Ci sono problemi noti con Linux 2.6.29. Se stai eseguendo questo kernel, modifica /usr/src/vboxdrv-*/Makefile e abilita &lt;i&gt;VBOX_USE_INSERT_PAGE = 1&lt;/i&gt;. Ricompila poi il modulo del kernel eseguendo &lt;br/&gt;&lt;br/&gt;  &lt;font color=blue&gt;&apos;/etc/init.d/vboxdrv setup&apos;&lt;/font&gt;&lt;br/&gt;&lt;br/&gt;come root.</translation>
+        <source>This error means that the kernel driver was either not able to allocate enough memory or that some mapping operation failed.&lt;br/&gt;&lt;br/&gt;There are known problems with Linux 2.6.29. If you are running such a kernel, please edit /usr/src/vboxdrv-*/Makefile and enable &lt;i&gt;VBOX_USE_INSERT_PAGE = 1&lt;/i&gt;. After that, re-compile the kernel module by executing&lt;br/&gt;&lt;br/&gt;  &lt;font color=blue&gt;&apos;/sbin/vboxconfig&apos;&lt;/font&gt;&lt;br/&gt;&lt;br/&gt;as root.</source>
+        <translation type="obsolete">Questo errore indica che il driver del kernel non è in grado di allocare memoria sufficiente o che l&apos;operazione di mappatura non è riuscita.&lt;br/&gt;&lt;br/&gt;Ci sono problemi noti con Linux 2.6.29. Se stai eseguendo questo kernel, modifica /usr/src/vboxdrv-*/Makefile e abilita &lt;i&gt;VBOX_USE_INSERT_PAGE = 1&lt;/i&gt;. Ricompila poi il modulo del kernel eseguendo &lt;br/&gt;&lt;br/&gt;  &lt;font color=blue&gt;&apos;/sbin/vboxconfig&apos;&lt;/font&gt;&lt;br/&gt;&lt;br/&gt;come root.</translation>
     </message>
     <message>
-        <source>The VirtualBox Linux kernel driver (vboxdrv) is either not loaded or there is a permission problem with /dev/vboxdrv. Please reinstall the kernel module by executing&lt;br/&gt;&lt;br/&gt;  &lt;font color=blue&gt;&apos;/etc/init.d/vboxdrv setup&apos;&lt;/font&gt;&lt;br/&gt;&lt;br/&gt;as root. Users of Ubuntu, Fedora or Mandriva should install the DKMS package first. This package keeps track of Linux kernel changes and recompiles the vboxdrv kernel module if necessary.</source>
-        <translation type="obsolete">Il driver del kernel Linux di VirtualBox (vboxdrv) potrebbe non essere caricato o potrebbe esserci un problema di permessi con /dev/vboxdrv. Riconfigura il modulo del kernel eseguendo &lt;br/&gt;&lt;br/&gt;  &lt;font color=blue&gt;&apos;/etc/init.d/vboxdrv setup&apos;&lt;/font&gt;&lt;br/&gt;&lt;br/&gt;come root. Gli utenti di Ubuntu, Fedora o Mandriva dovrebbero installare prima il pacchetto DKMS. Questo pacchetto tiene traccia delle modifiche del kernel e ricompila il modulo vboxdrv se necessario.</translation>
+        <source>The VirtualBox Linux kernel driver (vboxdrv) is either not loaded or there is a permission problem with /dev/vboxdrv. Please reinstall the kernel module by executing&lt;br/&gt;&lt;br/&gt;  &lt;font color=blue&gt;&apos;/sbin/vboxconfig&apos;&lt;/font&gt;&lt;br/&gt;&lt;br/&gt;as root. Users of Ubuntu, Fedora or Mandriva should install the DKMS package first. This package keeps track of Linux kernel changes and recompiles the vboxdrv kernel module if necessary.</source>
+        <translation type="obsolete">Il driver del kernel Linux di VirtualBox (vboxdrv) potrebbe non essere caricato o potrebbe esserci un problema di permessi con /dev/vboxdrv. Riconfigura il modulo del kernel eseguendo &lt;br/&gt;&lt;br/&gt;  &lt;font color=blue&gt;&apos;/sbin/vboxconfig&apos;&lt;/font&gt;&lt;br/&gt;&lt;br/&gt;come root. Gli utenti di Ubuntu, Fedora o Mandriva dovrebbero installare prima il pacchetto DKMS. Questo pacchetto tiene traccia delle modifiche del kernel e ricompila il modulo vboxdrv se necessario.</translation>
     </message>
     <message>
         <source>Frame Size: %1x%2, Frame Rate: %3fps, Bit Rate: %4kbps</source>
@@ -1668,7 +1668,7 @@
     <message>
         <source>Status</source>
         <comment>password table field</comment>
-        <translation>Stato</translation>
+        <translation type="obsolete">Stato</translation>
     </message>
     <message>
         <source>ID</source>
@@ -10852,6 +10852,10 @@ p, li { white-space: pre-wrap; }
     <message>
         <source>&lt;p&gt;Could not switch the guest display to full-screen mode due to insufficient guest video memory.&lt;/p&gt;&lt;p&gt;You should configure the virtual machine to have at least &lt;b&gt;%1&lt;/b&gt; of video memory.&lt;/p&gt;&lt;p&gt;Press &lt;b&gt;Ignore&lt;/b&gt; to switch to full-screen mode anyway or press &lt;b&gt;Cancel&lt;/b&gt; to cancel the operation.&lt;/p&gt;</source>
         <translation>&lt;p&gt;Impossibile abilitare la modalità a schermo intero a causa della mancanza di memoria video nel sistema guest.&lt;/p&gt;&lt;p&gt;È necessario configurare la macchina virtuale assegnandole almeno &lt;b&gt;%1&lt;/b&gt; di memoria video.&lt;/p&gt;&lt;p&gt;Premi &lt;b&gt;Ignora&lt;/b&gt; per passare comunque alla modalità a  schermo intero oppure premi &lt;b&gt;Annulla&lt;/b&gt; per annullare l&apos;operazione.&lt;/p&gt;</translation>
+    </message>
+    <message>
+        <source>Encryption password for &lt;nobr&gt;ID = &apos;%1&apos;&lt;/nobr&gt; is invalid.</source>
+        <translation>La password di cifratura per &lt;nobr&gt;ID = &apos;%1&apos;&lt;/nobr&gt; non è valida.</translation>
     </message>
 </context>
 <context>

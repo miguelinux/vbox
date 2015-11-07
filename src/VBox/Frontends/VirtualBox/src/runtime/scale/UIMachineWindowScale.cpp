@@ -20,7 +20,6 @@
 #else  /* !VBOX_WITH_PRECOMPILED_HEADERS */
 
 /* Qt includes: */
-# include <QDesktopWidget>
 # include <QMenu>
 # include <QTimer>
 # include <QSpacerItem>
@@ -36,6 +35,7 @@
 # ifdef Q_WS_MAC
 #  include "VBoxUtils.h"
 #  include "UIImageTools.h"
+#  include "UICocoaApplication.h"
 # endif /* Q_WS_MAC */
 
 #endif /* !VBOX_WITH_PRECOMPILED_HEADERS */
@@ -70,6 +70,17 @@ void UIMachineWindowScale::prepareVisualState()
         QPixmap betaLabel = ::betaLabel(QSize(100, 16));
         ::darwinLabelWindow(this, &betaLabel, true);
     }
+
+    /* For 'Yosemite' and above: */
+    if (vboxGlobal().osRelease() >= MacOSXRelease_Yosemite)
+    {
+        /* Enable fullscreen support for every screen which requires it: */
+        if (darwinScreensHaveSeparateSpaces() || m_uScreenId == 0)
+            darwinEnableFullscreenSupport(this);
+        /* Register 'Zoom' button to use our full-screen: */
+        UICocoaApplication::instance()->registerCallbackForStandardWindowButton(this, StandardWindowButtonType_Zoom,
+                                                                                UIMachineWindow::handleStandardWindowButtonCallback);
+    }
 }
 #endif /* Q_WS_MAC */
 
@@ -100,8 +111,8 @@ void UIMachineWindowScale::loadSettings()
         else
         {
             /* Get available geometry, for screen with (x,y) coords if possible: */
-            QRect availableGeo = !geo.isNull() ? QApplication::desktop()->availableGeometry(QPoint(geo.x(), geo.y())) :
-                                                 QApplication::desktop()->availableGeometry(this);
+            QRect availableGeo = !geo.isNull() ? vboxGlobal().availableGeometry(QPoint(geo.x(), geo.y())) :
+                                                 vboxGlobal().availableGeometry(this);
 
             /* Resize to default size: */
             resize(640, 480);
@@ -125,6 +136,15 @@ void UIMachineWindowScale::saveSettings()
     /* Call to base-class: */
     UIMachineWindow::saveSettings();
 }
+
+#ifdef Q_WS_MAC
+void UIMachineWindowScale::cleanupVisualState()
+{
+    /* Unregister 'Zoom' button from using our full-screen since Yosemite: */
+    if (vboxGlobal().osRelease() >= MacOSXRelease_Yosemite)
+        UICocoaApplication::instance()->unregisterCallbackForStandardWindowButton(this, StandardWindowButtonType_Zoom);
+}
+#endif /* Q_WS_MAC */
 
 void UIMachineWindowScale::showInNecessaryMode()
 {

@@ -16,9 +16,9 @@
  */
 
 
-/*******************************************************************************
-*   Header Files                                                               *
-*******************************************************************************/
+/*********************************************************************************************************************************
+*   Header Files                                                                                                                 *
+*********************************************************************************************************************************/
 #define LOG_GROUP LOG_GROUP_DEFAULT
 #include <VBox/vmm/pdmdrv.h>
 #include <iprt/assert.h>
@@ -32,16 +32,16 @@
 #include "VBoxDD.h"
 
 
-/*******************************************************************************
-*   Defined Constants And Macros                                               *
-*******************************************************************************/
+/*********************************************************************************************************************************
+*   Defined Constants And Macros                                                                                                 *
+*********************************************************************************************************************************/
 /** Converts a pointer to DRVRAWFILE::IMedia to a PDRVRAWFILE. */
 #define PDMISTREAM_2_DRVRAWFILE(pInterface) ( (PDRVRAWFILE)((uintptr_t)pInterface - RT_OFFSETOF(DRVRAWFILE, IStream)) )
 
 
-/*******************************************************************************
-*   Structures and Typedefs                                                    *
-*******************************************************************************/
+/*********************************************************************************************************************************
+*   Structures and Typedefs                                                                                                      *
+*********************************************************************************************************************************/
 /**
  * Raw file output driver instance data.
  *
@@ -184,7 +184,7 @@ static DECLCALLBACK(int) drvRawFileConstruct(PPDMDRVINS pDrvIns, PCFGMNODE pCfg,
     rc = RTFileOpen(&pThis->hOutputFile, pThis->pszLocation, RTFILE_O_WRITE | RTFILE_O_CREATE_REPLACE | RTFILE_O_DENY_NONE);
     if (RT_FAILURE(rc))
     {
-        LogRel(("RawFile%d: CreateFile failed rc=%Rrc\n", pDrvIns->iInstance));
+        LogRel(("RawFile%d: CreateFile failed rc=%Rrc\n", pDrvIns->iInstance, rc));
         return PDMDrvHlpVMSetError(pDrvIns, rc, RT_SRC_POS, N_("RawFile#%d failed to create the raw output file %s"), pDrvIns->iInstance, pThis->pszLocation);
     }
 

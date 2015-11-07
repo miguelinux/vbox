@@ -25,9 +25,9 @@
  */
 
 
-/*******************************************************************************
-*   Header Files                                                               *
-*******************************************************************************/
+/*********************************************************************************************************************************
+*   Header Files                                                                                                                 *
+*********************************************************************************************************************************/
 #define LOG_GROUP RTLOGGROUP_DEFAULT
 #include <Windows.h>
 #ifndef LOAD_LIBRARY_SEARCH_APPLICATION_DIR
@@ -43,9 +43,9 @@
 #include "../init.h"
 
 
-/*******************************************************************************
-*   Global Variables                                                           *
-*******************************************************************************/
+/*********************************************************************************************************************************
+*   Global Variables                                                                                                             *
+*********************************************************************************************************************************/
 /** Windows DLL loader protection level. */
 DECLHIDDEN(RTR3WINLDRPROT)      g_enmWinLdrProt = RTR3WINLDRPROT_NONE;
 /** Our simplified windows version.    */
@@ -56,6 +56,8 @@ DECLHIDDEN(OSVERSIONINFOEXW)    g_WinOsInfoEx;
 DECLHIDDEN(HMODULE)             g_hModKernel32 = NULL;
 /** The native ntdll.dll handle. */
 DECLHIDDEN(HMODULE)             g_hModNtDll = NULL;
+/** GetSystemWindowsDirectoryW or GetWindowsDirectoryW (NT4). */
+DECLHIDDEN(PFNGETWINSYSDIR)     g_pfnGetSystemWindowsDirectoryW = NULL;
 
 
 
@@ -160,8 +162,10 @@ static RTWINOSTYPE rtR3InitWinSimplifiedVersion(OSVERSIONINFOEXW const *pOSInfoE
         else if (   dwMajorVersion == 6
                  && dwMinorVersion == 3)
             enmVer = kRTWinOSType_81;
-        else if (   dwMajorVersion == 6
-                 && dwMinorVersion == 4)
+        else if (   (   dwMajorVersion == 6
+                     && dwMinorVersion == 4)
+                 || (   dwMajorVersion == 10
+                     && dwMinorVersion == 0))
             enmVer = kRTWinOSType_10;
         else
             enmVer = kRTWinOSType_NT_UNKNOWN;
@@ -289,6 +293,14 @@ DECLHIDDEN(int) rtR3InitNativeFirst(uint32_t fFlags)
     int rc = VINF_SUCCESS;
     if (!(fFlags & RTR3INIT_FLAGS_UNOBTRUSIVE))
         rc = rtR3InitNativeObtrusiveWorker();
+
+    /*
+     * Resolve some kernel32.dll APIs we may need but aren't necessarily
+     * present in older windows versions.
+     */
+    g_pfnGetSystemWindowsDirectoryW = (PFNGETWINSYSDIR)GetProcAddress(g_hModKernel32, "GetSystemWindowsDirectoryW");
+    if (g_pfnGetSystemWindowsDirectoryW)
+        g_pfnGetSystemWindowsDirectoryW = (PFNGETWINSYSDIR)GetProcAddress(g_hModKernel32, "GetWindowsDirectoryW");
 
     return rc;
 }

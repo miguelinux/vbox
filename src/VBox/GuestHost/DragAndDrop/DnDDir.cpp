@@ -15,9 +15,10 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-/******************************************************************************
- *   Header Files                                                             *
- ******************************************************************************/
+
+/*********************************************************************************************************************************
+*   Header Files                                                                                                                 *
+*********************************************************************************************************************************/
 
 #include <iprt/assert.h>
 #include <iprt/dir.h>
@@ -96,6 +97,7 @@ int DnDDirDroppedFilesCreateAndOpenEx(const char *pszPath, PDNDDIRDROPPEDFILES p
         {
             pDir->hDir       = phDir;
             pDir->strPathAbs = pszDropDir;
+            pDir->fOpen      = true;
         }
     }
 
@@ -124,13 +126,20 @@ int DnDDirDroppedFilesClose(PDNDDIRDROPPEDFILES pDir, bool fRemove)
 {
     AssertPtrReturn(pDir, VERR_INVALID_POINTER);
 
-    int rc = RTDirClose(pDir->hDir);
+    int rc = VINF_SUCCESS;
+    if (pDir->fOpen)
+    {
+        rc = RTDirClose(pDir->hDir);
+        if (RT_SUCCESS(rc))
+            pDir->fOpen = false;
+    }
     if (RT_SUCCESS(rc))
     {
         pDir->lstDirs.clear();
         pDir->lstFiles.clear();
 
-        if (fRemove)
+        if (   fRemove
+            && pDir->strPathAbs.isNotEmpty())
         {
             /* Try removing the (empty) drop directory in any case. */
             rc = RTDirRemove(pDir->strPathAbs.c_str());

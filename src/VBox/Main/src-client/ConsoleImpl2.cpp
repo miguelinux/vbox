@@ -20,9 +20,10 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-/*******************************************************************************
-*   Header Files                                                               *
-*******************************************************************************/
+
+/*********************************************************************************************************************************
+*   Header Files                                                                                                                 *
+*********************************************************************************************************************************/
 /* For some reason Windows burns in sdk\...\winsock.h if this isn't included first. */
 #include "VBox/com/ptr.h"
 
@@ -122,9 +123,9 @@
 #endif
 
 
-/*******************************************************************************
-*   Internal Functions                                                         *
-*******************************************************************************/
+/*********************************************************************************************************************************
+*   Internal Functions                                                                                                           *
+*********************************************************************************************************************************/
 static Utf8Str *GetExtraDataBoth(IVirtualBox *pVirtualBox, IMachine *pMachine, const char *pszName, Utf8Str *pStrValue);
 
 
@@ -2623,6 +2624,9 @@ int Console::i_configConstructorInner(PUVM pUVM, PVM pVM, AutoWriteLock *pAlock)
         /*
          * Parallel (LPT) Ports
          */
+        /* parallel enabled mask to be passed to dev ACPI */
+        uint16_t auParallelIoPortBase[SchemaDefs::ParallelPortCount] = {0};
+        uint8_t auParallelIrq[SchemaDefs::ParallelPortCount] = {0};
         InsertConfigNode(pDevices, "parallel", &pDev);
         for (ULONG ulInstance = 0; ulInstance < SchemaDefs::ParallelPortCount; ++ulInstance)
         {
@@ -2642,14 +2646,20 @@ int Console::i_configConstructorInner(PUVM pUVM, PVM pVM, AutoWriteLock *pAlock)
             ULONG ulIRQ;
             hrc = parallelPort->COMGETTER(IRQ)(&ulIRQ);                                     H();
             InsertConfigInteger(pCfg, "IRQ", ulIRQ);
+            auParallelIrq[ulInstance] = (uint8_t)ulIRQ;
             ULONG ulIOBase;
             hrc = parallelPort->COMGETTER(IOBase)(&ulIOBase);                               H();
             InsertConfigInteger(pCfg,   "IOBase", ulIOBase);
-            InsertConfigNode(pInst,     "LUN#0", &pLunL0);
-            InsertConfigString(pLunL0,  "Driver", "HostParallel");
-            InsertConfigNode(pLunL0,    "Config", &pLunL1);
+            auParallelIoPortBase[ulInstance] = (uint16_t)ulIOBase;
+
             hrc = parallelPort->COMGETTER(Path)(bstr.asOutParam());                         H();
-            InsertConfigString(pLunL1,  "DevicePath", bstr);
+            if (!bstr.isEmpty())
+            {
+                InsertConfigNode(pInst,     "LUN#0", &pLunL0);
+                InsertConfigString(pLunL0,  "Driver", "HostParallel");
+                InsertConfigNode(pLunL0,    "Config", &pLunL1);
+                InsertConfigString(pLunL1,  "DevicePath", bstr);
+            }
         }
 
         /*
@@ -2971,7 +2981,7 @@ int Console::i_configConstructorInner(PUVM pUVM, PVM pVM, AutoWriteLock *pAlock)
                 }
                 else
                 {
-                    LogRel(("Shared crOpenGL service loaded\n"));
+                    LogRel(("Shared OpenGL service loaded -- 3D enabled\n"));
 
                     /* Setup the service. */
                     VBOXHGCMSVCPARM parm;
@@ -3073,6 +3083,12 @@ int Console::i_configConstructorInner(PUVM pUVM, PVM pVM, AutoWriteLock *pAlock)
 
             InsertConfigInteger(pCfg,  "Serial1IoPortBase", auSerialIoPortBase[1]);
             InsertConfigInteger(pCfg,  "Serial1Irq", auSerialIrq[1]);
+
+            InsertConfigInteger(pCfg,  "Parallel0IoPortBase", auParallelIoPortBase[0]);
+            InsertConfigInteger(pCfg,  "Parallel0Irq", auParallelIrq[0]);
+
+            InsertConfigInteger(pCfg,  "Parallel1IoPortBase", auParallelIoPortBase[1]);
+            InsertConfigInteger(pCfg,  "Parallel1Irq", auParallelIrq[1]);
 
             InsertConfigNode(pInst,    "LUN#0", &pLunL0);
             InsertConfigString(pLunL0, "Driver",               "ACPIHost");
@@ -3658,7 +3674,7 @@ int Console::i_configMediumAttachment(const char *pcszDevice,
         {
             /* If we hotplug a USB device create a new CFGM tree. */
             if (!fHotplug)
-                pCtlInst = CFGMR3GetChildF(CFGMR3GetRootU(pUVM), "USB/%s/", pcszDevice, uInstance);
+                pCtlInst = CFGMR3GetChildF(CFGMR3GetRootU(pUVM), "USB/%s/", pcszDevice);
             else
                 pCtlInst = CFGMR3CreateTree(pUVM);
         }

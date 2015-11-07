@@ -15,9 +15,10 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-/*******************************************************************************
-*   Header Files                                                               *
-*******************************************************************************/
+
+/*********************************************************************************************************************************
+*   Header Files                                                                                                                 *
+*********************************************************************************************************************************/
 #define LOG_GROUP LOG_GROUP_DEV_VGA
 #include <VBox/vmm/pdmifs.h>
 #include <VBox/vmm/pdmdev.h>
@@ -43,9 +44,10 @@
 #define LOGVBVABUFFER(a) do {} while (0)
 #endif
 
-/*******************************************************************************
-*   Structures and Typedefs                                                    *
-*******************************************************************************/
+
+/*********************************************************************************************************************************
+*   Structures and Typedefs                                                                                                      *
+*********************************************************************************************************************************/
 typedef struct VBVAPARTIALRECORD
 {
     uint8_t *pu8;
@@ -527,7 +529,7 @@ static int vbvaFlush(PVGASTATE pVGAState, VBVACONTEXT *pCtx)
     if (RT_FAILURE(rc))
     {
         /* Turn off VBVA processing. */
-        LogRel(("VBVA: Disabling\n", rc));
+        LogRel(("VBVA: Disabling (%Rrc)\n", rc));
         pVGAState->fGuestCaps = 0;
         pVGAState->pDrv->pfnVBVAGuestCapabilityUpdate(pVGAState->pDrv, pVGAState->fGuestCaps);
         for (uScreenId = 0; uScreenId < pCtx->cViews; uScreenId++)
@@ -1347,7 +1349,7 @@ int vboxVBVASaveStateDone (PPDMDEVINS pDevIns, PSSMHANDLE pSSM)
     return vbvaVHWAEnable(PDMINS_2_DATA(pDevIns, PVGASTATE), true);
 }
 
-int vbvaVHWACommandCompleteAsync(PPDMIDISPLAYVBVACALLBACKS pInterface, PVBOXVHWACMD pCmd)
+DECLCALLBACK(int) vbvaVHWACommandCompleteAsync(PPDMIDISPLAYVBVACALLBACKS pInterface, PVBOXVHWACMD pCmd)
 {
     int rc;
     Log(("VGA Command <<< Async rc %d %#p, %d\n", pCmd->rc, pCmd, pCmd->enmCmd));
@@ -1602,6 +1604,8 @@ int vboxVBVASaveDevStateExec (PVGASTATE pVGAState, PSSMHANDLE pSSM)
     int rc = HGSMIHostSaveStateExec (pIns, pSSM);
     if (RT_SUCCESS(rc))
     {
+        VGA_SAVED_STATE_PUT_MARKER(pSSM, 2);
+
         /* Save VBVACONTEXT. */
         VBVACONTEXT *pCtx = (VBVACONTEXT *)HGSMIContext (pIns);
 
@@ -1780,9 +1784,9 @@ int vboxVBVASaveStateExec (PPDMDEVINS pDevIns, PSSMHANDLE pSSM)
     return rc;
 }
 
-int vboxVBVALoadStateExec (PPDMDEVINS pDevIns, PSSMHANDLE pSSM, uint32_t u32Version)
+int vboxVBVALoadStateExec (PPDMDEVINS pDevIns, PSSMHANDLE pSSM, uint32_t uVersion)
 {
-    if (u32Version < VGA_SAVEDSTATE_VERSION_HGSMI)
+    if (uVersion < VGA_SAVEDSTATE_VERSION_HGSMI)
     {
         /* Nothing was saved. */
         return VINF_SUCCESS;
@@ -1790,9 +1794,11 @@ int vboxVBVALoadStateExec (PPDMDEVINS pDevIns, PSSMHANDLE pSSM, uint32_t u32Vers
 
     PVGASTATE pVGAState = PDMINS_2_DATA(pDevIns, PVGASTATE);
     PHGSMIINSTANCE pIns = pVGAState->pHGSMI;
-    int rc = HGSMIHostLoadStateExec (pIns, pSSM, u32Version);
+    int rc = HGSMIHostLoadStateExec (pIns, pSSM, uVersion);
     if (RT_SUCCESS(rc))
     {
+        VGA_SAVED_STATE_GET_MARKER_RETURN_ON_MISMATCH(pSSM, uVersion, 2);
+
         /* Load VBVACONTEXT. */
         VBVACONTEXT *pCtx = (VBVACONTEXT *)HGSMIContext (pIns);
 
@@ -1878,7 +1884,7 @@ int vboxVBVALoadStateExec (PPDMDEVINS pDevIns, PSSMHANDLE pSSM, uint32_t u32Vers
                 }
             }
 
-            if (u32Version > VGA_SAVEDSTATE_VERSION_WITH_CONFIG)
+            if (uVersion > VGA_SAVEDSTATE_VERSION_WITH_CONFIG)
             {
                 /* Read mouse pointer shape information. */
                 rc = SSMR3GetBool (pSSM, &pCtx->mouseShapeInfo.fSet);
@@ -1932,7 +1938,7 @@ int vboxVBVALoadStateExec (PPDMDEVINS pDevIns, PSSMHANDLE pSSM, uint32_t u32Vers
                     AssertRCReturn(rc, rc);
                 }
 
-                if (u32Version >= VGA_SAVEDSTATE_VERSION_MODE_HINTS)
+                if (uVersion >= VGA_SAVEDSTATE_VERSION_MODE_HINTS)
                 {
                     uint32_t cModeHints, cbModeHints;
                     rc = SSMR3GetU32 (pSSM, &cModeHints);
@@ -1957,11 +1963,11 @@ int vboxVBVALoadStateExec (PPDMDEVINS pDevIns, PSSMHANDLE pSSM, uint32_t u32Vers
             pCtx->cViews = iView;
             LogFlowFunc(("%d views loaded\n", pCtx->cViews));
 
-            if (u32Version > VGA_SAVEDSTATE_VERSION_WDDM)
+            if (uVersion > VGA_SAVEDSTATE_VERSION_WDDM)
             {
                 bool fLoadCommands;
 
-                if (u32Version < VGA_SAVEDSTATE_VERSION_FIXED_PENDVHWA)
+                if (uVersion < VGA_SAVEDSTATE_VERSION_FIXED_PENDVHWA)
                 {
                     const char *pcszOsArch = SSMR3HandleHostOSAndArch(pSSM);
                     Assert(pcszOsArch);
@@ -1987,7 +1993,7 @@ int vboxVBVALoadStateExec (PPDMDEVINS pDevIns, PSSMHANDLE pSSM, uint32_t u32Vers
 
                     if (fLoadCommands)
                     {
-                        rc = vbvaVHWACommandLoadPending(pVGAState, pSSM, u32Version);
+                        rc = vbvaVHWACommandLoadPending(pVGAState, pSSM, uVersion);
                         AssertRCReturn(rc, rc);
                     }
                 }
@@ -2646,7 +2652,7 @@ static DECLCALLBACK(int) vbvaChannelHandler(void *pvHandler, uint16_t u16Channel
 #ifdef VBOX_WITH_VIDEOHWACCEL
         case VBVA_VHWA_CMD:
         {
-            if (cbBuffer < sizeof(VBOXVHWACMD))
+            if (cbBuffer < VBOXVHWACMD_HEADSIZE())
             {
                 rc = VERR_INVALID_PARAMETER;
                 break;

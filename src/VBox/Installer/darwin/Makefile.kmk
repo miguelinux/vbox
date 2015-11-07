@@ -146,10 +146,14 @@ ifeq (1,1)
 	$(LN) -s /Applications/                                             $(VBOX_PATH_PACK_TMP)/DiskImage/Applications
  endif
 endif
+	@# hdiutil of OS X 10.10 adds a .Trashes directory and some suggest this may upset the image size calculations (-5341).
+	$(MKDIR) -m 1333  $(VBOX_PATH_PACK_TMP)/DiskImage/.Trashes
 	@# Change the owners.
 	sudo chown -R root:admin $(VBOX_PATH_PACK_TMP)/DiskImage
-	@# Create the image.
-	sudo hdiutil create -format UDBZ -volname "VirtualBox" -srcfolder "$(VBOX_PATH_PACK_TMP)/DiskImage" "$@"
+	@# Create the image. We calculate the size our selves, adding 8MB for fudging (it's about 100-120MB atm).
+	sudo hdiutil create -format UDBZ -volname "VirtualBox" -srcfolder "$(VBOX_PATH_PACK_TMP)/DiskImage" \
+		-size $(DOLLAR)((`/usr/bin/du -d 0 -k "$(VBOX_PATH_PACK_TMP)/DiskImage/" | /usr/bin/cut -f1` + 8192))k \
+		"$@"
 	@# Change (back) the owner so it can be deleted by the user.
 	sudo chown "$(shell whoami)" "$@"
 	sudo chown -R "$(shell whoami)" $(VBOX_PATH_PACK_TMP)/DiskImage
@@ -368,6 +372,11 @@ ifdef VBOX_WITH_CROGL
  	MacOS/VBoxOGLhosterrorspu.dylib \
  	MacOS/VBoxOGLrenderspu.dylib \
  	MacOS/VBoxSharedCrOpenGL.dylib
+
+ ifdef VBOX_WITH_CR_DISPLAY_LISTS
+  VBOX_DI_VBAPP_DYLIBS += \
+ 	MacOS/VBoxOGLexpandospu.dylib
+ endif
 endif
 ifdef VBOX_WITH_DEBUGGER_GUI
  VBOX_DI_VBAPP_DYLIBS += \
@@ -745,9 +754,10 @@ ifdef VBOX_SIGNING_MODE
 endif
 	@# Set the correct owner and set the set-user-ID-on-execution bit on the relevant executables.
 	sudo chown -R root:admin $(VBOX_PATH_PACK_TMP)/VirtualBox.pkg.root
+	sudo chmod u+s $(VBOX_PATH_VBOX_APP_TMP)/Contents/MacOS/VBoxNetAdpCtl
 ifdef VBOX_WITH_HARDENING
 	sudo chmod u+s \
-		$(foreach bin,VBoxHeadless VirtualBox VirtualBoxVM VBoxNetAdpCtl VBoxNetDHCP VBoxNetNAT,\
+		$(foreach bin,VBoxHeadless VirtualBox VirtualBoxVM VBoxNetDHCP VBoxNetNAT,\
 			$(VBOX_PATH_VBOX_APP_TMP)/Contents/MacOS/$(bin))
 endif
 	@# Do keyword replacement in the package info and description files.
@@ -763,7 +773,12 @@ endif
 		$(VBOX_PATH_DI_SRC)/VirtualBox/PkgBuildComponent.plist
 	@# Copy the resources.
 	$(INSTALL) -m 0755 $(VBOX_PATH_DI_SRC)/VirtualBox/preflight                         $(VBOX_PATH_PACK_TMP)/VirtualBox.pkg.res/
+ifdef VBOX_WITH_HARDENING
 	$(INSTALL) -m 0755 $(VBOX_PATH_DI_SRC)/VirtualBox/postflight                        $(VBOX_PATH_PACK_TMP)/VirtualBox.pkg.res/
+else
+	$(SED) -s '/WITH_HARDENING/d' -o $(VBOX_PATH_PACK_TMP)/VirtualBox.pkg.res/postflight $(VBOX_PATH_DI_SRC)/VirtualBox/postflight
+	$(CHMOD) 0755 $(VBOX_PATH_PACK_TMP)/VirtualBox.pkg.res/postflight
+endif
 	@# Build the package.
 	$(VBOX_PKGBUILD) \
        	--root   $(VBOX_PATH_PACK_TMP)/VirtualBox.pkg.root/Applications/ \

@@ -15,9 +15,10 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-/*******************************************************************************
-*   Header Files                                                               *
-*******************************************************************************/
+
+/*********************************************************************************************************************************
+*   Header Files                                                                                                                 *
+*********************************************************************************************************************************/
 #include <VBox/dis.h>
 #include <iprt/test.h>
 #include <iprt/ctype.h>
@@ -69,7 +70,7 @@ static void testDisas(const char *pszSub, uint8_t const *pabInstrs, uintptr_t uE
         }
         if (cErrBefore != RTTestIErrorCount())
             RTTestIFailureDetails("rc=%Rrc, off=%#x (%u) cbInstr=%u enmDisCpuMode=%d\n",
-                                  rc, off, Dis.cbInstr, enmDisCpuMode);
+                                  rc, off, off, Dis.cbInstr, enmDisCpuMode);
         RTTestIPrintf(RTTESTLVL_ALWAYS, "%s\n", szOutput);
 
         /* Check with size-only. */

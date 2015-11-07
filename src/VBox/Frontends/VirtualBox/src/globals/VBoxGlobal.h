@@ -34,6 +34,9 @@
 #include "UIDefs.h"
 #include "UIMediumDefs.h"
 #include "VBoxGlobalSettings.h"
+#ifdef Q_WS_X11
+# include "VBoxX11Helper.h"
+#endif /* Q_WS_X11 */
 
 /* COM includes: */
 #include "VBox/com/Guid.h"
@@ -42,6 +45,11 @@
 #include "CVirtualBox.h"
 #include "CSession.h"
 #include "CGuestOSType.h"
+
+/* Other includes: */
+#ifdef Q_WS_X11
+# include <X11/Xdefs.h>
+#endif /* Q_WS_X11 */
 
 /* Forward declarations: */
 class QAction;
@@ -56,11 +64,14 @@ class QSpinBox;
 class UIMediumEnumerator;
 class UIMedium;
 class UIIconPoolGeneral;
+class UIThreadPool;
+#ifdef Q_WS_X11
+class UIDesktopWidgetWatchdog;
+#endif /* Q_WS_X11 */
 
 // VBoxGlobal class
 ////////////////////////////////////////////////////////////////////////////////
 
-class UISelectorWindow;
 class VBoxUpdateDlg;
 
 class VBoxGlobal : public QObject
@@ -75,6 +86,14 @@ public:
         LaunchMode_Default,
         LaunchMode_Headless,
         LaunchMode_Separate
+    };
+
+    /** Whether to start the VM running. */
+    enum StartRunning
+    {
+        StartRunning_Default,   /**< Default (depends on debug settings). */
+        StartRunning_No,        /**< Start the VM paused. */
+        StartRunning_Yes        /**< Start the VM running. */
     };
 
     /* Static API: Create/destroy stuff: */
@@ -100,8 +119,16 @@ public:
     bool isSeparateProcess() const { return m_fSeparateProcess; }
 
 #ifdef Q_WS_MAC
-    static MacOSXRelease osRelease();
+    /** Mac OS X: Returns #MacOSXRelease determined using <i>uname</i> call. */
+    static MacOSXRelease determineOsRelease();
+    /** Mac OS X: Returns #MacOSXRelease determined during VBoxGlobal prepare routine. */
+    MacOSXRelease osRelease() const { return m_osRelease; }
 #endif /* Q_WS_MAC */
+
+    /** Try to acquire COM cleanup protection token for reading. */
+    bool comTokenTryLockForRead() { return m_comCleanupProtectionToken.tryLockForRead(); }
+    /** Unlock previously acquired COM cleanup protection token. */
+    void comTokenUnlock() { return m_comCleanupProtectionToken.unlock(); }
 
     /** Returns the copy of VirtualBox client wrapper. */
     CVirtualBoxClient virtualBoxClient() const { return m_client; }
@@ -115,13 +142,40 @@ public:
     /** Returns the VBoxSVC availability value. */
     bool isVBoxSVCAvailable() const { return m_fVBoxSVCAvailable; }
 
+    /** Returns the thread-pool instance. */
+    UIThreadPool* threadPool() const { return m_pThreadPool; }
+
+    /** @name Host-screen geometry stuff
+      * @{ */
+        /** Returns the number of host-screens currently available on the system. */
+        int screenCount() const;
+
+        /** Returns the index of the screen which contains contains @a pWidget. */
+        int screenNumber(const QWidget *pWidget) const;
+        /** Returns the index of the screen which contains contains @a point. */
+        int screenNumber(const QPoint &point) const;
+
+        /** Returns the geometry of the host-screen with @a iHostScreenIndex.
+          * @note The default screen is used if @a iHostScreenIndex is -1. */
+        const QRect screenGeometry(int iHostScreenIndex = -1) const;
+        /** Returns the available-geometry of the host-screen with @a iHostScreenIndex.
+          * @note The default screen is used if @a iHostScreenIndex is -1. */
+        const QRect availableGeometry(int iHostScreenIndex = -1) const;
+
+        /** Returns the geometry of the host-screen which contains @a pWidget. */
+        const QRect screenGeometry(const QWidget *pWidget) const;
+        /** Returns the available-geometry of the host-screen which contains @a pWidget. */
+        const QRect availableGeometry(const QWidget *pWidget) const;
+
+        /** Returns the geometry of the host-screen which contains @a point. */
+        const QRect screenGeometry(const QPoint &point) const;
+        /** Returns the available-geometry of the host-screen which contains @a point. */
+        const QRect availableGeometry(const QPoint &point) const;
+    /** @} */
+
     VBoxGlobalSettings &settings() { return gset; }
     bool setSettings (VBoxGlobalSettings &gs);
 
-    UISelectorWindow &selectorWnd();
-
-    /** Returns current virtual machine. */
-    UIMachine* virtualMachine() const;
     /** Returns currently active virtual machine window. */
     QWidget* activeMachineWindow() const;
 
@@ -139,6 +193,9 @@ public:
 
     bool processArgs();
 
+    /** Shows UI. */
+    bool showUI();
+
     bool switchToMachine(CMachine &machine);
 
     bool launchMachine(CMachine &machine, LaunchMode enmLaunchMode = LaunchMode_Default);
@@ -148,7 +205,10 @@ public:
     QString managedVMUuid() const { return vmUuid; }
     QList<QUrl> &argUrlList() { return m_ArgUrlList; }
 
-    bool isKWinManaged() const { return mIsKWinManaged; }
+#ifdef Q_WS_X11
+    /** X11: Returns the type of the Window Manager we are running under. */
+    X11WMType typeOfWindowManager() const { return m_enmWindowManagerType; }
+#endif /* Q_WS_X11 */
 
     /** Returns whether we should restore current snapshot before VM started. */
     bool shouldRestoreCurrentSnapshot() const { return mRestoreCurrentSnapshot; }
@@ -175,9 +235,16 @@ public:
     bool isDebuggerAutoShowStatisticsEnabled() const;
 
     RTLDRMOD getDebuggerModule() const { return m_hVBoxDbg; }
-
-    bool isStartPausedEnabled() const { return mStartPaused; }
 #endif /* VBOX_WITH_DEBUGGER_GUI */
+
+    bool shouldStartPaused() const
+    {
+#ifdef VBOX_WITH_DEBUGGER_GUI
+        return m_enmStartRunning == StartRunning_Default ? isDebuggerAutoShowEnabled() : m_enmStartRunning == StartRunning_No;
+#else
+        return false;
+#endif
+    }
 
     /* VBox enum to/from string/icon/color convertors */
 
@@ -354,8 +421,13 @@ public:
     static bool supportsFullScreenMonitorsProtocolX11();
     /** X11: Performs mapping of the passed @a pWidget to host-screen with passed @a uScreenId. */
     static bool setFullScreenMonitorX11(QWidget *pWidget, ulong uScreenId);
-    /** X11: Ensures @a pPropWidget become transient for the @a pWidget. */
-    static void setTransientFor(QWidget *pWidget, QWidget *pPropWidget);
+
+    /** X11: Returns a list of current _NET_WM_STATE flags for passed @a pWidget. */
+    static QVector<Atom> flagsNetWmState(QWidget *pWidget);
+    /** X11: Check whether _NET_WM_STATE_FULLSCREEN flag is set for passed @a pWidget. */
+    static bool isFullScreenFlagSet(QWidget *pWidget);
+    /** X11: Sets _NET_WM_STATE_FULLSCREEN flag for passed @a pWidget. */
+    static void setFullScreenFlag(QWidget *pWidget);
 #endif /* Q_WS_X11 */
 
     static QString removeAccelMark (const QString &aText);
@@ -450,6 +522,14 @@ private:
 
     bool mValid;
 
+#ifdef Q_WS_MAC
+    /** Mac OS X: Holds the #MacOSXRelease determined using <i>uname</i> call. */
+    MacOSXRelease m_osRelease;
+#endif /* Q_WS_MAC */
+
+    /** COM cleanup protection token. */
+    QReadWriteLock m_comCleanupProtectionToken;
+
     /** Holds the instance of VirtualBox client wrapper. */
     CVirtualBoxClient m_client;
     /** Holds the copy of VirtualBox object wrapper. */
@@ -459,12 +539,12 @@ private:
     /** Holds the symbolic VirtualBox home-folder representation. */
     QString m_strHomeFolder;
 
-    /** Holds the VBoxSVC availability value. */
+    /** Holds whether acquired COM wrappers are currently valid. */
+    bool m_fWrappersValid;
+    /** Holds whether VBoxSVC is currently available. */
     bool m_fVBoxSVCAvailable;
 
     VBoxGlobalSettings gset;
-
-    UISelectorWindow *mSelectorWnd;
 
     /** Holds whether GUI is separate (from VM) process. */
     bool m_fSeparateProcess;
@@ -479,33 +559,44 @@ private:
     UIMediumEnumerator *m_pMediumEnumerator;
     mutable QReadWriteLock m_mediumEnumeratorDtorRwLock;
 
-    bool mIsKWinManaged;
+#ifdef Q_WS_X11
+    /** X11: Holds the type of the Window Manager we are running under. */
+    X11WMType m_enmWindowManagerType;
+
+    /** @name Host-screen geometry stuff
+      * @{ */
+        /** X11: Holds the desktop-widget watchdog instance aware of host-screen geometry changes. */
+        UIDesktopWidgetWatchdog *m_pDesktopWidgetWatchdog;
+    /** @} */
+#endif /* Q_WS_X11 */
 
     /** The --aggressive-caching / --no-aggressive-caching option. */
     bool mAgressiveCaching;
     /** The --restore-current option. */
     bool mRestoreCurrentSnapshot;
+
     /** @name Ad-hoc VM reconfiguration.
      * @{ */
-    /** Floppy image. */
-    QString m_strFloppyImage;
-    /** DVD image. */
-    QString m_strDvdImage;
+        /** Floppy image. */
+        QString m_strFloppyImage;
+        /** DVD image. */
+        QString m_strDvdImage;
     /** @} */
+
     /** @name VMM options
      * @{ */
-    /** The --disable-patm option. */
-    bool mDisablePatm;
-    /** The --disable-csam option. */
-    bool mDisableCsam;
-    /** The --recompile-supervisor option. */
-    bool mRecompileSupervisor;
-    /** The --recompile-user option. */
-    bool mRecompileUser;
-    /** The --execute-all-in-iem option. */
-    bool mExecuteAllInIem;
-    /** The --warp-factor option value. */
-    uint32_t mWarpPct;
+        /** The --disable-patm option. */
+        bool mDisablePatm;
+        /** The --disable-csam option. */
+        bool mDisableCsam;
+        /** The --recompile-supervisor option. */
+        bool mRecompileSupervisor;
+        /** The --recompile-user option. */
+        bool mRecompileUser;
+        /** The --execute-all-in-iem option. */
+        bool mExecuteAllInIem;
+        /** The --warp-factor option value. */
+        uint32_t mWarpPct;
     /** @} */
 
 #ifdef VBOX_WITH_DEBUGGER_GUI
@@ -523,8 +614,8 @@ private:
     /** VBoxDbg module handle. */
     RTLDRMOD m_hVBoxDbg;
 
-    /** Whether to start the VM in paused state or not. */
-    bool mStartPaused;
+    /** Whether --start-running, --start-paused or nothing was given. */
+    enum StartRunning m_enmStartRunning;
 #endif
 
 #if defined (Q_WS_WIN32)
@@ -556,6 +647,8 @@ private:
 
     /** General icon-pool. */
     UIIconPoolGeneral *m_pIconPool;
+    /** Holds the thread-pool instance. */
+    UIThreadPool *m_pThreadPool;
 
     /* API: Instance stuff: */
     static bool m_sfCleanupInProgress;

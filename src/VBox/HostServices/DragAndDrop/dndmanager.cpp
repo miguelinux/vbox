@@ -15,9 +15,10 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-/******************************************************************************
- *   Header Files                                                             *
- ******************************************************************************/
+
+/*********************************************************************************************************************************
+*   Header Files                                                                                                                 *
+*********************************************************************************************************************************/
 
 #ifdef LOG_GROUP
  #undef LOG_GROUP
@@ -32,9 +33,10 @@
 #include <iprt/path.h>
 #include <iprt/uri.h>
 
-/******************************************************************************
- *   DnDManager                                                               *
- ******************************************************************************/
+
+/*********************************************************************************************************************************
+*   DnDManager                                                                                                                   *
+*********************************************************************************************************************************/
 
 int DnDManager::addMessage(uint32_t uMsg, uint32_t cParms, VBOXHGCMSVCPARM paParms[], bool fAppend /* = true */)
 {
@@ -199,12 +201,10 @@ int DnDManager::nextMessage(uint32_t uMsg, uint32_t cParms, VBOXHGCMSVCPARM paPa
     {
         /* Check for pending messages in our queue. */
         if (m_dndMessageQueue.isEmpty())
-        {
-            LogFlowFunc(("Message queue is empty, returning\n"));
             return VERR_NO_DATA;
-        }
 
         m_pCurMsg = m_dndMessageQueue.first();
+        AssertPtr(m_pCurMsg);
         m_dndMessageQueue.removeFirst();
     }
 

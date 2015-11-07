@@ -15,9 +15,10 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-/*******************************************************************************
-*   Header Files                                                               *
-*******************************************************************************/
+
+/*********************************************************************************************************************************
+*   Header Files                                                                                                                 *
+*********************************************************************************************************************************/
 #define LOG_GROUP LOG_GROUP_DEV_EFI
 
 #include <VBox/vmm/pdmdev.h>
@@ -58,9 +59,9 @@
 #include <Common/PiFirmwareFile.h>
 
 
-/*******************************************************************************
-*   Structures and Typedefs                                                    *
-*******************************************************************************/
+/*********************************************************************************************************************************
+*   Structures and Typedefs                                                                                                      *
+*********************************************************************************************************************************/
 /**
  * EFI NVRAM variable.
  */
@@ -245,9 +246,9 @@ typedef struct DEVEFI
 typedef DEVEFI *PDEVEFI;
 
 
-/*******************************************************************************
-*   Defined Constants And Macros                                               *
-*******************************************************************************/
+/*********************************************************************************************************************************
+*   Defined Constants And Macros                                                                                                 *
+*********************************************************************************************************************************/
 /** The saved state version. */
 #define EFI_SSM_VERSION 2
 /** The saved state version from VBox 4.2. */
@@ -259,9 +260,9 @@ typedef DEVEFI *PDEVEFI;
 #define VBOX_EFI_VARIABLE_READ_ONLY     UINT32_C(0x00000008)
 
 
-/*******************************************************************************
-*   Global Variables                                                           *
-*******************************************************************************/
+/*********************************************************************************************************************************
+*   Global Variables                                                                                                             *
+*********************************************************************************************************************************/
 /** Saved state NVRAMDESC field descriptors. */
 static SSMFIELD const g_aEfiNvramDescField[] =
 {
@@ -422,7 +423,7 @@ static int nvramLoad(PDEVEFI pThis)
                 rc = VERR_NO_DATA;
             if (RT_FAILURE(rc))
                 LogRel(("EFI/nvramLoad: Bad variable #%u: cbValue=%#x cchName=%#x (strlen=%#x) szName=%.*Rhxs\n",
-                        pEfiVar->cbValue, pEfiVar->cchName, cchName, pEfiVar->cchName + 1, pEfiVar->szName));
+                        iVar, pEfiVar->cbValue, pEfiVar->cchName, cchName, pEfiVar->cchName + 1, pEfiVar->szName));
         }
         if (RT_FAILURE(rc))
         {
@@ -1513,7 +1514,7 @@ static DECLCALLBACK(int) efiIOPortWrite(PPDMDEVINS pDevIns, void *pvUser, RTIOPO
             }
             pThis->NVRAM.offOpBuffer = 0;
             pThis->NVRAM.enmOp = (EFIVAROP)u32;
-            Log2(("EFI_VARIABLE_OP: enmOp=%#x (%d)\n", u32));
+            Log2(("EFI_VARIABLE_OP: enmOp=%#x (%d)\n", u32, u32));
             break;
         }
 
@@ -1670,7 +1671,7 @@ static DECLCALLBACK(int) efiLoadExec(PPDMDEVINS pDevIns, PSSMHANDLE pSSM, uint32
  */
 static DECLCALLBACK(void *) devEfiQueryInterface(PPDMIBASE pInterface, const char *pszIID)
 {
-    LogFlowFunc(("ENTER: pIBase: %p, pszIID:%p\n", __FUNCTION__, pInterface, pszIID));
+    LogFlowFunc(("ENTER: pIBase=%p pszIID=%p\n", pInterface, pszIID));
     PDEVEFI  pThis = RT_FROM_MEMBER(pInterface, DEVEFI, Lun0.IBase);
 
     PDMIBASE_RETURN_INTERFACE(pszIID, PDMIBASE, &pThis->Lun0.IBase);
@@ -1807,6 +1808,19 @@ static DECLCALLBACK(void) efiReset(PPDMDEVINS pDevIns)
 
 
 /**
+ * @interface_method_impl{PDMDEVREG,pfnPowerOff}
+ */
+static DECLCALLBACK(void) efiPowerOff(PPDMDEVINS pDevIns)
+{
+    PDEVEFI  pThis = PDMINS_2_DATA(pDevIns, PDEVEFI);
+
+    if (pThis->Lun0.pNvramDrv)
+        nvramStore(pThis);
+}
+
+
+
+/**
  * Destruct a device instance.
  *
  * Most VM resources are freed by the VM. This callback is provided so that any non-VM
@@ -1819,8 +1833,6 @@ static DECLCALLBACK(int) efiDestruct(PPDMDEVINS pDevIns)
     PDEVEFI  pThis = PDMINS_2_DATA(pDevIns, PDEVEFI);
     PDMDEV_CHECK_VERSIONS_RETURN_QUIET(pDevIns);
 
-    if (pThis->Lun0.pNvramDrv)
-        nvramStore(pThis);
     nvramFlushDeviceVariableList(pThis);
 
     if (pThis->pu8EfiRom)
@@ -2366,7 +2378,7 @@ const PDMDEVREG g_DeviceEFI =
     /* pfnInitComplete. */
     efiInitComplete,
     /* pfnPowerOff */
-    NULL,
+    efiPowerOff,
     /* pfnSoftReset */
     NULL,
     /* u32VersionEnd */

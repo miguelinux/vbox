@@ -16,9 +16,9 @@
  */
 
 
-/*******************************************************************************
-*   Header Files                                                               *
-*******************************************************************************/
+/*********************************************************************************************************************************
+*   Header Files                                                                                                                 *
+*********************************************************************************************************************************/
 #define LOG_GROUP LOG_GROUP_REM
 #include <stdio.h>      /* FILE */
 #include "osdep.h"
@@ -71,9 +71,9 @@ ram_addr_t get_phys_page_offset(target_ulong addr);
 #endif
 
 
-/*******************************************************************************
-*   Defined Constants And Macros                                               *
-*******************************************************************************/
+/*********************************************************************************************************************************
+*   Defined Constants And Macros                                                                                                 *
+*********************************************************************************************************************************/
 
 /** Copy 80-bit fpu register at pSrc to pDst.
  * This is probably faster than *calling* memcpy.
@@ -93,9 +93,9 @@ ram_addr_t get_phys_page_offset(target_ulong addr);
 #define SEL_FLAGS_SMASK     UINT32_C(0x1F0FF)
 
 
-/*******************************************************************************
-*   Internal Functions                                                         *
-*******************************************************************************/
+/*********************************************************************************************************************************
+*   Internal Functions                                                                                                           *
+*********************************************************************************************************************************/
 static DECLCALLBACK(int) remR3Save(PVM pVM, PSSMHANDLE pSSM);
 static DECLCALLBACK(int) remR3Load(PVM pVM, PSSMHANDLE pSSM, uint32_t uVersion, uint32_t uPass);
 static void     remR3StateUpdate(PVM pVM, PVMCPU pVCpu);
@@ -120,9 +120,9 @@ static void remR3NotifyHandlerPhysicalRegister(PVM pVM, PGMPHYSHANDLERKIND enmKi
 static void remR3NotifyHandlerPhysicalModify(PVM pVM, PGMPHYSHANDLERKIND enmKind, RTGCPHYS GCPhysOld, RTGCPHYS GCPhysNew, RTGCPHYS cb, bool fHasHCHandler, bool fRestoreAsRAM);
 
 
-/*******************************************************************************
-*   Global Variables                                                           *
-*******************************************************************************/
+/*********************************************************************************************************************************
+*   Global Variables                                                                                                             *
+*********************************************************************************************************************************/
 
 /** @todo Move stats to REM::s some rainy day we have nothing do to. */
 #ifdef VBOX_WITH_STATISTICS
@@ -236,9 +236,9 @@ static const DBGCCMD    g_aCmds[] =
 uint8_t *code_gen_prologue;
 
 
-/*******************************************************************************
-*   Internal Functions                                                         *
-*******************************************************************************/
+/*********************************************************************************************************************************
+*   Internal Functions                                                                                                           *
+*********************************************************************************************************************************/
 void remAbort(int rc, const char *pszTip);
 extern int testmath(void);
 
@@ -1105,7 +1105,7 @@ static int remR3RunLoggingStep(PVM pVM, PVMCPU pVCpu)
         if (   VMCPU_FF_IS_PENDING(pVCpu, VMCPU_FF_INTERRUPT_APIC | VMCPU_FF_INTERRUPT_PIC)
             || pVM->rem.s.u32PendingInterrupt != REM_NO_PENDING_IRQ)
             pVM->rem.s.Env.interrupt_request |= CPU_INTERRUPT_HARD;
-        RTLogPrintf("remR3RunLoggingStep: interrupt_request=%#x halted=%d exception_index=%#x\n", rc,
+        RTLogPrintf("remR3RunLoggingStep: interrupt_request=%#x halted=%d exception_index=%#x\n",
                     pVM->rem.s.Env.interrupt_request,
                     pVM->rem.s.Env.halted,
                     pVM->rem.s.Env.exception_index
@@ -3212,7 +3212,7 @@ REMR3DECL(void) REMR3NotifyPhysRamRegister(PVM pVM, RTGCPHYS GCPhys, RTGCPHYS cb
     Assert(RT_ALIGN_T(GCPhys, PAGE_SIZE, RTGCPHYS) == GCPhys);
     Assert(cb);
     Assert(RT_ALIGN_Z(cb, PAGE_SIZE) == cb);
-    AssertMsg(fFlags == REM_NOTIFY_PHYS_RAM_FLAGS_RAM || fFlags == REM_NOTIFY_PHYS_RAM_FLAGS_MMIO2, ("#x\n", fFlags));
+    AssertMsg(fFlags == REM_NOTIFY_PHYS_RAM_FLAGS_RAM || fFlags == REM_NOTIFY_PHYS_RAM_FLAGS_MMIO2, ("%#x\n", fFlags));
 
     /*
      * Base ram? Update GCPhysLastRam.

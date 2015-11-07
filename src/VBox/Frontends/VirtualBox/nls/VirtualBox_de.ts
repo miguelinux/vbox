@@ -76,16 +76,16 @@
         <translation>Die VirtualBox-Kernmodule passen nicht zu dieser Version von VirtualBox. Es wird empfohlen, VirtualBox komplett neu zu installieren.</translation>
     </message>
     <message>
-        <source>The VirtualBox kernel modules do not match this version of VirtualBox. The installation of VirtualBox was apparently not successful. Executing&lt;br/&gt;&lt;br/&gt;  &lt;font color=blue&gt;&apos;/etc/init.d/vboxdrv setup&apos;&lt;/font&gt;&lt;br/&gt;&lt;br/&gt;may correct this. Make sure that you do not mix the OSE version and the PUEL version of VirtualBox.</source>
-        <translation>Die VirtualBox-Kernmodule passen nicht zu dieser Version von VirtualBox. Die Installation von VirtualBox war möglicherweise nicht vollständig. Durch Ausführen von &lt;br/&gt;&lt;br/&gt;&lt;font color=blue&gt;&apos;/etc/init.d/vboxdrv setup&apos;&lt;/font&gt;&lt;br/&gt;&lt;br/&gt; sollte dieses Problem behoben werden. Bitte stellen Sie sicher, dass Sie die OSE-Version von VirtualBox nicht mit der PUEL-Version mischen.</translation>
+        <source>The VirtualBox kernel modules do not match this version of VirtualBox. The installation of VirtualBox was apparently not successful. Executing&lt;br/&gt;&lt;br/&gt;  &lt;font color=blue&gt;&apos;/sbin/vboxconfig&apos;&lt;/font&gt;&lt;br/&gt;&lt;br/&gt;may correct this. Make sure that you do not mix the OSE version and the PUEL version of VirtualBox.</source>
+        <translation>Die VirtualBox-Kernmodule passen nicht zu dieser Version von VirtualBox. Die Installation von VirtualBox war möglicherweise nicht vollständig. Durch Ausführen von &lt;br/&gt;&lt;br/&gt;&lt;font color=blue&gt;&apos;/sbin/vboxconfig&apos;&lt;/font&gt;&lt;br/&gt;&lt;br/&gt; sollte dieses Problem behoben werden. Bitte stellen Sie sicher, dass Sie die OSE-Version von VirtualBox nicht mit der PUEL-Version mischen.</translation>
     </message>
     <message>
         <source>This error means that the kernel driver was either not able to allocate enough memory or that some mapping operation failed.</source>
         <translation>Diese Fehlermeldung bedeutet, dass der Kerntreiber entweder nicht ausreichend Speicher anfordern konnte oder dass eine Mapping-Operation fehlgeschlagen ist.</translation>
     </message>
     <message>
-        <source>The VirtualBox Linux kernel driver (vboxdrv) is either not loaded or there is a permission problem with /dev/vboxdrv. Please reinstall the kernel module by executing&lt;br/&gt;&lt;br/&gt;  &lt;font color=blue&gt;&apos;/etc/init.d/vboxdrv setup&apos;&lt;/font&gt;&lt;br/&gt;&lt;br/&gt;as root. If it is available in your distribution, you should install the DKMS package first. This package keeps track of Linux kernel changes and recompiles the vboxdrv kernel module if necessary.</source>
-        <translation>Der VirtualBox Kerntreiber für Linux (vboxdrv) ist entweder nicht geladen oder auf das Gerät /dev/vboxdrv konnte nicht zugegriffen werden. Richten Sie das Kernmodul neu ein, indem Sie&lt;br/&gt;&lt;br/&gt;&lt;font color=blue&gt;&apos;/etc/init.d/vboxdrv setup&apos;&lt;/font&gt;&lt;br/&gt;&lt;br/&gt;mit Root-Rechten ausführen. Falls Sie eine Linux-Distribution von Ubuntu, Fedora oder Mandriva verweden, sollten Sie das Paket DKMS zuerst installieren. Dieses compiliert die Kernmodule nach einem Kernupgrade automatisch neu.</translation>
+        <source>The VirtualBox Linux kernel driver (vboxdrv) is either not loaded or there is a permission problem with /dev/vboxdrv. Please reinstall the kernel module by executing&lt;br/&gt;&lt;br/&gt;  &lt;font color=blue&gt;&apos;/sbin/vboxconfig&apos;&lt;/font&gt;&lt;br/&gt;&lt;br/&gt;as root. If it is available in your distribution, you should install the DKMS package first. This package keeps track of Linux kernel changes and recompiles the vboxdrv kernel module if necessary.</source>
+        <translation>Der VirtualBox Kerntreiber für Linux (vboxdrv) ist entweder nicht geladen oder auf das Gerät /dev/vboxdrv konnte nicht zugegriffen werden. Richten Sie das Kernmodul neu ein, indem Sie&lt;br/&gt;&lt;br/&gt;&lt;font color=blue&gt;&apos;/sbin/vboxconfig&apos;&lt;/font&gt;&lt;br/&gt;&lt;br/&gt;mit Root-Rechten ausführen. Falls Sie eine Linux-Distribution von Ubuntu, Fedora oder Mandriva verweden, sollten Sie das Paket DKMS zuerst installieren. Dieses compiliert die Kernmodule nach einem Kernupgrade automatisch neu.</translation>
     </message>
 </context>
 <context>
@@ -911,7 +911,7 @@
     <message>
         <source>Status</source>
         <comment>password table field</comment>
-        <translation>Status</translation>
+        <translation type="obsolete">Status</translation>
     </message>
     <message>
         <source>ID</source>
@@ -5251,6 +5251,10 @@
         <source>&lt;p&gt;Could not switch the guest display to full-screen mode due to insufficient guest video memory.&lt;/p&gt;&lt;p&gt;You should configure the virtual machine to have at least &lt;b&gt;%1&lt;/b&gt; of video memory.&lt;/p&gt;&lt;p&gt;Press &lt;b&gt;Ignore&lt;/b&gt; to switch to full-screen mode anyway or press &lt;b&gt;Cancel&lt;/b&gt; to cancel the operation.&lt;/p&gt;</source>
         <translation>&lt;p&gt;Der Vollbildmodus konnte nicht aktiviert werden, weil dem Gast zu wenig Grafikspeicher zugewiesen wurde.&lt;/p&gt;&lt;p&gt;Sie sollten die VM so konfigurieren, dass ihr zumindest &lt;b&gt;%1&lt;/b&gt; Grafikspeicher zur Verfügung steht.&lt;/p&gt;&lt;p&gt;Wählen Sie &lt;b&gt;Ignorieren&lt;/b&gt; um dennoch in den Vollbildmodus zu wechseln oder betätigen Sie &lt;b&gt;Abbrechen&lt;/b&gt; um dies nicht zu tun.&lt;/p&gt;</translation>
     </message>
+    <message>
+        <source>Encryption password for &lt;nobr&gt;ID = &apos;%1&apos;&lt;/nobr&gt; is invalid.</source>
+        <translation>Das Passwort für &lt;nobr&gt;ID = &apos;%1&apos;&lt;/nobr&gt; ist falsch.</translation>
+    </message>
 </context>
 <context>
     <name>UIMiniToolBar</name>
@@ -8089,7 +8093,7 @@
     </message>
     <message>
         <source>(Optical Drive)</source>
-        <translation>(opt. Laufwerk)</translation>
+        <translation>(DVD)</translation>
     </message>
     <message>
         <source>Encrypted</source>

@@ -304,8 +304,11 @@ int slirp_init(PNATState *ppData, uint32_t u32NetAddr, uint32_t u32Netmask,
     int rc;
     PNATState pData;
     if (u32Netmask & 0x1f)
+    {
         /* CTL is x.x.x.15, bootp passes up to 16 IPs (15..31) */
+        LogRel(("The last 5 bits of the netmask (%RTnaipv4) need to be unset\n", RT_BE2H_U32(u32Netmask)));
         return VERR_INVALID_PARAMETER;
+    }
     pData = RTMemAllocZ(RT_ALIGN_Z(sizeof(NATState), sizeof(uint64_t)));
     *ppData = pData;
     if (!pData)
@@ -1782,7 +1785,7 @@ void slirp_set_dhcp_dns_proxy(PNATState pData, bool fDNSProxy)
 
 void slirp_set_somaxconn(PNATState pData, int iSoMaxConn)
 {
-    LogFlowFunc(("iSoMaxConn:d\n", iSoMaxConn));
+    LogFlowFunc(("iSoMaxConn:%d\n", iSoMaxConn));
     /* Conditions */
     if (iSoMaxConn > SOMAXCONN)
     {

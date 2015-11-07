@@ -16,9 +16,9 @@
  */
 
 
-/*******************************************************************************
-*   Defined Constants And Macros                                               *
-*******************************************************************************/
+/*********************************************************************************************************************************
+*   Defined Constants And Macros                                                                                                 *
+*********************************************************************************************************************************/
 /** Temporary instrumentation for tracking down potential virtual disk
  * write performance issues. */
 #undef VBOX_INSTRUMENT_DMA_WRITES
@@ -37,9 +37,9 @@
 /** @} */
 
 
-/*******************************************************************************
-*   Header Files                                                               *
-*******************************************************************************/
+/*********************************************************************************************************************************
+*   Header Files                                                                                                                 *
+*********************************************************************************************************************************/
 #define LOG_GROUP LOG_GROUP_DEV_IDE
 #include <VBox/vmm/pdmdev.h>
 #include <iprt/assert.h>
@@ -66,9 +66,9 @@
 #include "VBoxDD.h"
 
 
-/*******************************************************************************
-*   Defined Constants And Macros                                               *
-*******************************************************************************/
+/*********************************************************************************************************************************
+*   Defined Constants And Macros                                                                                                 *
+*********************************************************************************************************************************/
 /**
  * Maximum number of sectors to transfer in a READ/WRITE MULTIPLE request.
  * Set to 1 to disable multi-sector read support. According to the ATA
@@ -107,9 +107,10 @@
 #define ATA_MEDIA_TYPE_UNKNOWN                  0    /**< unknown CD type */
 #define ATA_MEDIA_NO_DISC                    0x70    /**< Door closed, no medium */
 
-/*******************************************************************************
-*   Structures and Typedefs                                                    *
-*******************************************************************************/
+
+/*********************************************************************************************************************************
+*   Structures and Typedefs                                                                                                      *
+*********************************************************************************************************************************/
 /**
  * The state of an ATA device.
  *
@@ -522,9 +523,11 @@ typedef struct PCIATAState
 #define PDMIBLOCKPORT_2_ATASTATE(pInterface)   ( (ATADevState *)((uintptr_t)(pInterface) - RT_OFFSETOF(ATADevState, IPort)) )
 
 #ifndef VBOX_DEVICE_STRUCT_TESTCASE
-/*******************************************************************************
- *  Internal Functions                                                         *
- ******************************************************************************/
+
+
+/*********************************************************************************************************************************
+*   Internal Functions                                                                                                           *
+*********************************************************************************************************************************/
 RT_C_DECLS_BEGIN
 
 PDMBOTHCBDECL(int) ataIOPortWrite1Data(PPDMDEVINS pDevIns, void *pvUser, RTIOPORT Port, uint32_t u32, unsigned cb);
@@ -5084,14 +5087,14 @@ PDMBOTHCBDECL(int) ataIOPortReadStr1Data(PPDMDEVINS pDevIns, void *pvUser, RTIOP
                     *pcTransfers = cRequested - cAvailable;
                 }
                 else
-                    Log2(("%s: DUMMY/Overflow!\n", __FUNCTION__));
+                    Log2(("ataIOPortReadStr1Data: DUMMY/Overflow!\n"));
             }
             else
             {
                 /*
                  * Dummy read (shouldn't happen) return 0xff like the non-string handler.
                  */
-                Log2(("%s: DUMMY data (%#x bytes)\n", __FUNCTION__, *pcTransfers * cb));
+                Log2(("ataIOPortReadStr1Data: DUMMY data (%#x bytes)\n", *pcTransfers * cb));
                 memset(pbDst, 0xff, *pcTransfers * cb);
                 *pcTransfers = 0;
             }
@@ -5104,7 +5107,7 @@ PDMBOTHCBDECL(int) ataIOPortReadStr1Data(PPDMDEVINS pDevIns, void *pvUser, RTIOP
      */
     else
     {
-        Log2(("%s: 1 byte read (%#x transfers)\n", *pcTransfers));
+        Log2(("ataIOPortReadStr1Data: 1 byte read (%#x transfers)\n", *pcTransfers));
         AssertFailed();
         rc = VINF_SUCCESS;
     }
@@ -5171,11 +5174,11 @@ PDMBOTHCBDECL(int) ataIOPortWriteStr1Data(PPDMDEVINS pDevIns, void *pvUser, RTIO
                     *pcTransfers = cRequested - cAvailable;
                 }
                 else
-                    Log2(("%s: DUMMY/Overflow!\n", __FUNCTION__));
+                    Log2(("ataIOPortWriteStr1Data: DUMMY/Overflow!\n"));
             }
             else
             {
-                Log2(("%s: DUMMY data (%#x bytes)\n", __FUNCTION__, *pcTransfers * cb));
+                Log2(("ataIOPortWriteStr1Data: DUMMY data (%#x bytes)\n", *pcTransfers * cb));
                 *pcTransfers = 0;
             }
 
@@ -5187,7 +5190,7 @@ PDMBOTHCBDECL(int) ataIOPortWriteStr1Data(PPDMDEVINS pDevIns, void *pvUser, RTIO
      */
     else
     {
-        Log2(("%s: 1 byte write (%#x transfers)\n", *pcTransfers));
+        Log2(("ataIOPortWriteStr1Data: 1 byte write (%#x transfers)\n", *pcTransfers));
         AssertFailed();
         rc = VINF_SUCCESS;
     }

@@ -15,9 +15,10 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-/*******************************************************************************
-*   Header Files                                                               *
-*******************************************************************************/
+
+/*********************************************************************************************************************************
+*   Header Files                                                                                                                 *
+*********************************************************************************************************************************/
 #include <VBox/types.h>
 #include <VBox/vd.h>
 #ifdef VBOX_WITH_USB
@@ -42,8 +43,7 @@ PFNRT g_apfnVBoxDDUDeps[] =
 # ifdef RT_OS_OS2
     (PFNRT)UsbOpen,
 # endif
-# if (defined(RT_OS_DARWIN) && defined(VBOX_WITH_NEW_USB_CODE_ON_DARWIN)) \
-  || defined(RT_OS_SOLARIS) || defined(RT_OS_WINDOWS) /* PORTME */
+# if defined(RT_OS_DARWIN) || defined(RT_OS_SOLARIS) || defined(RT_OS_WINDOWS) /* PORTME */
     (PFNRT)USBLibInit,
 # endif
 #endif /* VBOX_WITH_USB */

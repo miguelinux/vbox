@@ -15,9 +15,10 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-/*******************************************************************************
-*   Header Files                                                               *
-*******************************************************************************/
+
+/*********************************************************************************************************************************
+*   Header Files                                                                                                                 *
+*********************************************************************************************************************************/
 #define LOG_GROUP LOG_GROUP_GIM
 #include "GIMInternal.h"
 
@@ -35,9 +36,9 @@
 #include <VBox/version.h>
 
 
-/*******************************************************************************
-*   Defined Constants And Macros                                               *
-*******************************************************************************/
+/*********************************************************************************************************************************
+*   Defined Constants And Macros                                                                                                 *
+*********************************************************************************************************************************/
 //#define GIMHV_HYPERCALL                 "GIMHvHypercall"
 
 /**
@@ -46,9 +47,9 @@
 #define GIM_HV_SAVED_STATE_VERSION          UINT32_C(1)
 
 
-/*******************************************************************************
-*   Global Variables                                                           *
-*******************************************************************************/
+/*********************************************************************************************************************************
+*   Global Variables                                                                                                             *
+*********************************************************************************************************************************/
 #ifdef VBOX_WITH_STATISTICS
 # define GIMHV_MSRRANGE(a_uFirst, a_uLast, a_szName) \
     { (a_uFirst), (a_uLast), kCpumMsrRdFn_Gim, kCpumMsrWrFn_Gim, 0, 0, 0, 0, 0, a_szName, { 0 }, { 0 }, { 0 }, { 0 } }
@@ -94,6 +95,17 @@ VMMR3_INT_DECL(int) gimR3HvInit(PVM pVM)
     PGIMHV pHv = &pVM->gim.s.u.Hv;
 
     /*
+     * Read configuration.
+     */
+    PCFGMNODE pCfgNode = CFGMR3GetChild(CFGMR3GetRoot(pVM), "GIM/HyperV");
+
+    /** @cfgm{/GIM/HyperV/VendorID, string, 'VBoxVBoxVBox'}
+     * The Hyper-V vendor signature, must be 12 characters. */
+    char szVendor[13];
+    rc = CFGMR3QueryStringDef(pCfgNode, "VendorID", szVendor, sizeof(szVendor), "VBoxVBoxVBox");
+    AssertLogRelRCReturn(rc, rc);
+
+    /*
      * Determine interface capabilities based on the version.
      */
     if (!pVM->gim.s.u32Version)
@@ -116,7 +128,8 @@ VMMR3_INT_DECL(int) gimR3HvInit(PVM pVM)
                        ;
 
         /* Miscellaneous features. */
-        pHv->uMiscFeat = GIM_HV_MISC_FEAT_TIMER_FREQ;
+        pHv->uMiscFeat = GIM_HV_MISC_FEAT_TIMER_FREQ
+                       | GIM_HV_MISC_FEAT_GUEST_CRASH_MSRS;
 
         /* Hypervisor recommendations to the guest. */
         pHv->uHyperHints = GIM_HV_HINT_MSR_FOR_SYS_RESET
@@ -176,9 +189,21 @@ VMMR3_INT_DECL(int) gimR3HvInit(PVM pVM)
     RT_ZERO(HyperLeaf);
     HyperLeaf.uLeaf        = UINT32_C(0x40000000);
     HyperLeaf.uEax         = UINT32_C(0x40000006); /* Minimum value for Hyper-V is 0x40000005. */
-    HyperLeaf.uEbx         = 0x7263694D;           /* 'Micr' */
-    HyperLeaf.uEcx         = 0x666F736F;           /* 'osof' */
-    HyperLeaf.uEdx         = 0x76482074;           /* 't Hv' */
+    /* Don't report vendor as 'Microsoft Hv' by default, see @bugref{7270#c152}. */
+    {
+        uint32_t uVendorEbx;
+        uint32_t uVendorEcx;
+        uint32_t uVendorEdx;
+        uVendorEbx = ((uint32_t)szVendor[ 3]) << 24 | ((uint32_t)szVendor[ 2]) << 16 | ((uint32_t)szVendor[1]) << 8
+                    | (uint32_t)szVendor[ 0];
+        uVendorEcx = ((uint32_t)szVendor[ 7]) << 24 | ((uint32_t)szVendor[ 6]) << 16 | ((uint32_t)szVendor[5]) << 8
+                    | (uint32_t)szVendor[ 4];
+        uVendorEdx = ((uint32_t)szVendor[11]) << 24 | ((uint32_t)szVendor[10]) << 16 | ((uint32_t)szVendor[9]) << 8
+                    | (uint32_t)szVendor[ 8];
+        HyperLeaf.uEbx         = uVendorEbx;
+        HyperLeaf.uEcx         = uVendorEcx;
+        HyperLeaf.uEdx         = uVendorEdx;
+    }
     rc = CPUMR3CpuIdInsert(pVM, &HyperLeaf);
     AssertLogRelRCReturn(rc, rc);
 
@@ -225,6 +250,12 @@ VMMR3_INT_DECL(int) gimR3HvInit(PVM pVM)
         rc = CPUMR3MsrRangesInsert(pVM, &g_aMsrRanges_HyperV[i]);
         AssertLogRelRCReturn(rc, rc);
     }
+
+    /*
+     * Setup non-zero MSRs.
+     */
+    if (pHv->uMiscFeat & GIM_HV_MISC_FEAT_GUEST_CRASH_MSRS)
+        pHv->uCrashCtl = MSR_GIM_HV_CRASH_CTL_NOTIFY_BIT;
 
     return VINF_SUCCESS;
 }
@@ -348,6 +379,11 @@ VMMR3_INT_DECL(void) gimR3HvReset(PVM pVM)
     pHv->u64GuestOsIdMsr = 0;
     pHv->u64HypercallMsr = 0;
     pHv->u64TscPageMsr   = 0;
+    pHv->uCrashP0        = 0;
+    pHv->uCrashP1        = 0;
+    pHv->uCrashP2        = 0;
+    pHv->uCrashP3        = 0;
+    pHv->uCrashP4        = 0;
 }
 
 

@@ -15,9 +15,10 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-/*******************************************************************************
-*   Header Files                                                               *
-*******************************************************************************/
+
+/*********************************************************************************************************************************
+*   Header Files                                                                                                                 *
+*********************************************************************************************************************************/
 #define LOG_GROUP LOG_GROUP_CPUM
 #include <VBox/vmm/cpum.h>
 #include <VBox/vmm/pdmapi.h>
@@ -29,9 +30,9 @@
 #include <VBox/err.h>
 
 
-/*******************************************************************************
-*   Defined Constants And Macros                                               *
-*******************************************************************************/
+/*********************************************************************************************************************************
+*   Defined Constants And Macros                                                                                                 *
+*********************************************************************************************************************************/
 /**
  * Validates the CPUMMSRRANGE::offCpumCpu value and declares a local variable
  * pointing to it.
@@ -48,9 +49,9 @@
     a_Type *a_VarName = (a_Type *)((uintptr_t)&(a_pVCpu)->cpum.s + (a_pRange)->offCpumCpu)
 
 
-/*******************************************************************************
-*   Structures and Typedefs                                                    *
-*******************************************************************************/
+/*********************************************************************************************************************************
+*   Structures and Typedefs                                                                                                      *
+*********************************************************************************************************************************/
 
 /**
  * Implements reading one or more MSRs.
@@ -492,7 +493,7 @@ static DECLCALLBACK(VBOXSTRICTRC) cpumMsrWr_Ia32MtrrDefType(PVMCPU pVCpu, uint32
 {
     if ((uValue & 0xff) >= 7)
     {
-        Log(("CPUM: Invalid MTRR default type value: %#llx (%#llx)\n", pRange->szName, uValue, uValue & 0xff));
+        Log(("CPUM: Invalid MTRR default type value on %s: %#llx (%#llx)\n", pRange->szName, uValue, uValue & 0xff));
         return VERR_CPUM_RAISE_GP_0;
     }
 
@@ -1410,7 +1411,7 @@ static DECLCALLBACK(VBOXSTRICTRC) cpumMsrWr_Amd64LongSyscallTarget(PVMCPU pVCpu,
 {
     if (!X86_IS_CANONICAL(uValue))
     {
-        Log(("CPUM: wrmsr %s(%#x), %#llx -> %#GP - not canonical\n", pRange->szName, idMsr, uValue));
+        Log(("CPUM: wrmsr %s(%#x), %#llx -> #GP - not canonical\n", pRange->szName, idMsr, uValue));
         return VERR_CPUM_RAISE_GP_0;
     }
     pVCpu->cpum.s.Guest.msrLSTAR = uValue;
@@ -1431,7 +1432,7 @@ static DECLCALLBACK(VBOXSTRICTRC) cpumMsrWr_Amd64CompSyscallTarget(PVMCPU pVCpu,
 {
     if (!X86_IS_CANONICAL(uValue))
     {
-        Log(("CPUM: wrmsr %s(%#x), %#llx -> %#GP - not canonical\n", pRange->szName, idMsr, uValue));
+        Log(("CPUM: wrmsr %s(%#x), %#llx -> #GP - not canonical\n", pRange->szName, idMsr, uValue));
         return VERR_CPUM_RAISE_GP_0;
     }
     pVCpu->cpum.s.Guest.msrCSTAR = uValue;
@@ -1802,7 +1803,7 @@ static DECLCALLBACK(VBOXSTRICTRC) cpumMsrWr_IntelLastBranchFromN(PVMCPU pVCpu, u
      *        Investigate! */
     if (!X86_IS_CANONICAL(uValue))
     {
-        Log(("CPUM: wrmsr %s(%#x), %#llx -> %#GP - not canonical\n", pRange->szName, idMsr, uValue));
+        Log(("CPUM: wrmsr %s(%#x), %#llx -> #GP - not canonical\n", pRange->szName, idMsr, uValue));
         return VERR_CPUM_RAISE_GP_0;
     }
     return VINF_SUCCESS;
@@ -1827,7 +1828,7 @@ static DECLCALLBACK(VBOXSTRICTRC) cpumMsrWr_IntelLastBranchToN(PVMCPU pVCpu, uin
      *        Investigate! */
     if (!X86_IS_CANONICAL(uValue))
     {
-        Log(("CPUM: wrmsr %s(%#x), %#llx -> %#GP - not canonical\n", pRange->szName, idMsr, uValue));
+        Log(("CPUM: wrmsr %s(%#x), %#llx -> #GP - not canonical\n", pRange->szName, idMsr, uValue));
         return VERR_CPUM_RAISE_GP_0;
     }
     return VINF_SUCCESS;
@@ -4266,7 +4267,7 @@ static DECLCALLBACK(VBOXSTRICTRC) cpumMsrWr_AmdFam10hIbsOpRip(PVMCPU pVCpu, uint
     /** @todo AMD IBS. */
     if (!X86_IS_CANONICAL(uValue))
     {
-        Log(("CPUM: wrmsr %s(%#x), %#llx -> %#GP - not canonical\n", pRange->szName, idMsr, uValue));
+        Log(("CPUM: wrmsr %s(%#x), %#llx -> #GP - not canonical\n", pRange->szName, idMsr, uValue));
         return VERR_CPUM_RAISE_GP_0;
     }
     return VINF_SUCCESS;
@@ -4339,7 +4340,7 @@ static DECLCALLBACK(VBOXSTRICTRC) cpumMsrWr_AmdFam10hIbsDcLinAddr(PVMCPU pVCpu, 
     /** @todo AMD IBS. */
     if (!X86_IS_CANONICAL(uValue))
     {
-        Log(("CPUM: wrmsr %s(%#x), %#llx -> %#GP - not canonical\n", pRange->szName, idMsr, uValue));
+        Log(("CPUM: wrmsr %s(%#x), %#llx -> #GP - not canonical\n", pRange->szName, idMsr, uValue));
         return VERR_CPUM_RAISE_GP_0;
     }
     return VINF_SUCCESS;
@@ -4395,7 +4396,7 @@ static DECLCALLBACK(VBOXSTRICTRC) cpumMsrWr_AmdFam14hIbsBrTarget(PVMCPU pVCpu, u
     /** @todo AMD IBS. */
     if (!X86_IS_CANONICAL(uValue))
     {
-        Log(("CPUM: wrmsr %s(%#x), %#llx -> %#GP - not canonical\n", pRange->szName, idMsr, uValue));
+        Log(("CPUM: wrmsr %s(%#x), %#llx -> #GP - not canonical\n", pRange->szName, idMsr, uValue));
         return VERR_CPUM_RAISE_GP_0;
     }
     return VINF_SUCCESS;

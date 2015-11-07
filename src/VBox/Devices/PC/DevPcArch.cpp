@@ -15,9 +15,10 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-/*******************************************************************************
-*   Header Files                                                               *
-*******************************************************************************/
+
+/*********************************************************************************************************************************
+*   Header Files                                                                                                                 *
+*********************************************************************************************************************************/
 #define LOG_GROUP LOG_GROUP_DEV_PC_ARCH
 #include <VBox/vmm/pdmdev.h>
 #include <VBox/vmm/mm.h>
@@ -29,9 +30,9 @@
 #include "VBoxDD.h"
 
 
-/*******************************************************************************
-*   Structures and Typedefs                                                    *
-*******************************************************************************/
+/*********************************************************************************************************************************
+*   Structures and Typedefs                                                                                                      *
+*********************************************************************************************************************************/
 
 /**
  * PC Bios instance data structure.
@@ -84,7 +85,7 @@ static DECLCALLBACK(int) pcarchIOPortFPUWrite(PPDMDEVINS pDevIns, void *pvUser, 
 
             /* Reset. */
             case 0xf1:
-                Log2(("PCARCH: FPU Reset cb=%d u32=%#x\n", Port, cb, u32));
+                Log2(("PCARCH: FPU Reset cb=%d u32=%#x\n", cb, u32));
                 /** @todo figure out what the difference between FPU ports 0xf0 and 0xf1 are... */
                 /* pDevIns->pHlp->pfnPICSetIrq(pDevIns, 13, 0); */
                 break;

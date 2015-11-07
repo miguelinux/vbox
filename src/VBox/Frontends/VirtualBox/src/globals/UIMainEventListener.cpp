@@ -21,6 +21,7 @@
 
 /* GUI includes: */
 # include "UIMainEventListener.h"
+# include "VBoxGlobal.h"
 
 /* COM includes: */
 # include "COMEnums.h"
@@ -42,6 +43,7 @@
 # include "CKeyboardLedsChangedEvent.h"
 # include "CStateChangedEvent.h"
 # include "CNetworkAdapterChangedEvent.h"
+# include "CStorageDeviceChangedEvent.h"
 # include "CMediumChangedEvent.h"
 # include "CUSBDevice.h"
 # include "CUSBDeviceStateChangedEvent.h"
@@ -66,6 +68,10 @@ UIMainEventListener::UIMainEventListener()
 
 STDMETHODIMP UIMainEventListener::HandleEvent(VBoxEventType_T /* type */, IEvent *pEvent)
 {
+    /* Try to acquire COM cleanup protection token first: */
+    if (!vboxGlobal().comTokenTryLockForRead())
+        return S_OK;
+
     CEvent event(pEvent);
     // printf("Event received: %d\n", event.GetType());
     switch (event.GetType())
@@ -181,6 +187,12 @@ STDMETHODIMP UIMainEventListener::HandleEvent(VBoxEventType_T /* type */, IEvent
             emit sigNetworkAdapterChange(es.GetNetworkAdapter());
             break;
         }
+        case KVBoxEventType_OnStorageDeviceChanged:
+        {
+            CStorageDeviceChangedEvent es(pEvent);
+            emit sigStorageDeviceChange(es.GetStorageDevice(), es.GetRemoved(), es.GetSilent());
+            break;
+        }
         case KVBoxEventType_OnMediumChanged:
         {
             CMediumChangedEvent es(pEvent);
@@ -263,6 +275,10 @@ STDMETHODIMP UIMainEventListener::HandleEvent(VBoxEventType_T /* type */, IEvent
 
         default: break;
     }
+
+    /* Unlock COM cleanup protection token: */
+    vboxGlobal().comTokenUnlock();
+
     return S_OK;
 }
 

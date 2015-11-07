@@ -16,9 +16,9 @@
  */
 
 
-/*******************************************************************************
-*   Header Files                                                               *
-*******************************************************************************/
+/*********************************************************************************************************************************
+*   Header Files                                                                                                                 *
+*********************************************************************************************************************************/
 #define LOG_GROUP LOG_GROUP_PDM_DEVICE
 #include "PDMInternal.h"
 #include <VBox/vmm/pdm.h>
@@ -48,9 +48,9 @@
 #include <iprt/thread.h>
 
 
-/*******************************************************************************
-*   Structures and Typedefs                                                    *
-*******************************************************************************/
+/*********************************************************************************************************************************
+*   Structures and Typedefs                                                                                                      *
+*********************************************************************************************************************************/
 /**
  * Internal callback structure pointer.
  * The main purpose is to define the extra data we associate
@@ -74,9 +74,9 @@ typedef PDMDEVREGCBINT *PPDMDEVREGCBINT;
 typedef const PDMDEVREGCBINT *PCPDMDEVREGCBINT;
 
 
-/*******************************************************************************
-*   Internal Functions                                                         *
-*******************************************************************************/
+/*********************************************************************************************************************************
+*   Internal Functions                                                                                                           *
+*********************************************************************************************************************************/
 static DECLCALLBACK(int)    pdmR3DevReg_Register(PPDMDEVREGCB pCallbacks, PCPDMDEVREG pReg);
 static int                  pdmR3DevLoadModules(PVM pVM);
 static int                  pdmR3DevLoad(PVM pVM, PPDMDEVREGCBINT pRegCB, const char *pszFilename, const char *pszName);
@@ -313,7 +313,7 @@ int pdmR3DevInit(PVM pVM)
             rc = MMHyperAlloc(pVM, sizeof(*pCritSect), 0, MM_TAG_PDM_DEVICE, (void **)&pCritSect);
         else
             rc = MMR3HeapAllocZEx(pVM, MM_TAG_PDM_DEVICE, sizeof(*pCritSect), (void **)&pCritSect);
-        AssertLogRelMsgRCReturn(rc, ("Failed to allocate a critical section for the device\n",  rc), rc);
+        AssertLogRelMsgRCReturn(rc, ("Failed to allocate a critical section for the device (%Rrc)\n",  rc), rc);
 
         /*
          * Initialize it.
@@ -643,7 +643,7 @@ static DECLCALLBACK(int) pdmR3DevReg_Register(PPDMDEVREGCB pCallbacks, PCPDMDEVR
     AssertMsgReturn(    pReg->szName[0]
                     &&  strlen(pReg->szName) < sizeof(pReg->szName)
                     &&  pdmR3IsValidName(pReg->szName),
-                    ("Invalid name '%.s'\n", sizeof(pReg->szName), pReg->szName),
+                    ("Invalid name '%.*s'\n", sizeof(pReg->szName), pReg->szName),
                     VERR_PDM_INVALID_DEVICE_REGISTRATION);
     AssertMsgReturn(   !(pReg->fFlags & PDM_DEVREG_FLAGS_RC)
                     || (   pReg->szRCMod[0]

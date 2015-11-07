@@ -54,6 +54,23 @@ NativeNSViewRef darwinToNativeViewImpl(NativeNSWindowRef pWindow)
     return view;
 }
 
+NativeNSButtonRef darwinNativeButtonOfWindowImpl(NativeNSWindowRef pWindow, StandardWindowButtonType enmButtonType)
+{
+    /* Return corresponding button: */
+    switch (enmButtonType)
+    {
+        case StandardWindowButtonType_Close:            return [pWindow standardWindowButton:NSWindowCloseButton];
+        case StandardWindowButtonType_Miniaturize:      return [pWindow standardWindowButton:NSWindowMiniaturizeButton];
+        case StandardWindowButtonType_Zoom:             return [pWindow standardWindowButton:NSWindowZoomButton];
+        case StandardWindowButtonType_Toolbar:          return [pWindow standardWindowButton:NSWindowToolbarButton];
+        case StandardWindowButtonType_DocumentIcon:     return [pWindow standardWindowButton:NSWindowDocumentIconButton];
+        case StandardWindowButtonType_DocumentVersions: /*return [pWindow standardWindowButton:NSWindowDocumentVersionsButton];*/ break;
+        case StandardWindowButtonType_FullScreen:       /*return [pWindow standardWindowButton:NSWindowFullScreenButton];*/ break;
+    }
+    /* Return Nul by default: */
+    return Nil;
+}
+
 NativeNSImageRef darwinToNSImageRef(const CGImageRef pImage)
 {
     /* Create a bitmap rep from the image. */
@@ -214,6 +231,13 @@ void darwinToggleFullscreenMode(NativeNSWindowRef pWindow)
     /* Toggle native fullscreen mode for passed pWindow. This method is available since 10.7 only. */
     if ([pWindow respondsToSelector: @selector(toggleFullScreen:)])
         [pWindow performSelector: @selector(toggleFullScreen:) withObject: (id)nil];
+}
+
+void darwinToggleWindowZoom(NativeNSWindowRef pWindow)
+{
+    /* Toggle native window zoom for passed pWindow. This method is available since 10.0. */
+    if ([pWindow respondsToSelector: @selector(zoom:)])
+        [pWindow performSelector: @selector(zoom:)];
 }
 
 bool darwinIsInFullscreenMode(NativeNSWindowRef pWindow)
@@ -405,9 +429,15 @@ bool darwinIsToolbarVisible(NativeNSWindowRef pWindow)
 
 bool darwinIsWindowMaximized(NativeNSWindowRef pWindow)
 {
-    bool fResult = [pWindow isZoomed];
+    /* Mac OS X API NSWindow isZoomed returns true even for almost maximized windows,
+     * So implementing this by ourseleves by comparing visible screen-frame & window-frame: */
+    NSRect windowFrame = [pWindow frame];
+    NSRect screenFrame = [[NSScreen mainScreen] visibleFrame];
 
-    return fResult;
+    return (windowFrame.origin.x == screenFrame.origin.x) &&
+           (windowFrame.origin.y == screenFrame.origin.y) &&
+           (windowFrame.size.width == screenFrame.size.width) &&
+           (windowFrame.size.height == screenFrame.size.height);
 }
 
 bool darwinOpenFile(NativeNSStringRef pstrFile)

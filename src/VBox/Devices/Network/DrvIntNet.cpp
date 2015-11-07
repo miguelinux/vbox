@@ -15,9 +15,10 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-/*******************************************************************************
-*   Header Files                                                               *
-*******************************************************************************/
+
+/*********************************************************************************************************************************
+*   Header Files                                                                                                                 *
+*********************************************************************************************************************************/
 #define LOG_GROUP LOG_GROUP_DRV_INTNET
 #include <VBox/vmm/pdmdrv.h>
 #include <VBox/vmm/pdmnetinline.h>
@@ -48,16 +49,16 @@
 #include "VBoxDD.h"
 
 
-/*******************************************************************************
-*   Defined Constants And Macros                                               *
-*******************************************************************************/
+/*********************************************************************************************************************************
+*   Defined Constants And Macros                                                                                                 *
+*********************************************************************************************************************************/
 /** Enables the ring-0 part. */
 #define VBOX_WITH_DRVINTNET_IN_R0
 
 
-/*******************************************************************************
-*   Structures and Typedefs                                                    *
-*******************************************************************************/
+/*********************************************************************************************************************************
+*   Structures and Typedefs                                                                                                      *
+*********************************************************************************************************************************/
 /**
  * The state of the asynchronous thread.
  */
@@ -782,7 +783,7 @@ static int drvR3IntNetRecvRun(PDRVINTNET pThis)
                                     rc = drvR3IntNetRecvWaitForSpace(pThis);
                                     if (RT_FAILURE(rc))
                                     {
-                                        Log(("drvR3IntNetRecvRun: drvR3IntNetRecvWaitForSpace -> %Rrc; iSeg=%u cSegs=%u\n", iSeg, cSegs));
+                                        Log(("drvR3IntNetRecvRun: drvR3IntNetRecvWaitForSpace -> %Rrc; iSeg=%u cSegs=%u\n", rc, iSeg, cSegs));
                                         break; /* we drop the rest. */
                                     }
                                     rc = pThis->pIAboveNet->pfnReceive(pThis->pIAboveNet, pvSegFrame, cbSegFrame);

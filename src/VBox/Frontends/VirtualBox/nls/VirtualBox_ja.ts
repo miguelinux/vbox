@@ -108,12 +108,12 @@
         <translation>VirtualBoxを再インストールしてください。</translation>
     </message>
     <message>
-        <source>This error means that the kernel driver was either not able to allocate enough memory or that some mapping operation failed.&lt;br/&gt;&lt;br/&gt;There are known problems with Linux 2.6.29. If you are running such a kernel, please edit /usr/src/vboxdrv-*/Makefile and enable &lt;i&gt;VBOX_USE_INSERT_PAGE = 1&lt;/i&gt;. After that, re-compile the kernel module by executing&lt;br/&gt;&lt;br/&gt;  &lt;font color=blue&gt;&apos;/etc/init.d/vboxdrv setup&apos;&lt;/font&gt;&lt;br/&gt;&lt;br/&gt;as root.</source>
-        <translation type="obsolete">このエラーは、カーネルドライバーに十分なメモリーを割り当てできないか、またはマッピング操作に失敗したことを意味します。&lt;br/&gt;&lt;br/&gt;これはLinux 2.6.29の既知の問題です。このバージョンのカーネルを使用するならば、/usr/src/vboxdrv-*/Makefileを編集し、&lt;i&gt;VBOX_USE_INSERT_PAGE = 1&lt;/i&gt;を有効にしてください。その後、root権限で&lt;br/&gt;&lt;br/&gt;  &lt;font color=blue&gt;&apos;/etc/init.d/vboxdrv setup&apos;&lt;/font&gt;&lt;br/&gt;&lt;br/&gt;を実行してカーネルモジュールを再コンパイルしてください。</translation>
+        <source>This error means that the kernel driver was either not able to allocate enough memory or that some mapping operation failed.&lt;br/&gt;&lt;br/&gt;There are known problems with Linux 2.6.29. If you are running such a kernel, please edit /usr/src/vboxdrv-*/Makefile and enable &lt;i&gt;VBOX_USE_INSERT_PAGE = 1&lt;/i&gt;. After that, re-compile the kernel module by executing&lt;br/&gt;&lt;br/&gt;  &lt;font color=blue&gt;&apos;/sbin/vboxconfig&apos;&lt;/font&gt;&lt;br/&gt;&lt;br/&gt;as root.</source>
+        <translation type="obsolete">このエラーは、カーネルドライバーに十分なメモリーを割り当てできないか、またはマッピング操作に失敗したことを意味します。&lt;br/&gt;&lt;br/&gt;これはLinux 2.6.29の既知の問題です。このバージョンのカーネルを使用するならば、/usr/src/vboxdrv-*/Makefileを編集し、&lt;i&gt;VBOX_USE_INSERT_PAGE = 1&lt;/i&gt;を有効にしてください。その後、root権限で&lt;br/&gt;&lt;br/&gt;  &lt;font color=blue&gt;&apos;/sbin/vboxconfig&apos;&lt;/font&gt;&lt;br/&gt;&lt;br/&gt;を実行してカーネルモジュールを再コンパイルしてください。</translation>
     </message>
     <message>
-        <source>The VirtualBox Linux kernel driver (vboxdrv) is either not loaded or there is a permission problem with /dev/vboxdrv. Please reinstall the kernel module by executing&lt;br/&gt;&lt;br/&gt;  &lt;font color=blue&gt;&apos;/etc/init.d/vboxdrv setup&apos;&lt;/font&gt;&lt;br/&gt;&lt;br/&gt;as root. Users of Ubuntu, Fedora or Mandriva should install the DKMS package first. This package keeps track of Linux kernel changes and recompiles the vboxdrv kernel module if necessary.</source>
-        <translation type="obsolete">VirtualBoxのLinuxカーネルドライバー(vboxdrv)はロードされません。または/dev/vboxdrvのパーミッションに問題があります。root権限で&lt;br/&gt;&lt;br/&gt;  &lt;font color=blue&gt;&apos;/etc/init.d/vboxdrv setup&apos;&lt;/font&gt;&lt;br/&gt;&lt;br/&gt;を実行してカーネルモジュールを再セットアップしてください。Ubuntu、FedoraまたはMandrivaユーザーは最初にDKMSパッケージをインストールしてください。このパッケージはLinuxカーネルの変更を把握し、必要ならばvboxdrvカーネルモジュールを再コンパイルします。</translation>
+        <source>The VirtualBox Linux kernel driver (vboxdrv) is either not loaded or there is a permission problem with /dev/vboxdrv. Please reinstall the kernel module by executing&lt;br/&gt;&lt;br/&gt;  &lt;font color=blue&gt;&apos;/sbin/vboxconfig&apos;&lt;/font&gt;&lt;br/&gt;&lt;br/&gt;as root. Users of Ubuntu, Fedora or Mandriva should install the DKMS package first. This package keeps track of Linux kernel changes and recompiles the vboxdrv kernel module if necessary.</source>
+        <translation type="obsolete">VirtualBoxのLinuxカーネルドライバー(vboxdrv)はロードされません。または/dev/vboxdrvのパーミッションに問題があります。root権限で&lt;br/&gt;&lt;br/&gt;  &lt;font color=blue&gt;&apos;/sbin/vboxconfig&apos;&lt;/font&gt;&lt;br/&gt;&lt;br/&gt;を実行してカーネルモジュールを再セットアップしてください。Ubuntu、FedoraまたはMandrivaユーザーは最初にDKMSパッケージをインストールしてください。このパッケージはLinuxカーネルの変更を把握し、必要ならばvboxdrvカーネルモジュールを再コンパイルします。</translation>
     </message>
     <message>
         <source>Make sure the kernel module has been loaded successfully.</source>
@@ -136,16 +136,16 @@
         <translation>カーネルドライバーにアクセスできません</translation>
     </message>
     <message>
-        <source>The VirtualBox Linux kernel driver (vboxdrv) is either not loaded or there is a permission problem with /dev/vboxdrv. Please reinstall the kernel module by executing&lt;br/&gt;&lt;br/&gt;  &lt;font color=blue&gt;&apos;/etc/init.d/vboxdrv setup&apos;&lt;/font&gt;&lt;br/&gt;&lt;br/&gt;as root. If it is available in your distribution, you should install the DKMS package first. This package keeps track of Linux kernel changes and recompiles the vboxdrv kernel module if necessary.</source>
-        <translation>VirtualBoxのLinuxカーネルドライバー(vboxdrv)は読み込まれていないか、/dev/vboxdrvのパーミッションに問題があります。root権限で&lt;br/&gt;&lt;br/&gt;  &lt;font color=blue&gt;&apos;/etc/init.d/vboxdrv setup&apos;&lt;/font&gt;&lt;br/&gt;&lt;br/&gt;を実行してカーネルモジュールを再インストールしてください。もしディストリビューションにある場合、まずDKMSパッケージをインストールしてください。このパッケージはLinuxカーネルの変更を把握し、必要ならばvboxdrvカーネルモジュールを再コンパイルします。</translation>
+        <source>The VirtualBox Linux kernel driver (vboxdrv) is either not loaded or there is a permission problem with /dev/vboxdrv. Please reinstall the kernel module by executing&lt;br/&gt;&lt;br/&gt;  &lt;font color=blue&gt;&apos;/sbin/vboxconfig&apos;&lt;/font&gt;&lt;br/&gt;&lt;br/&gt;as root. If it is available in your distribution, you should install the DKMS package first. This package keeps track of Linux kernel changes and recompiles the vboxdrv kernel module if necessary.</source>
+        <translation>VirtualBoxのLinuxカーネルドライバー(vboxdrv)は読み込まれていないか、/dev/vboxdrvのパーミッションに問題があります。root権限で&lt;br/&gt;&lt;br/&gt;  &lt;font color=blue&gt;&apos;/sbin/vboxconfig&apos;&lt;/font&gt;&lt;br/&gt;&lt;br/&gt;を実行してカーネルモジュールを再インストールしてください。もしディストリビューションにある場合、まずDKMSパッケージをインストールしてください。このパッケージはLinuxカーネルの変更を把握し、必要ならばvboxdrvカーネルモジュールを再コンパイルします。</translation>
     </message>
     <message>
         <source>The VirtualBox kernel modules do not match this version of VirtualBox. The installation of VirtualBox was apparently not successful. Please try completely uninstalling and reinstalling VirtualBox.</source>
         <translation>カーネルモジュールのバージョンが適合しません。VirtualBoxのインストールは成功しませんでした。この問題はVirtualBoxを完全にアンインストール後、再インストールすることで解決するかもしれません。</translation>
     </message>
     <message>
-        <source>The VirtualBox kernel modules do not match this version of VirtualBox. The installation of VirtualBox was apparently not successful. Executing&lt;br/&gt;&lt;br/&gt;  &lt;font color=blue&gt;&apos;/etc/init.d/vboxdrv setup&apos;&lt;/font&gt;&lt;br/&gt;&lt;br/&gt;may correct this. Make sure that you do not mix the OSE version and the PUEL version of VirtualBox.</source>
-        <translation>カーネルモジュールのバージョンが適合しません。VirtualBoxのインストールは成功しませんでした。&lt;/br&gt;&lt;/br&gt;&lt;font color=blue&gt;&apos;/etc/init.d/vboxdrv setup&apos;&lt;/font&gt;&lt;br/&gt;&lt;br/&gt;を実行すると、この問題は修正されるでしょう。VirtualBoxのOSEバージョンとPUELバージョンを混在して使用しないでください。</translation>
+        <source>The VirtualBox kernel modules do not match this version of VirtualBox. The installation of VirtualBox was apparently not successful. Executing&lt;br/&gt;&lt;br/&gt;  &lt;font color=blue&gt;&apos;/sbin/vboxconfig&apos;&lt;/font&gt;&lt;br/&gt;&lt;br/&gt;may correct this. Make sure that you do not mix the OSE version and the PUEL version of VirtualBox.</source>
+        <translation>カーネルモジュールのバージョンが適合しません。VirtualBoxのインストールは成功しませんでした。&lt;/br&gt;&lt;/br&gt;&lt;font color=blue&gt;&apos;/sbin/vboxconfig&apos;&lt;/font&gt;&lt;br/&gt;&lt;br/&gt;を実行すると、この問題は修正されるでしょう。VirtualBoxのOSEバージョンとPUELバージョンを混在して使用しないでください。</translation>
     </message>
     <message>
         <source>This error means that the kernel driver was either not able to allocate enough memory or that some mapping operation failed.</source>
@@ -1559,7 +1559,7 @@
     <message>
         <source>Status</source>
         <comment>password table field</comment>
-        <translation>ステータス</translation>
+        <translation type="obsolete">ステータス</translation>
     </message>
     <message>
         <source>ID</source>
@@ -10313,6 +10313,10 @@ p, li { white-space: pre-wrap; }
     <message>
         <source>&lt;p&gt;Could not switch the guest display to full-screen mode due to insufficient guest video memory.&lt;/p&gt;&lt;p&gt;You should configure the virtual machine to have at least &lt;b&gt;%1&lt;/b&gt; of video memory.&lt;/p&gt;&lt;p&gt;Press &lt;b&gt;Ignore&lt;/b&gt; to switch to full-screen mode anyway or press &lt;b&gt;Cancel&lt;/b&gt; to cancel the operation.&lt;/p&gt;</source>
         <translation>&lt;p&gt;ゲストOSのビデオメモリー不足のため、ゲスト画面をフルスクリーンモードに切り替えることができません。&lt;/p&gt;&lt;p&gt;仮想マシンの設定でビデオメモリーを &lt;b&gt;%1&lt;/b&gt;以上に設定してください。&lt;/p&gt;&lt;p&gt;&lt;b&gt;[無視]&lt;/b&gt;ボタンをクリックしてフルスクリーンモードに切り換えるか、&lt;b&gt;[キャンセル]&lt;/b&gt;ボタンをクリックして操作を取り消してください。&lt;/p&gt;</translation>
+    </message>
+    <message>
+        <source>Encryption password for &lt;nobr&gt;ID = &apos;%1&apos;&lt;/nobr&gt; is invalid.</source>
+        <translation type="unfinished"></translation>
     </message>
 </context>
 <context>

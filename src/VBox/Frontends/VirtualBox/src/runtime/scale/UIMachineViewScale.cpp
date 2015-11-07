@@ -20,7 +20,6 @@
 #else  /* !VBOX_WITH_PRECOMPILED_HEADERS */
 
 /* Qt includes: */
-# include <QDesktopWidget>
 # include <QMainWindow>
 # include <QTimer>
 
@@ -146,8 +145,8 @@ void UIMachineViewScale::applyMachineViewScaleFactor()
     /* Perform frame-buffer rescaling: */
     frameBuffer()->performRescale();
 
-    // TODO: How to make it work?
-    display().ViewportChanged(screenId(), contentsX(), contentsY(), visibleWidth(), visibleHeight());
+    /* Update console's display viewport and 3D overlay: */
+    updateViewport();
 }
 
 void UIMachineViewScale::resendSizeHint()
@@ -175,7 +174,7 @@ QSize UIMachineViewScale::sizeHint() const
 
 QRect UIMachineViewScale::workingArea() const
 {
-    return QApplication::desktop()->availableGeometry(this);
+    return vboxGlobal().availableGeometry(this);
 }
 
 QSize UIMachineViewScale::calculateMaxGuestSize() const

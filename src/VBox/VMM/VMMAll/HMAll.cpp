@@ -16,9 +16,9 @@
  */
 
 
-/*******************************************************************************
-*   Header Files                                                               *
-*******************************************************************************/
+/*********************************************************************************************************************************
+*   Header Files                                                                                                                 *
+*********************************************************************************************************************************/
 #define LOG_GROUP LOG_GROUP_HM
 #include <VBox/vmm/hm.h>
 #include <VBox/vmm/pgm.h>
@@ -65,16 +65,8 @@ static void hmQueueInvlPage(PVMCPU pVCpu, RTGCPTR GCVirt)
     /* Nothing to do if a TLB flush is already pending */
     if (VMCPU_FF_IS_SET(pVCpu, VMCPU_FF_TLB_FLUSH))
         return;
-#if 1
     VMCPU_FF_SET(pVCpu, VMCPU_FF_TLB_FLUSH);
     NOREF(GCVirt);
-#else
-    /* Be very careful when activating this code! */
-    if (iPage == RT_ELEMENTS(pVCpu->hm.s.TlbShootdown.aPages))
-        VMCPU_FF_SET(pVCpu, VMCPU_FF_TLB_FLUSH);
-    else
-        VMCPU_FF_SET(pVCpu, VMCPU_FF_TLB_SHOOTDOWN);
-#endif
 }
 
 
@@ -210,9 +202,9 @@ static void hmPokeCpuForTlbFlush(PVMCPU pVCpu, bool fAccountFlushStat)
  *
  * @returns VBox status code.
  * @param   pVM         Pointer to the VM.
- * @param   GCVirt      Page to invalidate
+ * @param   GCVirt      Page to invalidate.
  */
-VMM_INT_DECL(int) HMInvalidatePageOnAllVCpus(PVM pVM, RTGCPTR GCPtr)
+VMM_INT_DECL(int) HMInvalidatePageOnAllVCpus(PVM pVM, RTGCPTR GCVirt)
 {
     /*
      * The VT-x/AMD-V code will be flushing TLB each time a VCPU migrates to a different
@@ -234,10 +226,10 @@ VMM_INT_DECL(int) HMInvalidatePageOnAllVCpus(PVM pVM, RTGCPTR GCPtr)
             continue;
 
         if (pVCpu->idCpu == idCurCpu)
-            HMInvalidatePage(pVCpu, GCPtr);
+            HMInvalidatePage(pVCpu, GCVirt);
         else
         {
-            hmQueueInvlPage(pVCpu, GCPtr);
+            hmQueueInvlPage(pVCpu, GCVirt);
             hmPokeCpuForTlbFlush(pVCpu, false /* fAccountFlushStat */);
         }
     }

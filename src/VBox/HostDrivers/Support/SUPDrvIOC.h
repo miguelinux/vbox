@@ -214,7 +214,7 @@ typedef SUPREQHDR *PSUPREQHDR;
  * @todo Pending work on next major version change:
  *          - nothing.
  */
-#define SUPDRV_IOC_VERSION                              0x00230001
+#define SUPDRV_IOC_VERSION                              0x00240000
 
 /** SUP_IOCTL_COOKIE. */
 typedef struct SUPCOOKIE
@@ -337,9 +337,9 @@ typedef struct SUPLDROPEN
  * @{
  */
 #define SUP_IOCTL_LDR_LOAD                              SUP_CTL_CODE_BIG(4)
-#define SUP_IOCTL_LDR_LOAD_SIZE(cbImage)                RT_UOFFSETOF(SUPLDRLOAD, u.In.abImage[cbImage])
+#define SUP_IOCTL_LDR_LOAD_SIZE(cbImage)                RT_MAX(RT_UOFFSETOF(SUPLDRLOAD, u.In.abImage[cbImage]), SUP_IOCTL_LDR_LOAD_SIZE_OUT)
 #define SUP_IOCTL_LDR_LOAD_SIZE_IN(cbImage)             RT_UOFFSETOF(SUPLDRLOAD, u.In.abImage[cbImage])
-#define SUP_IOCTL_LDR_LOAD_SIZE_OUT                     sizeof(SUPREQHDR)
+#define SUP_IOCTL_LDR_LOAD_SIZE_OUT                     (RT_UOFFSETOF(SUPLDRLOAD, u.Out.szError) + RT_SIZEOFMEMB(SUPLDRLOAD, u.Out.szError))
 
 /**
  * Module initialization callback function.
@@ -413,8 +413,6 @@ typedef struct SUPLDRLOAD
                 {
                     /** The module handle (i.e. address). */
                     RTR0PTR                 pvVMMR0;
-                    /** Address of VMMR0EntryInt function. */
-                    RTR0PTR                 pvVMMR0EntryInt;
                     /** Address of VMMR0EntryFast function. */
                     RTR0PTR                 pvVMMR0EntryFast;
                     /** Address of VMMR0EntryEx function. */
@@ -450,8 +448,20 @@ typedef struct SUPLDRLOAD
             /** The image data. */
             uint8_t         abImage[1];
         } In;
+        struct
+        {
+            /** Magic value indicating whether extended error information is
+             * present or not (SUPLDRLOAD_ERROR_MAGIC). */
+            uint64_t        uErrorMagic;
+            /** Extended error information. */
+            char            szError[2048];
+        } Out;
     } u;
 } SUPLDRLOAD, *PSUPLDRLOAD;
+/** Magic value that indicates that there is a valid error information string
+ * present on SUP_IOCTL_LDR_LOAD failure.
+ * @remarks The value is choosen to be an unlikely init and term address. */
+#define SUPLDRLOAD_ERROR_MAGIC      UINT64_C(0xabcdefef0feddcb9)
 /** @} */
 
 
@@ -1522,6 +1532,7 @@ AssertCompileMemberAlignment(SUPTSCDELTAMEASURE, u, 8);
 AssertCompileSize(SUPTSCDELTAMEASURE, 6*4 + 4+1+1+1+1);
 /** @} */
 
+
 /** @name SUP_IOCTL_TSC_READ
  * Reads the TSC and apply TSC-delta if applicable, determining the delta if
  * necessary (i64TSCDelta = INT64_MAX).
@@ -1556,6 +1567,33 @@ typedef struct SUPTSCREAD
 } SUPTSCREAD, *PSUPTSCREAD;
 AssertCompileMemberAlignment(SUPTSCREAD, u, 8);
 AssertCompileSize(SUPTSCREAD, 6*4 + 2*8);
+/** @} */
+
+
+/** @name SUP_IOCTL_GIP_SET_FLAGS
+ * Set GIP flags.
+ *
+ * @{
+ */
+#define SUP_IOCTL_GIP_SET_FLAGS                         SUP_CTL_CODE_SIZE(39, SUP_IOCTL_GIP_SET_FLAGS_SIZE)
+#define SUP_IOCTL_GIP_SET_FLAGS_SIZE                    sizeof(SUPGIPSETFLAGS)
+#define SUP_IOCTL_GIP_SET_FLAGS_SIZE_IN                 sizeof(SUPGIPSETFLAGS)
+#define SUP_IOCTL_GIP_SET_FLAGS_SIZE_OUT                sizeof(SUPREQHDR)
+typedef struct SUPGIPSETFLAGS
+{
+    /** The header. */
+    SUPREQHDR               Hdr;
+    union
+    {
+        struct
+        {
+            /** The AND flags mask, see SUPGIP_FLAGS_XXX. */
+            uint32_t        fAndMask;
+            /** The OR flags mask, see SUPGIP_FLAGS_XXX. */
+            uint32_t        fOrMask;
+        } In;
+    } u;
+} SUPGIPSETFLAGS, *PSUPGIPSETFLAGS;
 /** @} */
 
 #pragma pack()                          /* paranoia */

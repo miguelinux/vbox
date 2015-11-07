@@ -458,6 +458,12 @@ $$(SUPR0_0_OUTDIR)/SUPR0.def: \
 		-f $(dir $<)/SUPR0-def-$(VBOX_LDR_FMT).sed \
 		--output $@ \
 		$<
+ # Experiment: Let's see how blunt the ones messing our NULL_THUNK_DATA entries on W10 are.
+ ifeq ($(KBUILD_TARGET),win)
+  ifdef KLIBTWEAKER_EXT
+   SUPR0_POST_CMDS = $(KLIBTWEAKER_EXT) --clear-timestamps --fill-null_thunk_data $(out)
+  endif
+ endif
 endif
 
 
@@ -578,6 +584,9 @@ if1of ($(KBUILD_TARGET), darwin freebsd linux solaris win)
  endif
  ifdef VBOX_WITH_HARDENING
   VBoxDrv_ASDEFS         += VBOX_WITH_HARDENING
+ endif
+ if ($(VBOX_VERSION_BUILD) % 2) == 1
+  VBoxDrv_DEFS           += VBOX_WITH_EFLAGS_AC_SET_IN_VBOXDRV IPRT_WITH_EFLAGS_AC_PRESERVING
  endif
 
  VBoxDrv_INCS             = . $(VBoxDrv_0_OUTDIR)
@@ -701,11 +710,11 @@ if1of ($(KBUILD_TARGET), linux freebsd)
 		$$(if $$(eq $$(Support/$(KBUILD_TARGET)/Makefile_VBOX_HARDENED),$$(VBOX_WITH_HARDENING)),,FORCE) \
 		| $$(dir $$@)
 	$(call MSG_TOOL,Creating,,$@)
- ifndef VBOX_WITH_HARDENING
-	$(QUIET)$(SED) -e "s;-DVBOX_WITH_HARDENING;;g" --output $@ $<
- else
-	$(QUIET)$(CP) -f $< $@
- endif
+	$(QUIET)$(SED) -e "" \
+		$(if-expr !defined(VBOX_WITH_HARDENING)   ,-e "s;-DVBOX_WITH_HARDENING;;g",) \
+		$(if-expr ($(VBOX_VERSION_BUILD) % 2) == 0 \
+		 , -e "s;-DVBOX_WITH_EFLAGS_AC_SET_IN_VBOXDRV;;g" -e "s;-DIPRT_WITH_EFLAGS_AC_PRESERVING;;g",) \
+		--output $@ $<
 	%$(QUIET2)$(APPEND) -t '$(PATH_TARGET)/vboxdrv-mod-1.dep' \
 		'Support/$(KBUILD_TARGET)/Makefile_VBOX_HARDENED=$(VBOX_WITH_HARDENING)'
 endif # linux freebsd

@@ -25,9 +25,9 @@
  */
 
 
-/*******************************************************************************
-*   Header Files                                                               *
-*******************************************************************************/
+/*********************************************************************************************************************************
+*   Header Files                                                                                                                 *
+*********************************************************************************************************************************/
 #define LOG_GROUP RTLOGGROUP_LDR
 #include <iprt/ldr.h>
 #include "internal/iprt.h"
@@ -42,9 +42,9 @@
 #include "internal/ldrMZ.h"
 
 
-/*******************************************************************************
-*   Structures and Typedefs                                                    *
-*******************************************************************************/
+/*********************************************************************************************************************************
+*   Structures and Typedefs                                                                                                      *
+*********************************************************************************************************************************/
 /**
  * File Reader instance.
  * This provides raw image bits from a file.
@@ -267,7 +267,7 @@ RTDECL(int) RTLdrOpen(const char *pszFilename, uint32_t fFlags, RTLDRARCH enmArc
         rc = RTLdrOpenWithReader(pReader, fFlags, enmArch, phLdrMod, NULL);
         if (RT_SUCCESS(rc))
         {
-            LogFlow(("RTLdrOpen: return %Rrc *phLdrMod\n", rc, *phLdrMod));
+            LogFlow(("RTLdrOpen: return %Rrc *phLdrMod=%p\n", rc, *phLdrMod));
             return rc;
         }
         pReader->pfnDestroy(pReader);
@@ -306,7 +306,7 @@ RTDECL(int) RTLdrOpenkLdr(const char *pszFilename, uint32_t fFlags, RTLDRARCH en
         rc = rtldrkLdrOpen(pReader, fFlags, enmArch, phLdrMod, NULL);
         if (RT_SUCCESS(rc))
         {
-            LogFlow(("RTLdrOpenkLdr: return %Rrc *phLdrMod\n", rc, *phLdrMod));
+            LogFlow(("RTLdrOpenkLdr: return %Rrc *phLdrMod=%p\n", rc, *phLdrMod));
             return rc;
         }
         pReader->pfnDestroy(pReader);

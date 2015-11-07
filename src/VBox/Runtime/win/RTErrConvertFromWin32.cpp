@@ -24,9 +24,10 @@
  * terms and conditions of either the GPL or the CDDL or both.
  */
 
-/*******************************************************************************
-*   Header Files                                                               *
-*******************************************************************************/
+
+/*********************************************************************************************************************************
+*   Header Files                                                                                                                 *
+*********************************************************************************************************************************/
 #include <Windows.h>
 
 #include <iprt/err.h>
@@ -48,7 +49,7 @@ RTR3DECL(int)  RTErrConvertFromWin32(unsigned uNativeCode)
         case ERROR_PATH_NOT_FOUND:          return VERR_PATH_NOT_FOUND;
         case ERROR_TOO_MANY_OPEN_FILES:     return VERR_TOO_MANY_OPEN_FILES;
         case ERROR_ACCESS_DENIED:           return VERR_ACCESS_DENIED;
-        case ERROR_NOACCESS:                return VERR_ACCESS_DENIED;
+        case ERROR_NOACCESS:                return VERR_INVALID_POINTER; /* (STATUS_ACCESS_VIOLATION, STATUS_DATATYPE_MISALIGNMENT, STATUS_DATATYPE_MISALIGNMENT_ERROR) */
 
         case ERROR_INVALID_HANDLE:
         case ERROR_DIRECT_ACCESS_HANDLE:    return VERR_INVALID_HANDLE;
@@ -146,6 +147,7 @@ RTR3DECL(int)  RTErrConvertFromWin32(unsigned uNativeCode)
         case ERROR_TIMEOUT:                 return VERR_TIMEOUT;
 
         case ERROR_INVALID_NAME:
+        case ERROR_BAD_DEVICE:
         case ERROR_BAD_PATHNAME:            return VERR_INVALID_NAME;
 
         case ERROR_NEGATIVE_SEEK:           return VERR_NEGATIVE_SEEK;
@@ -182,6 +184,7 @@ RTR3DECL(int)  RTErrConvertFromWin32(unsigned uNativeCode)
 
         case ERROR_INVALID_EXE_SIGNATURE:   return VERR_INVALID_EXE_SIGNATURE;
         case ERROR_BAD_EXE_FORMAT:          return VERR_BAD_EXE_FORMAT;
+        case ERROR_FILE_CORRUPT:            return VERR_BAD_EXE_FORMAT;
         case ERROR_RESOURCE_DATA_NOT_FOUND: return VERR_NO_DATA; ///@todo fix ERROR_RESOURCE_DATA_NOT_FOUND translation
         case ERROR_INVALID_ADDRESS:         return VERR_INVALID_POINTER; ///@todo fix ERROR_INVALID_ADDRESS translation - dbghelp returns it on some line number queries.
 
@@ -190,6 +193,13 @@ RTR3DECL(int)  RTErrConvertFromWin32(unsigned uNativeCode)
         case ERROR_DIRECTORY:               return VERR_NOT_A_DIRECTORY;
 
         case ERROR_LOGON_FAILURE:           return VERR_AUTHENTICATION_FAILURE;
+        case ERROR_PRIVILEGE_NOT_HELD:      return VERR_PRIVILEGE_NOT_HELD;
+
+        case ERROR_PASSWORD_EXPIRED:
+        case ERROR_ACCOUNT_RESTRICTION:
+        case ERROR_PASSWORD_RESTRICTION:
+        case ERROR_ACCOUNT_DISABLED:        return VERR_ACCOUNT_RESTRICTED;
+
 
         /*
          * Winsocket errors are mostly BSD errno.h wrappers.

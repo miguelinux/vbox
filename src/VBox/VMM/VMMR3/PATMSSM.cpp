@@ -17,9 +17,10 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-/*******************************************************************************
-*   Header Files                                                               *
-*******************************************************************************/
+
+/*********************************************************************************************************************************
+*   Header Files                                                                                                                 *
+*********************************************************************************************************************************/
 #define LOG_GROUP LOG_GROUP_PATM
 #include <VBox/vmm/patm.h>
 #include <VBox/vmm/pdmapi.h>
@@ -139,16 +140,28 @@ typedef struct PATMPATCHRECSSM
 } PATMPATCHRECSSM, *PPATMPATCHRECSSM;
 
 
-/*******************************************************************************
-*   Internal Functions                                                         *
-*******************************************************************************/
+/**
+ * Callback arguments.
+ */
+typedef struct PATMCALLBACKARGS
+{
+    PVM             pVM;
+    PSSMHANDLE      pSSM;
+    PPATMPATCHREC   pPatchRec;
+} PATMCALLBACKARGS;
+typedef PATMCALLBACKARGS *PPATMCALLBACKARGS;
+
+
+/*********************************************************************************************************************************
+*   Internal Functions                                                                                                           *
+*********************************************************************************************************************************/
 static int patmCorrectFixup(PVM pVM, unsigned ulSSMVersion, PATM &patmInfo, PPATCHINFO pPatch, PRELOCREC pRec,
                             int32_t offset, RTRCPTR *pFixup);
 
 
-/*******************************************************************************
-*   Global Variables                                                           *
-*******************************************************************************/
+/*********************************************************************************************************************************
+*   Global Variables                                                                                                             *
+*********************************************************************************************************************************/
 /**
  * SSM descriptor table for the PATM structure.
  */
@@ -521,16 +534,16 @@ static DECLCALLBACK(int) patmCountPatch(PAVLOU32NODECORE pNode, void *pcPatches)
  *
  * @returns VBox status code.
  * @param   pNode           Current node
- * @param   pVM1            Pointer to the VM
+ * @param   pvUser          Pointer to PATMCALLBACKARGS.
  */
-static DECLCALLBACK(int) patmSaveP2GLookupRecords(PAVLU32NODECORE pNode, void *pVM1)
+static DECLCALLBACK(int) patmSaveP2GLookupRecords(PAVLU32NODECORE pNode, void *pvUser)
 {
-    PVM                 pVM    = (PVM)pVM1;
-    PSSMHANDLE          pSSM   = pVM->patm.s.savedstate.pSSM;
+    PPATMCALLBACKARGS   pArgs = (PPATMCALLBACKARGS)pvUser;
     PRECPATCHTOGUEST    pPatchToGuestRec = (PRECPATCHTOGUEST)pNode;
 
     /* Save the lookup record. */
-    int rc = SSMR3PutStructEx(pSSM, pPatchToGuestRec, sizeof(RECPATCHTOGUEST), 0 /*fFlags*/, &g_aPatmRecPatchToGuest[0], NULL);
+    int rc = SSMR3PutStructEx(pArgs->pSSM, pPatchToGuestRec, sizeof(RECPATCHTOGUEST), 0 /*fFlags*/,
+                              &g_aPatmRecPatchToGuest[0], NULL);
     AssertRCReturn(rc, rc);
 
     return VINF_SUCCESS;
@@ -543,29 +556,29 @@ static DECLCALLBACK(int) patmSaveP2GLookupRecords(PAVLU32NODECORE pNode, void *p
  *
  * @returns VBox status code.
  * @param   pNode           Current node
- * @param   pVM1            Pointer to the VM
+ * @param   pvUser          Pointer to PATMCALLBACKARGS.
  */
-static DECLCALLBACK(int) patmSaveFixupRecords(PAVLPVNODECORE pNode, void *pVM1)
+static DECLCALLBACK(int) patmSaveFixupRecords(PAVLPVNODECORE pNode, void *pvUser)
 {
-    PVM                 pVM  = (PVM)pVM1;
-    PSSMHANDLE          pSSM = pVM->patm.s.savedstate.pSSM;
+    PPATMCALLBACKARGS   pArgs = (PPATMCALLBACKARGS)pvUser;
     RELOCREC            rec  = *(PRELOCREC)pNode;
-    RTRCPTR            *pFixup = (RTRCPTR *)rec.pRelocPos;
 
     /* Convert pointer to an offset into patch memory.  May not be applicable
        to all fixup types, thus the UINT32_MAX. */
-    Assert(rec.pRelocPos);
-    uintptr_t offRelocPos = (uintptr_t)rec.pRelocPos - (uintptr_t)pVM->patm.s.pPatchMemHC;
-    if (offRelocPos > pVM->patm.s.cbPatchMem)
+    AssertMsg(   rec.pRelocPos
+              || (   rec.uType == FIXUP_REL_JMPTOPATCH
+                  && !(pArgs->pPatchRec->patch.flags & PATMFL_PATCHED_GUEST_CODE)),
+             ("uState=%#x uType=%#x flags=%#RX64\n", pArgs->pPatchRec->patch.uState, rec.uType, pArgs->pPatchRec->patch.flags));
+    uintptr_t offRelocPos = (uintptr_t)rec.pRelocPos - (uintptr_t)pArgs->pVM->patm.s.pPatchMemHC;
+    if (offRelocPos > pArgs->pVM->patm.s.cbPatchMem)
         offRelocPos = UINT32_MAX;
     rec.pRelocPos = (uint8_t *)offRelocPos;
 
     /* Zero rec.Core.Key since it's unused and may trigger SSM check due to the hack below. */
     rec.Core.Key = 0;
 
-
     /* Save the lookup record. */
-    int rc = SSMR3PutStructEx(pSSM, &rec, sizeof(rec), 0 /*fFlags*/, &g_aPatmRelocRec[0], NULL);
+    int rc = SSMR3PutStructEx(pArgs->pSSM, &rec, sizeof(rec), 0 /*fFlags*/, &g_aPatmRelocRec[0], NULL);
     AssertRCReturn(rc, rc);
 
     return VINF_SUCCESS;
@@ -668,16 +681,16 @@ static void patmR3PatchConvertMem2SSM(PPATMPATCHRECSSM pPatchSSM, PPATMPATCHREC 
  *
  * @returns VBox status code.
  * @param   pNode           Current node
- * @param   pVM1            Pointer to the VM
+ * @param   pvUser          Pointer to PATMCALLBACKARGS.
  */
-static DECLCALLBACK(int) patmSavePatchState(PAVLOU32NODECORE pNode, void *pVM1)
+static DECLCALLBACK(int) patmSavePatchState(PAVLOU32NODECORE pNode, void *pvUser)
 {
-    PVM             pVM    = (PVM)pVM1;
-    PPATMPATCHREC   pPatch = (PPATMPATCHREC)pNode;
-    PATMPATCHRECSSM patch;
-    PSSMHANDLE      pSSM   = pVM->patm.s.savedstate.pSSM;
-    int             rc;
+    PPATMCALLBACKARGS   pArgs  = (PPATMCALLBACKARGS)pvUser;
+    PPATMPATCHREC       pPatch = (PPATMPATCHREC)pNode;
+    PATMPATCHRECSSM     patch;
+    int                 rc;
 
+    pArgs->pPatchRec = pPatch;
     Assert(!(pPatch->patch.flags & PATMFL_GLOBAL_FUNCTIONS));
 
     patmR3PatchConvertMem2SSM(&patch, pPatch);
@@ -688,14 +701,17 @@ static DECLCALLBACK(int) patmSavePatchState(PAVLOU32NODECORE pNode, void *pVM1)
     /*
      * Reset HC pointers that need to be recalculated when loading the state
      */
+#ifdef VBOX_STRICT
+    PVM pVM = pArgs->pVM; /* For PATCHCODE_PTR_HC. */
     AssertMsg(patch.patch.uState == PATCH_REFUSED || (patch.patch.pPatchBlockOffset || (patch.patch.flags & (PATMFL_SYSENTER_XP|PATMFL_INT3_REPLACEMENT))),
               ("State = %x pPatchBlockHC=%08x flags=%x\n", patch.patch.uState, PATCHCODE_PTR_HC(&patch.patch), patch.patch.flags));
+#endif
     Assert(pPatch->patch.JumpTree == 0);
     Assert(!pPatch->patch.pTempInfo || pPatch->patch.pTempInfo->DisasmJumpTree == 0);
     Assert(!pPatch->patch.pTempInfo || pPatch->patch.pTempInfo->IllegalInstrTree == 0);
 
     /* Save the patch record itself */
-    rc = SSMR3PutStructEx(pSSM, &patch, sizeof(patch), 0 /*fFlags*/, &g_aPatmPatchRecFields[0], NULL);
+    rc = SSMR3PutStructEx(pArgs->pSSM, &patch, sizeof(patch), 0 /*fFlags*/, &g_aPatmPatchRecFields[0], NULL);
     AssertRCReturn(rc, rc);
 
     /*
@@ -706,7 +722,7 @@ static DECLCALLBACK(int) patmSavePatchState(PAVLOU32NODECORE pNode, void *pVM1)
     RTAvlPVDoWithAll(&pPatch->patch.FixupTree, true, patmCountLeafPV, &nrFixupRecs);
     AssertMsg(nrFixupRecs == pPatch->patch.nrFixups, ("Fixup inconsistency! counted %d vs %d\n", nrFixupRecs, pPatch->patch.nrFixups));
 #endif
-    rc = RTAvlPVDoWithAll(&pPatch->patch.FixupTree, true, patmSaveFixupRecords, pVM);
+    rc = RTAvlPVDoWithAll(&pPatch->patch.FixupTree, true, patmSaveFixupRecords, pArgs);
     AssertRCReturn(rc, rc);
 
 #ifdef VBOX_STRICT
@@ -715,9 +731,10 @@ static DECLCALLBACK(int) patmSavePatchState(PAVLOU32NODECORE pNode, void *pVM1)
     Assert(nrLookupRecords == pPatch->patch.nrPatch2GuestRecs);
 #endif
 
-    rc = RTAvlU32DoWithAll(&pPatch->patch.Patch2GuestAddrTree, true, patmSaveP2GLookupRecords, pVM);
+    rc = RTAvlU32DoWithAll(&pPatch->patch.Patch2GuestAddrTree, true, patmSaveP2GLookupRecords, pArgs);
     AssertRCReturn(rc, rc);
 
+    pArgs->pPatchRec = NULL;
     return VINF_SUCCESS;
 }
 
@@ -778,10 +795,13 @@ DECLCALLBACK(int) patmR3Save(PVM pVM, PSSMHANDLE pSSM)
     /*
      * Save all patches
      */
-    rc = RTAvloU32DoWithAll(&pVM->patm.s.PatchLookupTreeHC->PatchTree, true, patmSavePatchState, pVM);
+    PATMCALLBACKARGS Args;
+    Args.pVM = pVM;
+    Args.pSSM = pSSM;
+    rc = RTAvloU32DoWithAll(&pVM->patm.s.PatchLookupTreeHC->PatchTree, true, patmSavePatchState, &Args);
     AssertRCReturn(rc, rc);
 
-    /** @note patch statistics are not saved. */
+    /* Note! Patch statistics are not saved. */
 
     return VINF_SUCCESS;
 }
@@ -802,6 +822,7 @@ DECLCALLBACK(int) patmR3Load(PVM pVM, PSSMHANDLE pSSM, uint32_t uVersion, uint32
     int  rc;
 
     if (    uVersion != PATM_SAVED_STATE_VERSION
+        &&  uVersion != PATM_SAVED_STATE_VERSION_NO_RAW_MEM
         &&  uVersion != PATM_SAVED_STATE_VERSION_MEM
         &&  uVersion != PATM_SAVED_STATE_VERSION_FIXUP_HACK
         &&  uVersion != PATM_SAVED_STATE_VERSION_VER16

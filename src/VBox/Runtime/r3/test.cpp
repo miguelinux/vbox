@@ -25,9 +25,9 @@
  */
 
 
-/*******************************************************************************
-*   Header Files                                                               *
-*******************************************************************************/
+/*********************************************************************************************************************************
+*   Header Files                                                                                                                 *
+*********************************************************************************************************************************/
 #include <iprt/test.h>
 
 #include <iprt/asm.h>
@@ -46,9 +46,9 @@
 #include "internal/magics.h"
 
 
-/*******************************************************************************
-*   Structures and Typedefs                                                    *
-*******************************************************************************/
+/*********************************************************************************************************************************
+*   Structures and Typedefs                                                                                                      *
+*********************************************************************************************************************************/
 /**
  * Guarded memory allocation record.
  */
@@ -149,9 +149,9 @@ typedef struct RTTESTINT
 typedef RTTESTINT *PRTTESTINT;
 
 
-/*******************************************************************************
-*   Defined Constants And Macros                                               *
-*******************************************************************************/
+/*********************************************************************************************************************************
+*   Defined Constants And Macros                                                                                                 *
+*********************************************************************************************************************************/
 /** Validate a test instance. */
 #define RTTEST_VALID_RETURN(pTest)  \
     do { \
@@ -183,9 +183,9 @@ typedef RTTESTINT *PRTTESTINT;
     } while (0)
 
 
-/*******************************************************************************
-*   Internal Functions                                                         *
-*******************************************************************************/
+/*********************************************************************************************************************************
+*   Internal Functions                                                                                                           *
+*********************************************************************************************************************************/
 static void rtTestGuardedFreeOne(PRTTESTGUARDEDMEM pMem);
 static int  rtTestPrintf(PRTTESTINT pTest, const char *pszFormat, ...);
 static void rtTestXmlStart(PRTTESTINT pTest, const char *pszTest);
@@ -197,9 +197,9 @@ static void rtTestXmlElemEnd(PRTTESTINT pTest, const char *pszTag);
 static void rtTestXmlEnd(PRTTESTINT pTest);
 
 
-/*******************************************************************************
-*   Global Variables                                                           *
-*******************************************************************************/
+/*********************************************************************************************************************************
+*   Global Variables                                                                                                             *
+*********************************************************************************************************************************/
 /** For serializing TLS init. */
 static RTONCE   g_TestInitOnce = RTONCE_INITIALIZER;
 /** Our TLS entry. */
@@ -1258,7 +1258,7 @@ RTR3DECL(RTEXITCODE) RTTestSummaryAndDestroy(RTTEST hTest)
     RTEXITCODE enmExitCode;
     if (!pTest->cErrors)
     {
-        RTTestPrintfNl(hTest, RTTESTLVL_ALWAYS, "SUCCESS\n", pTest->cErrors);
+        RTTestPrintfNl(hTest, RTTESTLVL_ALWAYS, "SUCCESS\n");
         enmExitCode = RTEXITCODE_SUCCESS;
     }
     else
@@ -1286,7 +1286,7 @@ RTR3DECL(RTEXITCODE) RTTestSkipAndDestroyV(RTTEST hTest, const char *pszReasonFm
     {
         if (pszReasonFmt)
             RTTestPrintfNlV(hTest, RTTESTLVL_FAILURE, pszReasonFmt, va);
-        RTTestPrintfNl(hTest, RTTESTLVL_ALWAYS, "SKIPPED\n", pTest->cErrors);
+        RTTestPrintfNl(hTest, RTTESTLVL_ALWAYS, "SKIPPED\n");
         enmExitCode = RTEXITCODE_SKIPPED;
     }
     else

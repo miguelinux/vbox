@@ -16,9 +16,9 @@
  */
 
 
-/*******************************************************************************
-*   Header Files                                                               *
-*******************************************************************************/
+/*********************************************************************************************************************************
+*   Header Files                                                                                                                 *
+*********************************************************************************************************************************/
 #define LOG_GROUP LOG_GROUP_PDM_DRIVER
 #include "PDMInternal.h"
 #include <VBox/vmm/pdm.h>
@@ -41,9 +41,9 @@
 #include <iprt/string.h>
 
 
-/*******************************************************************************
-*   Structures and Typedefs                                                    *
-*******************************************************************************/
+/*********************************************************************************************************************************
+*   Structures and Typedefs                                                                                                      *
+*********************************************************************************************************************************/
 /**
  * Internal callback structure pointer.
  *
@@ -65,9 +65,9 @@ typedef struct PDMDRVREGCBINT
 typedef const PDMDRVREGCBINT *PCPDMDRVREGCBINT;
 
 
-/*******************************************************************************
-*   Internal Functions                                                         *
-*******************************************************************************/
+/*********************************************************************************************************************************
+*   Internal Functions                                                                                                           *
+*********************************************************************************************************************************/
 static DECLCALLBACK(int) pdmR3DrvRegister(PCPDMDRVREGCB pCallbacks, PCPDMDRVREG pReg);
 static int pdmR3DrvLoad(PVM pVM, PPDMDRVREGCBINT pRegCB, const char *pszFilename, const char *pszName);
 
@@ -92,7 +92,7 @@ VMMR3DECL(int) PDMR3DrvStaticRegistration(PVM pVM, FNPDMVBOXDRIVERSREGISTER pfnC
 
     int rc = pfnCallback(&RegCB.Core, VBOX_VERSION);
     if (RT_FAILURE(rc))
-        AssertMsgFailed(("VBoxDriversRegister failed with rc=%Rrc\n"));
+        AssertMsgFailed(("VBoxDriversRegister failed with rc=%Rrc\n", rc));
 
     return rc;
 }
@@ -243,7 +243,7 @@ static int pdmR3DrvLoad(PVM pVM, PPDMDRVREGCBINT pRegCB, const char *pszFilename
             if (RT_SUCCESS(rc))
                 Log(("PDM: Successfully loaded driver module %s (%s).\n", pszName, pszFilename));
             else
-                AssertMsgFailed(("VBoxDriversRegister failed with rc=%Rrc\n"));
+                AssertMsgFailed(("VBoxDriversRegister failed with rc=%Rrc\n", rc));
         }
         else
         {
@@ -272,7 +272,7 @@ static DECLCALLBACK(int) pdmR3DrvRegister(PCPDMDRVREGCB pCallbacks, PCPDMDRVREG 
     AssertMsgReturn(RTStrEnd(pReg->szName, sizeof(pReg->szName)),
                     ("%.*s\n", sizeof(pReg->szName), pReg->szName),
                     VERR_PDM_INVALID_DRIVER_REGISTRATION);
-    AssertMsgReturn(pdmR3IsValidName(pReg->szName), ("%.*s\n", pReg->szName),
+    AssertMsgReturn(pdmR3IsValidName(pReg->szName), ("%.*s\n", sizeof(pReg->szName), pReg->szName),
                     VERR_PDM_INVALID_DRIVER_REGISTRATION);
     AssertMsgReturn(    !(pReg->fFlags & PDM_DRVREG_FLAGS_R0)
                     ||  (   pReg->szR0Mod[0]
@@ -309,7 +309,7 @@ static DECLCALLBACK(int) pdmR3DrvRegister(PCPDMDRVREGCB pCallbacks, PCPDMDRVREG 
                     ("%s: %p\n", pReg->szName, pReg->pfnSoftReset),
                     VERR_PDM_INVALID_DRIVER_REGISTRATION);
     AssertMsgReturn(pReg->u32VersionEnd == PDM_DRVREG_VERSION,
-                    ("%s: #x\n", pReg->szName, pReg->u32VersionEnd),
+                    ("%s: %#x\n", pReg->szName, pReg->u32VersionEnd),
                     VERR_PDM_INVALID_DRIVER_REGISTRATION);
 
     /*
@@ -479,7 +479,7 @@ static int pdmR3DrvMaybeTransformChain(PVM pVM, PPDMDRVINS pDrvAbove, PPDMLUN pL
                               ,
                               ("Action='%s', valid values are 'inject', 'mergeconfig', 'replace', 'replacetree', 'remove', 'removetree'.\n", szAction),
                               VERR_PDM_MISCONFIGURED_DRV_TRANSFORMATION);
-        LogRel(("Applying '%s' to '%s'::[%s]...'%s': %s\n", szCurTransNm, pszDevice, szLun, pszThisDrv, szAction));
+        LogRel(("PDMDriver: Applying '%s' to '%s'::[%s]...'%s': %s\n", szCurTransNm, pszDevice, szLun, pszThisDrv, szAction));
         CFGMR3Dump(*ppNode);
         CFGMR3Dump(pCurTrans);
 
@@ -600,14 +600,14 @@ static int pdmR3DrvMaybeTransformChain(PVM pVM, PPDMDRVINS pDrvAbove, PPDMLUN pL
         if (*ppNode)
             CFGMR3Dump(*ppNode);
         else
-            LogRel(("The transformation removed the driver.\n"));
+            LogRel(("PDMDriver: The transformation removed the driver.\n"));
     }
 
     /*
      * Note what happened in the release log.
      */
     if (cTransformations > 0)
-        LogRel(("Transformations done. Applied %u driver transformations.\n", cTransformations));
+        LogRel(("PDMDriver: Transformations done. Applied %u driver transformations.\n", cTransformations));
 
     return rc;
 }
@@ -683,7 +683,7 @@ int pdmR3DrvInstantiate(PVM pVM, PCFGMNODE pNode, PPDMIBASE pBaseInterface, PPDM
                     rc = MMHyperAlloc(pVM, cb, 64, MM_TAG_PDM_DRIVER, (void **)&pNew);
                 else
                     rc = MMR3HeapAllocZEx(pVM, MM_TAG_PDM_DRIVER, cb, (void **)&pNew);
-                if (pNew)
+                if (RT_SUCCESS(rc))
                 {
                     /*
                      * Initialize the instance structure (declaration order).
@@ -774,10 +774,7 @@ int pdmR3DrvInstantiate(PVM pVM, PCFGMNODE pNode, PPDMIBASE pBaseInterface, PPDM
                     }
                 }
                 else
-                {
-                    AssertMsgFailed(("Failed to allocate %d bytes for instantiating driver '%s'\n", cb, pszName));
-                    rc = VERR_NO_MEMORY;
-                }
+                    AssertMsgFailed(("Failed to allocate %d bytes for instantiating driver '%s'! rc=%Rrc\n", cb, pszName, rc));
             }
             else
                 AssertMsgFailed(("Failed to create Config node! rc=%Rrc\n", rc));
@@ -1258,7 +1255,7 @@ static DECLCALLBACK(int) pdmR3DrvHlp_QueueCreate(PPDMDRVINS pDrvIns, uint32_t cb
 {
     PDMDRV_ASSERT_DRVINS(pDrvIns);
     LogFlow(("pdmR3DrvHlp_PDMQueueCreate: caller='%s'/%d: cbItem=%d cItems=%d cMilliesInterval=%d pfnCallback=%p pszName=%p:{%s} ppQueue=%p\n",
-             pDrvIns->pReg->szName, pDrvIns->iInstance, cbItem, cItems, cMilliesInterval, pfnCallback, pszName, pszName, ppQueue, ppQueue));
+             pDrvIns->pReg->szName, pDrvIns->iInstance, cbItem, cItems, cMilliesInterval, pfnCallback, pszName, pszName, ppQueue));
     PVM pVM = pDrvIns->Internal.s.pVMR3;
     VM_ASSERT_EMT(pVM);
 
@@ -1316,7 +1313,7 @@ static DECLCALLBACK(int) pdmR3DrvHlp_SSMRegister(PPDMDRVINS pDrvIns, uint32_t uV
 {
     PDMDRV_ASSERT_DRVINS(pDrvIns);
     VM_ASSERT_EMT(pDrvIns->Internal.s.pVMR3);
-    LogFlow(("pdmR3DrvHlp_SSMRegister: caller='%s'/%d: uVersion=#x cbGuess=%#x \n"
+    LogFlow(("pdmR3DrvHlp_SSMRegister: caller='%s'/%d: uVersion=%#x cbGuess=%#x \n"
              "    pfnLivePrep=%p pfnLiveExec=%p pfnLiveVote=%p  pfnSavePrep=%p pfnSaveExec=%p pfnSaveDone=%p pszLoadPrep=%p pfnLoadExec=%p pfnLoaddone=%p\n",
              pDrvIns->pReg->szName, pDrvIns->iInstance, uVersion, cbGuess,
              pfnLivePrep, pfnLiveExec, pfnLiveVote,
@@ -1366,8 +1363,8 @@ static DECLCALLBACK(int) pdmR3DrvHlp_DBGFInfoRegister(PPDMDRVINS pDrvIns, const 
 static DECLCALLBACK(int) pdmR3DrvHlp_DBGFInfoDeregister(PPDMDRVINS pDrvIns, const char *pszName)
 {
     PDMDRV_ASSERT_DRVINS(pDrvIns);
-    LogFlow(("pdmR3DrvHlp_DBGFInfoDeregister: caller='%s'/%d: pszName=%p:{%s} pszDesc=%p:{%s} pfnHandler=%p\n",
-             pDrvIns->pReg->szName, pDrvIns->iInstance, pszName));
+    LogFlow(("pdmR3DrvHlp_DBGFInfoDeregister: caller='%s'/%d: pszName=%p:{%s}\n",
+             pDrvIns->pReg->szName, pDrvIns->iInstance, pszName, pszName));
 
     int rc = DBGFR3InfoDeregisterDriver(pDrvIns->Internal.s.pVMR3, pDrvIns, pszName);
 

@@ -116,12 +116,13 @@
  *
  */
 
-/*******************************************************************************
-*   Header Files                                                               *
-*******************************************************************************/
+
+/*********************************************************************************************************************************
+*   Header Files                                                                                                                 *
+*********************************************************************************************************************************/
 #define LOG_GROUP LOG_GROUP_TM
 #include <VBox/vmm/tm.h>
-#include <iprt/asm-amd64-x86.h> /* for SUPGetCpuHzFromGIP from sup.h  */
+#include <iprt/asm-amd64-x86.h> /* for SUPGetCpuHzFromGip from sup.h  */
 #include <VBox/vmm/vmm.h>
 #include <VBox/vmm/mm.h>
 #include <VBox/vmm/hm.h>
@@ -156,16 +157,16 @@
 #include "TMInline.h"
 
 
-/*******************************************************************************
-*   Defined Constants And Macros                                               *
-*******************************************************************************/
+/*********************************************************************************************************************************
+*   Defined Constants And Macros                                                                                                 *
+*********************************************************************************************************************************/
 /** The current saved state version.*/
 #define TM_SAVED_STATE_VERSION  3
 
 
-/*******************************************************************************
-*   Internal Functions                                                         *
-*******************************************************************************/
+/*********************************************************************************************************************************
+*   Internal Functions                                                                                                           *
+*********************************************************************************************************************************/
 static bool                 tmR3HasFixedTSC(PVM pVM);
 static const char *         tmR3GetTSCModeName(PVM pVM);
 static uint64_t             tmR3CalibrateTSC(PVM pVM);
@@ -1348,11 +1349,40 @@ static DECLCALLBACK(int) tmR3Load(PVM pVM, PSSMHANDLE pSSM, uint32_t uVersion, u
         return rc;
     if (pVM->tm.s.enmTSCMode != TMTSCMODE_REAL_TSC_OFFSET)
         pVM->tm.s.cTSCTicksPerSecond = u64Hz;
-    /** @todo Compare with real TSC rate even when restoring with real-tsc-offset
-     *        mode. */
 
     LogRel(("TM: cTSCTicksPerSecond=%#RX64 (%'RU64) enmTSCMode=%d (%s) (state load)\n",
             pVM->tm.s.cTSCTicksPerSecond, pVM->tm.s.cTSCTicksPerSecond, pVM->tm.s.enmTSCMode, tmR3GetTSCModeName(pVM)));
+
+    /* Disabled as this isn't tested, also should this apply only if GIM is enabled etc. */
+#if 0
+    /*
+     * If the current host TSC frequency is incompatible with what is in the
+     * saved state of the VM, fall back to emulating TSC and disallow TSC mode
+     * switches during VM runtime (e.g. by GIM).
+     */
+    if (   GIMIsEnabled(pVM)
+        || pVM->tm.s.enmTSCMode == TMTSCMODE_REAL_TSC_OFFSET)
+    {
+        uint64_t uGipCpuHz;
+        bool fRelax  = RTSystemIsInsideVM();
+        bool fCompat = SUPIsTscFreqCompatible(pVM->tm.s.cTSCTicksPerSecond, &uGipCpuHz, fRelax);
+        if (!fCompat)
+        {
+            pVM->tm.s.enmTSCMode = TMTSCMODE_VIRT_TSC_EMULATED;
+            pVM->tm.s.fTSCModeSwitchAllowed = false;
+            if (g_pSUPGlobalInfoPage->u32Mode != SUPGIPMODE_ASYNC_TSC)
+            {
+                LogRel(("TM: TSC frequency incompatible! uGipCpuHz=%#RX64 (%'RU64) enmTSCMode=%d (%s) fTSCModeSwitchAllowed=%RTbool (state load)\n",
+                        uGipCpuHz, uGipCpuHz, pVM->tm.s.enmTSCMode, tmR3GetTSCModeName(pVM), pVM->tm.s.fTSCModeSwitchAllowed));
+            }
+            else
+            {
+                LogRel(("TM: GIP is async, enmTSCMode=%d (%s) fTSCModeSwitchAllowed=%RTbool (state load)\n",
+                        uGipCpuHz, uGipCpuHz, pVM->tm.s.enmTSCMode, tmR3GetTSCModeName(pVM), pVM->tm.s.fTSCModeSwitchAllowed));
+            }
+        }
+    }
+#endif
 
     /*
      * Make sure timers get rescheduled immediately.

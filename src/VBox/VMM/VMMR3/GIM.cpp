@@ -45,9 +45,10 @@
  * changed during the lifetime of the VM.
  */
 
-/*******************************************************************************
-*   Header Files                                                               *
-*******************************************************************************/
+
+/*********************************************************************************************************************************
+*   Header Files                                                                                                                 *
+*********************************************************************************************************************************/
 #define LOG_GROUP LOG_GROUP_GIM
 #include <VBox/log.h>
 #include "GIMInternal.h"
@@ -64,9 +65,10 @@
 #include "GIMHvInternal.h"
 #include "GIMKvmInternal.h"
 
-/*******************************************************************************
-*   Internal Functions                                                         *
-*******************************************************************************/
+
+/*********************************************************************************************************************************
+*   Internal Functions                                                                                                           *
+*********************************************************************************************************************************/
 static DECLCALLBACK(int) gimR3Save(PVM pVM, PSSMHANDLE pSSM);
 static DECLCALLBACK(int) gimR3Load(PVM pVM, PSSMHANDLE pSSM, uint32_t uSSMVersion, uint32_t uPass);
 static FNPGMPHYSHANDLER gimR3Mmio2WriteHandler;
@@ -529,7 +531,7 @@ VMMR3_INT_DECL(int) GIMR3Mmio2Map(PVM pVM, PGIMMMIO2REGION pRegion, RTGCPHYS GCP
 
     if (!pRegion->fRegistered)
     {
-        LogFunc(("%s: Region has not been registered.\n"));
+        LogFunc(("%s: Region has not been registered.\n", pRegion->szDescription));
         return VERR_GIM_IPE_1;
     }
 

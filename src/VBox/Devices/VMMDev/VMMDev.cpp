@@ -16,9 +16,9 @@
  */
 
 
-/*******************************************************************************
-*   Header Files                                                               *
-*******************************************************************************/
+/*********************************************************************************************************************************
+*   Header Files                                                                                                                 *
+*********************************************************************************************************************************/
 /* Enable dev_vmm Log3 statements to get IRQ-related logging. */
 #define LOG_GROUP LOG_GROUP_DEV_VMM
 #include <VBox/VMMDev.h>
@@ -56,9 +56,9 @@
 #endif
 
 
-/*******************************************************************************
-*   Defined Constants And Macros                                               *
-*******************************************************************************/
+/*********************************************************************************************************************************
+*   Defined Constants And Macros                                                                                                 *
+*********************************************************************************************************************************/
 #define VBOX_GUEST_INTERFACE_VERSION_1_03(s) \
     (   RT_HIWORD((s)->guestInfo.interfaceVersion) == 1 \
      && RT_LOWORD((s)->guestInfo.interfaceVersion) == 3 )
@@ -135,6 +135,76 @@
 
 /* -=-=-=-=- Misc Helpers -=-=-=-=- */
 
+/**
+ * Log information about the Guest Additions.
+ *
+ * @param   pGuestInfo  The information we've got from the Guest Additions driver.
+ */
+static void vmmdevLogGuestOsInfo(VBoxGuestInfo *pGuestInfo)
+{
+    const char *pcszOs;
+    switch (pGuestInfo->osType & ~VBOXOSTYPE_x64)
+    {
+        case VBOXOSTYPE_DOS:                              pcszOs = "DOS";            break;
+        case VBOXOSTYPE_Win31:                            pcszOs = "Windows 3.1";    break;
+        case VBOXOSTYPE_Win9x:                            pcszOs = "Windows 9x";     break;
+        case VBOXOSTYPE_Win95:                            pcszOs = "Windows 95";     break;
+        case VBOXOSTYPE_Win98:                            pcszOs = "Windows 98";     break;
+        case VBOXOSTYPE_WinMe:                            pcszOs = "Windows Me";     break;
+        case VBOXOSTYPE_WinNT:                            pcszOs = "Windows NT";     break;
+        case VBOXOSTYPE_WinNT4:                           pcszOs = "Windows NT4";    break;
+        case VBOXOSTYPE_Win2k:                            pcszOs = "Windows 2k";     break;
+        case VBOXOSTYPE_WinXP:                            pcszOs = "Windows XP";     break;
+        case VBOXOSTYPE_Win2k3:                           pcszOs = "Windows 2k3";    break;
+        case VBOXOSTYPE_WinVista:                         pcszOs = "Windows Vista";  break;
+        case VBOXOSTYPE_Win2k8:                           pcszOs = "Windows 2k8";    break;
+        case VBOXOSTYPE_Win7:                             pcszOs = "Windows 7";      break;
+        case VBOXOSTYPE_Win8:                             pcszOs = "Windows 8";      break;
+        case VBOXOSTYPE_Win2k12_x64 & ~VBOXOSTYPE_x64:    pcszOs = "Windows 2k12";   break;
+        case VBOXOSTYPE_Win81:                            pcszOs = "Windows 8.1";    break;
+        case VBOXOSTYPE_Win10:                            pcszOs = "Windows 10";     break;
+        case VBOXOSTYPE_OS2:                              pcszOs = "OS/2";           break;
+        case VBOXOSTYPE_OS2Warp3:                         pcszOs = "OS/2 Warp 3";    break;
+        case VBOXOSTYPE_OS2Warp4:                         pcszOs = "OS/2 Warp 4";    break;
+        case VBOXOSTYPE_OS2Warp45:                        pcszOs = "OS/2 Warp 4.5";  break;
+        case VBOXOSTYPE_ECS:                              pcszOs = "OS/2 ECS";       break;
+        case VBOXOSTYPE_OS21x:                            pcszOs = "OS/2 2.1x";      break;
+        case VBOXOSTYPE_Linux:                            pcszOs = "Linux";          break;
+        case VBOXOSTYPE_Linux22:                          pcszOs = "Linux 2.2";      break;
+        case VBOXOSTYPE_Linux24:                          pcszOs = "Linux 2.4";      break;
+        case VBOXOSTYPE_Linux26:                          pcszOs = "Linux >= 2.6";   break;
+        case VBOXOSTYPE_ArchLinux:                        pcszOs = "ArchLinux";      break;
+        case VBOXOSTYPE_Debian:                           pcszOs = "Debian";         break;
+        case VBOXOSTYPE_OpenSUSE:                         pcszOs = "openSUSE";       break;
+        case VBOXOSTYPE_FedoraCore:                       pcszOs = "Fedora";         break;
+        case VBOXOSTYPE_Gentoo:                           pcszOs = "Gentoo";         break;
+        case VBOXOSTYPE_Mandriva:                         pcszOs = "Mandriva";       break;
+        case VBOXOSTYPE_RedHat:                           pcszOs = "RedHat";         break;
+        case VBOXOSTYPE_Turbolinux:                       pcszOs = "TurboLinux";     break;
+        case VBOXOSTYPE_Ubuntu:                           pcszOs = "Ubuntu";         break;
+        case VBOXOSTYPE_Xandros:                          pcszOs = "Xandros";        break;
+        case VBOXOSTYPE_Oracle:                           pcszOs = "Oracle Linux";   break;
+        case VBOXOSTYPE_FreeBSD:                          pcszOs = "FreeBSD";        break;
+        case VBOXOSTYPE_OpenBSD:                          pcszOs = "OpenBSD";        break;
+        case VBOXOSTYPE_NetBSD:                           pcszOs = "NetBSD";         break;
+        case VBOXOSTYPE_Netware:                          pcszOs = "Netware";        break;
+        case VBOXOSTYPE_Solaris:                          pcszOs = "Solaris";        break;
+        case VBOXOSTYPE_OpenSolaris:                      pcszOs = "OpenSolaris";    break;
+        case VBOXOSTYPE_Solaris11_x64 & ~VBOXOSTYPE_x64:  pcszOs = "Solaris 11";     break;
+        case VBOXOSTYPE_MacOS:                            pcszOs = "Mac OS X";       break;
+        case VBOXOSTYPE_MacOS106:                         pcszOs = "Mac OS X 10.6";  break;
+        case VBOXOSTYPE_MacOS107_x64 & ~VBOXOSTYPE_x64:   pcszOs = "Mac OS X 10.7";  break;
+        case VBOXOSTYPE_MacOS108_x64 & ~VBOXOSTYPE_x64:   pcszOs = "Mac OS X 10.8";  break;
+        case VBOXOSTYPE_MacOS109_x64 & ~VBOXOSTYPE_x64:   pcszOs = "Mac OS X 10.9";  break;
+        case VBOXOSTYPE_MacOS1010_x64 & ~VBOXOSTYPE_x64:  pcszOs = "Mac OS X 10.10"; break;
+        case VBOXOSTYPE_MacOS1011_x64 & ~VBOXOSTYPE_x64:  pcszOs = "Mac OS X 10.11"; break;
+        case VBOXOSTYPE_Haiku:                            pcszOs = "Haiku";          break;
+        default:                                          pcszOs = "unknown";        break;
+    }
+    LogRel(("VMMDev: Guest Additions information report: Interface = 0x%08X osType = 0x%08X (%s, %u-bit)\n",
+            pGuestInfo->interfaceVersion, pGuestInfo->osType, pcszOs,
+            pGuestInfo->osType & VBOXOSTYPE_x64 ? 64 : 32));
+}
 
 /**
  * Sets the IRQ (raise it or lower it) for 1.03 additions.
@@ -339,9 +409,7 @@ static int vmmdevReqHandler_ReportGuestInfo(PVMMDEV pThis, VMMDevRequestHeader *
         /* Check additions interface version. */
         pThis->fu32AdditionsOk = VBOX_GUEST_INTERFACE_VERSION_OK(pThis->guestInfo.interfaceVersion);
 
-        LogRel(("VMMDev: Guest Additions information report: Interface = 0x%08X osType = 0x%08X (%u-bit)\n",
-                pThis->guestInfo.interfaceVersion, pThis->guestInfo.osType,
-                (pThis->guestInfo.osType & VBOXOSTYPE_x64) ? 64 : 32));
+        vmmdevLogGuestOsInfo(&pThis->guestInfo);
 
         if (pThis->pDrv && pThis->pDrv->pfnUpdateGuestInfo)
             pThis->pDrv->pfnUpdateGuestInfo(pThis->pDrv, &pThis->guestInfo);
@@ -743,7 +811,7 @@ static int vmmdevReqHandler_ReportGuestStatus(PVMMDEV pThis, VMMDevRequestHeader
         PVMMDEVFACILITYSTATUSENTRY pEntry = vmmdevGetFacilityStatusEntry(pThis, pStatus->facility);
         if (!pEntry)
         {
-            LogRelMax(10, ("VMMDev: Facility table is full - facility=%u status=%u.\n", pStatus->facility, pStatus->status));
+            LogRelMax(10, ("VMMDev: Facility table is full - facility=%u status=%u\n", pStatus->facility, pStatus->status));
             return VERR_OUT_OF_RESOURCES;
         }
 
@@ -771,48 +839,58 @@ static int vmmdevReqHandler_ReportGuestUserState(PVMMDEV pThis, VMMDevRequestHea
     /*
      * Validate input.
      */
-    AssertMsgReturn(pReqHdr->size >= sizeof(VMMDevReportGuestUserState), ("%u\n", pReqHdr->size), VERR_INVALID_PARAMETER);
-    VBoxGuestUserStatus *pStatus = &((VMMDevReportGuestUserState *)pReqHdr)->status;
+    VMMDevReportGuestUserState *pReq = (VMMDevReportGuestUserState *)pReqHdr;
+    AssertMsgReturn(pReq->header.size >= sizeof(*pReq), ("%u\n", pReqHdr->size), VERR_INVALID_PARAMETER);
 
     if (   pThis->pDrv
         && pThis->pDrv->pfnUpdateGuestUserState)
     {
-        AssertPtr(pStatus);
+        /* Play safe. */
+        AssertReturn(pReq->header.size      <= _2K, VERR_TOO_MUCH_DATA);
+        AssertReturn(pReq->status.cbUser    <= 256, VERR_TOO_MUCH_DATA);
+        AssertReturn(pReq->status.cbDomain  <= 256, VERR_TOO_MUCH_DATA);
+        AssertReturn(pReq->status.cbDetails <= _1K, VERR_TOO_MUCH_DATA);
 
-        if (   pReqHdr->size      > _2K
-            || pStatus->cbUser    > 256
-            || pStatus->cbDomain  > 256
-            || pStatus->cbDetails > _1K) /* Play safe. */
+        /* pbDynamic marks the beginning of the struct's dynamically
+         * allocated data area. */
+        uint8_t *pbDynamic = (uint8_t *)&pReq->status.szUser;
+        uint32_t cbLeft    = pReqHdr->size - RT_OFFSETOF(VMMDevReportGuestUserState, status.szUser);
+
+        /* The user. */
+        AssertReturn(pReq->status.cbUser > 0, VERR_INVALID_PARAMETER); /* User name is required. */
+        AssertReturn(pReq->status.cbUser <= cbLeft, VERR_INVALID_PARAMETER);
+        const char *pszUser = (const char *)pbDynamic;
+        AssertReturn(RTStrEnd(pszUser, pReq->status.cbUser), VERR_INVALID_PARAMETER);
+        int rc = RTStrValidateEncoding(pszUser);
+        AssertRCReturn(rc, rc);
+
+        /* Advance to the next field. */
+        pbDynamic += pReq->status.cbUser;
+        cbLeft    -= pReq->status.cbUser;
+
+        /* pszDomain can be NULL. */
+        AssertReturn(pReq->status.cbDomain <= cbLeft, VERR_INVALID_PARAMETER);
+        const char *pszDomain = NULL;
+        if (pReq->status.cbDomain)
         {
-            return VERR_INVALID_PARAMETER;
+            pszDomain = (const char *)pbDynamic;
+            AssertReturn(RTStrEnd(pszDomain, pReq->status.cbDomain), VERR_INVALID_PARAMETER);
+            rc = RTStrValidateEncoding(pszDomain);
+            AssertRCReturn(rc, rc);
+
+            /* Advance to the next field. */
+            pbDynamic += pReq->status.cbDomain;
+            cbLeft    -= pReq->status.cbDomain;
         }
 
-        /* pyDynamic marks the beginning of the struct's dynamically
-         * allocated data area. */
-        uint8_t *pvDynamic = (uint8_t *)pStatus + RT_OFFSETOF(VBoxGuestUserStatus, szUser);
-        AssertPtr(pvDynamic);
+        /* pbDetails can be NULL. */
+        const uint8_t *pbDetails = NULL;
+        AssertReturn(pReq->status.cbDetails <= cbLeft, VERR_INVALID_PARAMETER);
+        if (pReq->status.cbDetails > 0)
+            pbDetails = pbDynamic;
 
-        if (!pStatus->cbUser) /* User name is required. */
-            return VERR_INVALID_PARAMETER;
-        const char *pszUser = (const char *)pvDynamic;
-        AssertPtrReturn(pszUser, VERR_INVALID_POINTER);
-
-        pvDynamic += pStatus->cbUser; /* Advance to next field. */
-        const char *pszDomain = pStatus->cbDomain
-                              ? (const char *)pvDynamic : NULL;
-        /* Note: pszDomain can be NULL. */
-
-        pvDynamic += pStatus->cbDomain; /* Advance to next field. */
-        const uint8_t *puDetails = pStatus->cbDetails
-                                 ? pvDynamic : NULL;
-        /* Note: puDetails can be NULL. */
-
-        pThis->pDrv->pfnUpdateGuestUserState(pThis->pDrv, pszUser, pszDomain,
-                                             /* State */
-                                             (uint32_t)pStatus->state,
-                                             /* State details */
-                                             puDetails,
-                                             pStatus->cbDetails);
+        pThis->pDrv->pfnUpdateGuestUserState(pThis->pDrv, pszUser, pszDomain, (uint32_t)pReq->status.state,
+                                             pbDetails, pReq->status.cbDetails);
     }
 
     return VINF_SUCCESS;
@@ -971,7 +1049,7 @@ static int vmmdevReqHandler_SetPointerShape(PVMMDEV pThis, VMMDevRequestHeader *
     {
         AssertMsg(pReq->header.size == 0x10028 && pReq->header.version == 10000,  /* don't complain about legacy!!! */
                   ("VMMDev mouse shape structure has invalid size %d (%#x) version=%d!\n",
-                   pReq->header.size, pReq->header.size, pReq->header.size, pReq->header.version));
+                   pReq->header.size, pReq->header.size, pReq->header.version));
         return VERR_INVALID_PARAMETER;
     }
 
@@ -2732,7 +2810,7 @@ static DECLCALLBACK(int) vmmdevRequestHandler(PPDMDEVINS pDevIns, void *pvUser, 
     }
     else
     {
-        LogRelMax(50, ("VMMDev: Request packet too big (%x). Refusing operation.\n", requestHeader.size));
+        LogRelMax(50, ("VMMDev: Request packet too big (%x), refusing operation\n", requestHeader.size));
         requestHeader.rc = VERR_NOT_SUPPORTED;
     }
 
@@ -3128,7 +3206,7 @@ vmmdevIPort_RequestDisplayChange(PPDMIVMMDEVPORT pInterface, uint32_t cx, uint32
 
     if (!fSameResolution)
     {
-        LogRel(("VMMDev::SetVideoModeHint: got a video mode hint (%dx%dx%d)@(%dx%d),(%d;%d) at %d\n",
+        LogRel(("VMMDev: SetVideoModeHint: Got a video mode hint (%dx%dx%d)@(%dx%d),(%d;%d) at %d\n",
                 cx, cy, cBits, xOrigin, yOrigin, fEnabled, fChangeOrigin, idxDisplay));
 
         /* IRQ so the guest knows what's going on */
@@ -3552,9 +3630,7 @@ static DECLCALLBACK(int) vmmdevLoadExec(PPDMDEVINS pDevIns, PSSMHANDLE pSSM, uin
 
     if (pThis->fu32AdditionsOk)
     {
-        LogRel(("VMMDev: Guest Additions information report: additionsVersion = 0x%08X, osType = 0x%08X (%u-bit)\n",
-                pThis->guestInfo.interfaceVersion, pThis->guestInfo.osType,
-                (pThis->guestInfo.osType & VBOXOSTYPE_x64) ? 64 : 32));
+        vmmdevLogGuestOsInfo(&pThis->guestInfo);
         if (pThis->pDrv)
         {
             if (pThis->guestInfo2.uFullVersion && pThis->pDrv->pfnUpdateGuestInfo2)

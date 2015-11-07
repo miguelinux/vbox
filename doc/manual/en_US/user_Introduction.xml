@@ -426,6 +426,10 @@
             </listitem>
             
             <listitem>
+              <para>Windows 10 RTM build 10240 (32-bit and 64-bit)</para>
+            </listitem>
+            
+            <listitem>
               <para>Windows Server 2012 (64-bit)</para>
             </listitem>
 
@@ -456,6 +460,11 @@
           <listitem>
             <para>10.10 (Yosemite)</para>
           </listitem>
+
+          <listitem>
+            <para>10.11 (El Capitan)</para>
+          </listitem>
+
         </itemizedlist>
 
         <para>Intel hardware is required; please see <xref
@@ -583,6 +592,11 @@
               <listitem>
                 <para>Experimental support for PCI passthrough on Linux hosts;
                   see <xref linkend="pcipassthrough" />.</para>
+              </listitem>
+
+              <listitem>
+                <para>Disk image encryption with AES algorithm;
+                  see <xref linkend="vrde-crypt" />.</para>
               </listitem>
             </orderedlist></para>
 

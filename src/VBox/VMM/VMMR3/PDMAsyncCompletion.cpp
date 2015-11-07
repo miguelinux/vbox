@@ -16,9 +16,9 @@
  */
 
 
-/*******************************************************************************
-*   Header Files                                                               *
-*******************************************************************************/
+/*********************************************************************************************************************************
+*   Header Files                                                                                                                 *
+*********************************************************************************************************************************/
 #define LOG_GROUP LOG_GROUP_PDM_ASYNC_COMPLETION
 #include "PDMInternal.h"
 #include <VBox/vmm/pdm.h>
@@ -44,9 +44,9 @@
 #include "PDMAsyncCompletionInternal.h"
 
 
-/*******************************************************************************
-*   Structures and Typedefs                                                    *
-*******************************************************************************/
+/*********************************************************************************************************************************
+*   Structures and Typedefs                                                                                                      *
+*********************************************************************************************************************************/
 /**
  * Async I/O type.
  */
@@ -148,9 +148,9 @@ typedef struct PDMACBWMGR
 typedef PPDMACBWMGR *PPPDMACBWMGR;
 
 
-/*******************************************************************************
-*   Internal Functions                                                         *
-*******************************************************************************/
+/*********************************************************************************************************************************
+*   Internal Functions                                                                                                           *
+*********************************************************************************************************************************/
 static void pdmR3AsyncCompletionPutTask(PPDMASYNCCOMPLETIONENDPOINT pEndpoint, PPDMASYNCCOMPLETIONTASK pTask);
 
 
@@ -645,7 +645,7 @@ static int pdmacAsyncCompletionBwMgrCreate(PPDMASYNCCOMPLETIONEPCLASS pEpClass, 
                                            uint32_t cbTransferPerSecStart, uint32_t cbTransferPerSecStep)
 {
     LogFlowFunc(("pEpClass=%#p pszBwMgr=%#p{%s} cbTransferPerSecMax=%u cbTransferPerSecStart=%u cbTransferPerSecStep=%u\n",
-                 pEpClass, pszBwMgr, cbTransferPerSecMax, cbTransferPerSecStart, cbTransferPerSecStep));
+                 pEpClass, pszBwMgr, pszBwMgr, cbTransferPerSecMax, cbTransferPerSecStart, cbTransferPerSecStep));
 
     AssertPtrReturn(pEpClass, VERR_INVALID_POINTER);
     AssertPtrReturn(pszBwMgr, VERR_INVALID_POINTER);

@@ -21,9 +21,9 @@
  */
 
 
-/*******************************************************************************
-*   Header Files                                                               *
-*******************************************************************************/
+/*********************************************************************************************************************************
+*   Header Files                                                                                                                 *
+*********************************************************************************************************************************/
 #define LOG_GROUP LOG_GROUP_SRV_INTNET
 #include <VBox/intnet.h>
 #include <VBox/intnetinline.h>
@@ -45,9 +45,9 @@
 #include <iprt/time.h>
 
 
-/*******************************************************************************
-*   Defined Constants And Macros                                               *
-*******************************************************************************/
+/*********************************************************************************************************************************
+*   Defined Constants And Macros                                                                                                 *
+*********************************************************************************************************************************/
 /** @def INTNET_WITH_DHCP_SNOOPING
  * Enabled DHCP snooping when in shared-mac-on-the-wire mode. */
 #define INTNET_WITH_DHCP_SNOOPING
@@ -66,9 +66,9 @@
 #define INTNET_BUSY_WAKEUP_MASK     RT_BIT_32(30)
 
 
-/*******************************************************************************
-*   Structures and Typedefs                                                    *
-*******************************************************************************/
+/*********************************************************************************************************************************
+*   Structures and Typedefs                                                                                                      *
+*********************************************************************************************************************************/
 /**
  * MAC address lookup table entry.
  */
@@ -404,9 +404,9 @@ typedef struct INTNET *PINTNET;
 #define INTNET_MAGIC        UINT32_C(0x19410105)
 
 
-/*******************************************************************************
-*   Global Variables                                                           *
-*******************************************************************************/
+/*********************************************************************************************************************************
+*   Global Variables                                                                                                             *
+*********************************************************************************************************************************/
 /** Pointer to the internal network instance data. */
 static PINTNET volatile g_pIntNet = NULL;
 
@@ -437,9 +437,9 @@ g_afIntNetOpenNetworkIfFlags[] =
 };
 
 
-/*******************************************************************************
-*   Forward Declarations                                                       *
-*******************************************************************************/
+/*********************************************************************************************************************************
+*   Forward Declarations                                                                                                         *
+*********************************************************************************************************************************/
 static void intnetR0TrunkIfDestroy(PINTNETTRUNKIF pThis, PINTNETNETWORK pNetwork);
 
 
@@ -3490,11 +3490,17 @@ static void intnetR0NetworkEditDhcpFromIntNet(PINTNETNETWORK pNetwork, PINTNETSG
                 intnetR0SgWritePart(pSG, (uintptr_t)&pDhcp->bp_flags - (uintptr_t)pIpHdr + sizeof(RTNETETHERHDR), sizeof(uFlags), &uFlags);
 
                 /* Patch UDP checksum */
-                uint32_t uChecksum = (uint32_t)~pUdpHdr->uh_sum + RT_H2BE_U16_C(RTNET_DHCP_FLAG_BROADCAST);
-                while (uChecksum >> 16)
-                    uChecksum = (uChecksum >> 16) + (uChecksum & 0xFFFF);
-                uChecksum = ~uChecksum;
-                intnetR0SgWritePart(pSG, (uintptr_t)&pUdpHdr->uh_sum - (uintptr_t)pIpHdr + sizeof(RTNETETHERHDR), sizeof(pUdpHdr->uh_sum), &uChecksum);
+                if (pUdpHdr->uh_sum != 0)
+                {
+                    uint32_t uChecksum = (uint32_t)~pUdpHdr->uh_sum + RT_H2BE_U16_C(RTNET_DHCP_FLAG_BROADCAST);
+                    while (uChecksum >> 16)
+                        uChecksum = (uChecksum >> 16) + (uChecksum & 0xFFFF);
+                    uChecksum = ~uChecksum;
+                    intnetR0SgWritePart(pSG,
+                                        (uintptr_t)&pUdpHdr->uh_sum - (uintptr_t)pIpHdr + sizeof(RTNETETHERHDR),
+                                        sizeof(pUdpHdr->uh_sum),
+                                        &uChecksum);
+                }
             }
 
 #ifdef RT_OS_DARWIN

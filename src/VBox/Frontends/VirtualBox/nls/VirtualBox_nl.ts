@@ -26,8 +26,8 @@
     <message>
         <source>Oracle Corporation</source>
         <comment>Comma-separated list of translators</comment>
-        <translatorcomment>EG - AdG - RL</translatorcomment>
-        <translation>Ebel Geertsema, Alexander L. de Goeij, Richard E. van der Luit</translation>
+        <translatorcomment>RL - EG - AdG</translatorcomment>
+        <translation>Richard E. van der Luit, Ebel Geertsema, Alexander L. de Goeij</translation>
     </message>
 </context>
 <context>
@@ -77,16 +77,16 @@
         <translation>De VirtualBox kernelmodules passen niet bij deze versie van VirtualBox. De installatie van VirtualBox is kennelijk niet goed gelukt. Deïnstalleer VirtualBox eerst volledig en installeer VirtualBox daarna opnieuw.</translation>
     </message>
     <message>
-        <source>The VirtualBox kernel modules do not match this version of VirtualBox. The installation of VirtualBox was apparently not successful. Executing&lt;br/&gt;&lt;br/&gt;  &lt;font color=blue&gt;&apos;/etc/init.d/vboxdrv setup&apos;&lt;/font&gt;&lt;br/&gt;&lt;br/&gt;may correct this. Make sure that you do not mix the OSE version and the PUEL version of VirtualBox.</source>
-        <translation>De VirtualBox kernelmodules passen niet bij deze versie van VirtualBox. De installatie van VirtualBox is kennelijk niet goed gelukt. Uitvoeren van &lt;br/&gt;&lt;br/&gt;&lt;font color=blue&gt;&apos;/etc/init.d/vboxdrv setup&apos;&lt;/font&gt;&lt;br/&gt;&lt;br/&gt; zou dit kunnen corrigeren. Controleer of u de OSE versie en de PUEL versie van VirtualBox niet hebt vermengd.</translation>
+        <source>The VirtualBox kernel modules do not match this version of VirtualBox. The installation of VirtualBox was apparently not successful. Executing&lt;br/&gt;&lt;br/&gt;  &lt;font color=blue&gt;&apos;/sbin/vboxconfig&apos;&lt;/font&gt;&lt;br/&gt;&lt;br/&gt;may correct this. Make sure that you do not mix the OSE version and the PUEL version of VirtualBox.</source>
+        <translation>De VirtualBox kernelmodules passen niet bij deze versie van VirtualBox. De installatie van VirtualBox is kennelijk niet goed gelukt. Uitvoeren van &lt;br/&gt;&lt;br/&gt;&lt;font color=blue&gt;&apos;/sbin/vboxconfig&apos;&lt;/font&gt;&lt;br/&gt;&lt;br/&gt; zou dit kunnen corrigeren. Controleer of u de OSE versie en de PUEL versie van VirtualBox niet hebt vermengd.</translation>
     </message>
     <message>
         <source>This error means that the kernel driver was either not able to allocate enough memory or that some mapping operation failed.</source>
         <translation>Deze fout betekent dat de kerneldriver óf te weinig geheugen kan reserveren óf dat uitvoeren van mapping mislukt is.</translation>
     </message>
     <message>
-        <source>The VirtualBox Linux kernel driver (vboxdrv) is either not loaded or there is a permission problem with /dev/vboxdrv. Please reinstall the kernel module by executing&lt;br/&gt;&lt;br/&gt;  &lt;font color=blue&gt;&apos;/etc/init.d/vboxdrv setup&apos;&lt;/font&gt;&lt;br/&gt;&lt;br/&gt;as root. If it is available in your distribution, you should install the DKMS package first. This package keeps track of Linux kernel changes and recompiles the vboxdrv kernel module if necessary.</source>
-        <translation>De VirtualBox Linux-kerneldriver (vboxdrv) is niet geladen of er is een permissie-probleem met /dev/vboxdrv. Herinstalleer de kernelmodule door &lt;br/&gt;&lt;/br&gt;..&lt;font color=blue&gt;&apos;/etc/init.d/vboxdrv setup&apos; &lt;/font&gt;&lt;br/&gt;&lt;br/&gt;als root uit te voeren. Indien in uw distributie aanwezig, installeer dan eerst het DKMS pakket. Dit pakket houdt Linux kernelveranderingen bij en hercompileert indien nodig de vboxdrv-kernelmodule.</translation>
+        <source>The VirtualBox Linux kernel driver (vboxdrv) is either not loaded or there is a permission problem with /dev/vboxdrv. Please reinstall the kernel module by executing&lt;br/&gt;&lt;br/&gt;  &lt;font color=blue&gt;&apos;/sbin/vboxconfig&apos;&lt;/font&gt;&lt;br/&gt;&lt;br/&gt;as root. If it is available in your distribution, you should install the DKMS package first. This package keeps track of Linux kernel changes and recompiles the vboxdrv kernel module if necessary.</source>
+        <translation>De VirtualBox Linux-kerneldriver (vboxdrv) is niet geladen of er is een permissie-probleem met /dev/vboxdrv. Herinstalleer de kernelmodule door &lt;br/&gt;&lt;/br&gt;..&lt;font color=blue&gt;&apos;/sbin/vboxconfig&apos; &lt;/font&gt;&lt;br/&gt;&lt;br/&gt;als root uit te voeren. Indien in uw distributie aanwezig, installeer dan eerst het DKMS pakket. Dit pakket houdt Linux kernelveranderingen bij en hercompileert indien nodig de vboxdrv-kernelmodule.</translation>
     </message>
     <message>
         <source>Frame Size: %1x%2, Frame Rate: %3fps, Bit Rate: %4kbps</source>
@@ -260,7 +260,8 @@
     </message>
     <message>
         <source>&amp;Pause</source>
-        <translation>&amp;Pauze</translation>
+        <translatorcomment>werkwoord, geen zelfstandig naamwoord</translatorcomment>
+        <translation>&amp;Pauzeren</translation>
     </message>
     <message>
         <source>Suspend the execution of the virtual machine</source>
@@ -543,7 +544,8 @@
     </message>
     <message>
         <source>S&amp;tart</source>
-        <translation>S&amp;tart</translation>
+        <translatorcomment>werkwoord, geen zelfstandig naamwoord</translatorcomment>
+        <translation>S&amp;tarten</translation>
     </message>
     <message>
         <source>Start the selected virtual machine</source>
@@ -551,7 +553,7 @@
     </message>
     <message>
         <source>S&amp;how</source>
-        <translation>T&amp;oon</translation>
+        <translation>T&amp;onen</translation>
     </message>
     <message>
         <source>Switch to the window of the selected virtual machine</source>
@@ -603,7 +605,7 @@
     </message>
     <message>
         <source>Cl&amp;one...</source>
-        <translation>Kl&amp;oon...</translation>
+        <translation>Kl&amp;onen...</translation>
     </message>
     <message>
         <source>Clone the selected virtual machine</source>
@@ -619,7 +621,7 @@
     </message>
     <message>
         <source>Discard</source>
-        <translation>Verwerp</translation>
+        <translation>Verwerpen</translation>
     </message>
     <message>
         <source>D&amp;iscard saved state...</source>
@@ -651,7 +653,7 @@
     </message>
     <message>
         <source>Show &amp;Log...</source>
-        <translation>Toon &amp;log...</translation>
+        <translation>&amp;Log tonen...</translation>
     </message>
     <message>
         <source>&amp;VirtualBox Web Site...</source>
@@ -756,7 +758,8 @@
     </message>
     <message>
         <source>Gro&amp;up</source>
-        <translation>Gro&amp;ep</translation>
+        <translatorcomment>werkwoord, geen zelfstandig naamwoord</translatorcomment>
+        <translation>Gro&amp;eperen</translation>
     </message>
     <message>
         <source>Sort the group of the first selected machine alphabetically</source>
@@ -959,7 +962,7 @@
     </message>
     <message>
         <source>&amp;Full-screen Mode</source>
-        <translation>&amp;Sschermvullende modus</translation>
+        <translation>&amp;Schermvullende modus</translation>
     </message>
     <message>
         <source>Switch between normal and full-screen mode</source>
@@ -1224,7 +1227,7 @@
     </message>
     <message>
         <source>Ungroup items of selected virtual machine group</source>
-        <translation>Haal items uit de geselecteerde virtuele machine-groep</translation>
+        <translation>Items uit de geselecteerde virtuele machine-groep verwijderen</translation>
     </message>
     <message>
         <source>&amp;Sort</source>
@@ -1232,7 +1235,7 @@
     </message>
     <message>
         <source>Sort items of selected virtual machine group alphabetically</source>
-        <translation>Sorteer items van geselecteerde virtuele machine-groep alfabetisch</translation>
+        <translation>Items van geselecteerde virtuele machine-groep alfabetisch sorteren</translation>
     </message>
     <message>
         <source>Add new group based on selected virtual machines</source>
@@ -1272,7 +1275,7 @@
     </message>
     <message>
         <source>D&amp;iscard Saved State...</source>
-        <translation>Ver&amp;werp opgeslagen staat...</translation>
+        <translation>Opgeslagen staat ver&amp;werpen...</translation>
     </message>
     <message>
         <source>Discard saved state of selected virtual machines</source>
@@ -1292,7 +1295,7 @@
     </message>
     <message>
         <source>S&amp;how in Finder</source>
-        <translation>To&amp;on in Finder</translation>
+        <translation>T&amp;onen in Finder</translation>
     </message>
     <message>
         <source>Show the VirtualBox Machine Definition files in Finder</source>
@@ -1300,7 +1303,7 @@
     </message>
     <message>
         <source>S&amp;how in Explorer</source>
-        <translation>To&amp;on in Explorer</translation>
+        <translation>T&amp;onen in Explorer</translation>
     </message>
     <message>
         <source>Show the VirtualBox Machine Definition files in Explorer</source>
@@ -1308,7 +1311,7 @@
     </message>
     <message>
         <source>S&amp;how in File Manager</source>
-        <translation>To&amp;on in Bestandsmanager</translation>
+        <translation>T&amp;onen in Bestandsmanager</translation>
     </message>
     <message>
         <source>Show the VirtualBox Machine Definition files in the File Manager</source>
@@ -1316,15 +1319,15 @@
     </message>
     <message>
         <source>Cr&amp;eate Alias on Desktop</source>
-        <translation>Maak alias op bur&amp;eaublad</translation>
+        <translation>Alias op bur&amp;eaublad maken</translation>
     </message>
     <message>
         <source>Create alias files to the VirtualBox Machine Definition files on your desktop</source>
-        <translation>Maken aliasbestanden naar de VirtualBox-machinedefinitiebestanden op uw bureaublad</translation>
+        <translation>Maak aliasbestanden naar de VirtualBox-machinedefinitiebestanden op uw bureaublad</translation>
     </message>
     <message>
         <source>Cr&amp;eate Shortcut on Desktop</source>
-        <translation>Maak een sn&amp;elkoppeling op bureaublad</translation>
+        <translation>Sn&amp;elkoppeling op bureaublad maken</translation>
     </message>
     <message>
         <source>Create shortcut files to the VirtualBox Machine Definition files on your desktop</source>
@@ -1332,7 +1335,7 @@
     </message>
     <message>
         <source>Sort group of first selected virtual machine alphabetically</source>
-        <translation>Sorteer de groep van de eerst geselecteerde machine alfabetisch</translation>
+        <translation>Groep van de eerst geselecteerde machine alfabetisch sorteren</translation>
     </message>
     <message>
         <source>Save state of selected virtual machines</source>
@@ -1340,11 +1343,11 @@
     </message>
     <message>
         <source>Send ACPI Shutdown signal to selected virtual machines</source>
-        <translation>Stuur ACPI-Shutdownsignaal naar de geselecteerde virtuele machins</translation>
+        <translation>ACPI-Shutdownsignaal naar de geselecteerde virtuele machines sturen</translation>
     </message>
     <message>
         <source>Power off selected virtual machines</source>
-        <translation>Zet de geselecteerde virtuele machines uit</translation>
+        <translation>Geselecteerde virtuele machines uitzetten</translation>
     </message>
 </context>
 <context>
@@ -1389,7 +1392,7 @@
     <message>
         <source>Status</source>
         <comment>password table field</comment>
-        <translation>Status</translation>
+        <translation type="obsolete">Status</translation>
     </message>
     <message>
         <source>ID</source>
@@ -6185,7 +6188,8 @@
     </message>
     <message>
         <source>Remove disk from virtual drive</source>
-        <translation>Verwijder schijf van virtuele station</translation>
+        <translatorcomment>zonder &apos;het&apos; ervoor is het &apos;virtueel station&apos; en niet &apos;virtuele station&apos;</translatorcomment>
+        <translation>Schijf van virtueel station verwijderen</translation>
     </message>
     <message>
         <source>Choose a virtual floppy disk file...</source>
@@ -6393,7 +6397,7 @@
     </message>
     <message>
         <source>Remove Disk from Virtual Drive</source>
-        <translation>Verwijder schijf van virtuele station</translation>
+        <translation>Schijf van virtueel station verwijderen</translation>
     </message>
     <message>
         <source>Choose Virtual Floppy Disk File...</source>
@@ -8675,6 +8679,10 @@
         <source>&lt;p&gt;Could not switch the guest display to full-screen mode due to insufficient guest video memory.&lt;/p&gt;&lt;p&gt;You should configure the virtual machine to have at least &lt;b&gt;%1&lt;/b&gt; of video memory.&lt;/p&gt;&lt;p&gt;Press &lt;b&gt;Ignore&lt;/b&gt; to switch to full-screen mode anyway or press &lt;b&gt;Cancel&lt;/b&gt; to cancel the operation.&lt;/p&gt;</source>
         <translation>&lt;p&gt;Kan het gastscherm niet laten overschakelen op schermvullend omdat de gast te weinig videogeheugen heeft.&lt;/p&gt;&lt;p&gt;U moet bij de configuratie de virtuele machine minimaal &lt;b&gt;%1&lt;/b&gt; videogeheugen meegeven.&lt;/p&gt;&lt;p&gt;Klik op &lt;b&gt;Negeren&lt;/b&gt; om toch op volledig beeld over te schakelen of klik op&lt;b&gt;Annuleren&lt;/b&gt; om niet over te schakelen.&lt;/p&gt;</translation>
     </message>
+    <message>
+        <source>Encryption password for &lt;nobr&gt;ID = &apos;%1&apos;&lt;/nobr&gt; is invalid.</source>
+        <translation>Ongeldig versleutelwachtwoord voor &lt;nobr&gt;ID = &apos;%1&apos;&lt;/nobr&gt;.</translation>
+    </message>
 </context>
 <context>
     <name>UIMiniProcessWidgetUserManual</name>
@@ -10222,7 +10230,7 @@
     </message>
     <message>
         <source>Export Virtual Appliance</source>
-        <translation>Exporteer Virtual Applicance</translation>
+        <translation>Exporteer Virtual Appliance</translation>
     </message>
     <message>
         <source>Restore Defaults</source>
@@ -10242,7 +10250,7 @@
     </message>
     <message>
         <source>Appliance settings</source>
-        <translation>Instellingen Appiance</translation>
+        <translation>Instellingen Appliance</translation>
     </message>
     <message>
         <source>Please choose where to create the virtual appliance. You can create it on your own computer, on the Sun Cloud service or on an S3 storage server.</source>
@@ -10326,7 +10334,7 @@
     </message>
     <message>
         <source>Appliance &amp;settings</source>
-        <translation>In&amp;stellingen Appiance</translation>
+        <translation>In&amp;stellingen Appliance</translation>
     </message>
     <message>
         <source>&amp;Destination</source>
@@ -10458,7 +10466,7 @@
     </message>
     <message>
         <source>Appliance settings</source>
-        <translation>Instellingen Appiance</translation>
+        <translation>Instellingen Appliance</translation>
     </message>
     <message>
         <source>These are the virtual machines contained in the appliance and the suggested settings of the imported VirtualBox machines. You can change many of the properties shown by double-clicking on the items and disable others using the check boxes below.</source>
@@ -10466,7 +10474,7 @@
     </message>
     <message>
         <source>Import Virtual Appliance</source>
-        <translation>Importeer Virtual Applicance</translation>
+        <translation>Importeer Virtual Appliance</translation>
     </message>
     <message>
         <source>Choose a virtual appliance file to import...</source>

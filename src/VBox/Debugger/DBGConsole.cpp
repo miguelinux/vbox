@@ -155,9 +155,9 @@
  */
 
 
-/*******************************************************************************
-*   Header Files                                                               *
-*******************************************************************************/
+/*********************************************************************************************************************************
+*   Header Files                                                                                                                 *
+*********************************************************************************************************************************/
 #define LOG_GROUP LOG_GROUP_DBGC
 #include <VBox/dbg.h>
 #include <VBox/vmm/dbgf.h>
@@ -175,9 +175,9 @@
 #include "DBGPlugIns.h"
 
 
-/*******************************************************************************
-*   Internal Functions                                                         *
-*******************************************************************************/
+/*********************************************************************************************************************************
+*   Internal Functions                                                                                                           *
+*********************************************************************************************************************************/
 static int dbgcProcessLog(PDBGC pDbgc);
 
 
@@ -563,9 +563,15 @@ int dbgcProcessInput(PDBGC pDbgc, bool fNoExecute)
             &&  pDbgc->fReady)
             pDbgc->pBack->pfnSetReady(pDbgc->pBack, true);
     }
-    else
-        /* Received nonsense; just skip it. */
-        pDbgc->iRead = pDbgc->iWrite;
+    /*
+     * else - we have incomplete line, so leave it in the buffer and
+     * wait for more input.
+     *
+     * Windows telnet client is in "character at a time" mode by
+     * default and putty sends eol as a separate packet that will be
+     * most likely read separately from the command line it
+     * terminates.
+     */
 
     return rc;
 }

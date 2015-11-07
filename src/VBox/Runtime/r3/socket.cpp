@@ -25,9 +25,9 @@
  */
 
 
-/*******************************************************************************
-*   Header Files                                                               *
-*******************************************************************************/
+/*********************************************************************************************************************************
+*   Header Files                                                                                                                 *
+*********************************************************************************************************************************/
 #ifdef RT_OS_WINDOWS
 # include <winsock2.h>
 # include <ws2tcpip.h>
@@ -72,9 +72,9 @@
 #include "internal/string.h"
 
 
-/*******************************************************************************
-*   Defined Constants And Macros                                               *
-*******************************************************************************/
+/*********************************************************************************************************************************
+*   Defined Constants And Macros                                                                                                 *
+*********************************************************************************************************************************/
 /* non-standard linux stuff (it seems). */
 #ifndef MSG_NOSIGNAL
 # define MSG_NOSIGNAL           0
@@ -121,9 +121,9 @@
 #endif
 
 
-/*******************************************************************************
-*   Structures and Typedefs                                                    *
-*******************************************************************************/
+/*********************************************************************************************************************************
+*   Structures and Typedefs                                                                                                      *
+*********************************************************************************************************************************/
 /**
  * Socket handle data.
  *
@@ -514,9 +514,9 @@ static int rtSocketCloseIt(RTSOCKETINT *pThis, bool fDestroy)
             {
                 rc = rtSocketError();
 #ifdef RT_OS_WINDOWS
-                AssertMsgFailed(("\"%s\": closesocket(%p) -> %Rrc\n", (uintptr_t)hNative, rc));
+                AssertMsgFailed(("closesocket(%p) -> %Rrc\n", (uintptr_t)hNative, rc));
 #else
-                AssertMsgFailed(("\"%s\": close(%d) -> %Rrc\n", hNative, rc));
+                AssertMsgFailed(("close(%d) -> %Rrc\n", hNative, rc));
 #endif
             }
         }
@@ -665,7 +665,7 @@ RTDECL(int) RTSocketParseInetAddress(const char *pszAddress, unsigned uPort, PRT
     RTNETADDRIPV4 IPv4Quad;
     if (rtSocketIsIPv4Numerical(pszAddress, &IPv4Quad))
     {
-        Log3(("rtSocketIsIPv4Numerical: %#x (%RTnaipv4)\n", pszAddress, IPv4Quad.u, IPv4Quad));
+        Log3(("rtSocketIsIPv4Numerical: %s -> %#x (%RTnaipv4)\n", pszAddress, IPv4Quad.u, IPv4Quad));
         RT_ZERO(*pAddr);
         pAddr->enmType      = RTNETADDRTYPE_IPV4;
         pAddr->uPort        = uPort;

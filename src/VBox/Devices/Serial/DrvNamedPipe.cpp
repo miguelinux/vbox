@@ -16,9 +16,9 @@
  */
 
 
-/*******************************************************************************
-*   Header Files                                                               *
-*******************************************************************************/
+/*********************************************************************************************************************************
+*   Header Files                                                                                                                 *
+*********************************************************************************************************************************/
 #define LOG_GROUP LOG_GROUP_DRV_NAMEDPIPE
 #include <VBox/vmm/pdmdrv.h>
 #include <iprt/assert.h>
@@ -45,16 +45,16 @@
 #endif /* !RT_OS_WINDOWS */
 
 
-/*******************************************************************************
-*   Defined Constants And Macros                                               *
-*******************************************************************************/
+/*********************************************************************************************************************************
+*   Defined Constants And Macros                                                                                                 *
+*********************************************************************************************************************************/
 /** Converts a pointer to DRVNAMEDPIPE::IMedia to a PDRVNAMEDPIPE. */
 #define PDMISTREAM_2_DRVNAMEDPIPE(pInterface) ( (PDRVNAMEDPIPE)((uintptr_t)pInterface - RT_OFFSETOF(DRVNAMEDPIPE, IStream)) )
 
 
-/*******************************************************************************
-*   Structures and Typedefs                                                    *
-*******************************************************************************/
+/*********************************************************************************************************************************
+*   Structures and Typedefs                                                                                                      *
+*********************************************************************************************************************************/
 /**
  * Named pipe driver instance data.
  *
@@ -92,9 +92,9 @@ typedef struct DRVNAMEDPIPE
 } DRVNAMEDPIPE, *PDRVNAMEDPIPE;
 
 
-/*******************************************************************************
-*   Internal Functions                                                         *
-*******************************************************************************/
+/*********************************************************************************************************************************
+*   Internal Functions                                                                                                           *
+*********************************************************************************************************************************/
 
 
 /** @copydoc PDMISTREAM::pfnRead */
@@ -115,6 +115,15 @@ static DECLCALLBACK(int) drvNamedPipeRead(PPDMISTREAM pInterface, void *pvBuf, s
         {
             DWORD uError = GetLastError();
 
+            if (uError == ERROR_IO_PENDING)
+            {
+                uError = 0;
+
+                /* Wait for incoming bytes. */
+                if (GetOverlappedResult(pThis->NamedPipe, &pThis->OverlappedRead, &cbReallyRead, TRUE) == FALSE)
+                    uError = GetLastError();
+            }
+
             if (   uError == ERROR_PIPE_LISTENING
                 || uError == ERROR_PIPE_NOT_CONNECTED)
             {
@@ -126,15 +135,6 @@ static DECLCALLBACK(int) drvNamedPipeRead(PPDMISTREAM pInterface, void *pvBuf, s
             }
             else
             {
-                if (uError == ERROR_IO_PENDING)
-                {
-                    uError = 0;
-
-                    /* Wait for incoming bytes. */
-                    if (GetOverlappedResult(pThis->NamedPipe, &pThis->OverlappedRead, &cbReallyRead, TRUE) == FALSE)
-                        uError = GetLastError();
-                }
-
                 rc = RTErrConvertFromWin32(uError);
                 Log(("drvNamedPipeRead: ReadFile returned %d (%Rrc)\n", uError, rc));
             }

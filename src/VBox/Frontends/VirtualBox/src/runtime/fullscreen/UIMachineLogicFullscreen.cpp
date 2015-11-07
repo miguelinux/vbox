@@ -20,7 +20,6 @@
 #else  /* !VBOX_WITH_PRECOMPILED_HEADERS */
 
 /* Qt includes: */
-# include <QDesktopWidget>
 # include <QTimer>
 
 /* GUI includes: */
@@ -60,7 +59,7 @@ UIMachineLogicFullscreen::UIMachineLogicFullscreen(QObject *pParent, UISession *
 UIMachineLogicFullscreen::~UIMachineLogicFullscreen()
 {
     /* Delete multiscreen layout: */
-    actionPool()->toRuntime()->setMultiScreenLayout(0);
+    actionPool()->toRuntime()->unsetMultiScreenLayout(m_pScreenLayout);
     delete m_pScreenLayout;
 }
 
@@ -573,6 +572,24 @@ void UIMachineLogicFullscreen::prepareMachineWindows()
 
     /* Mark machine-window(s) created: */
     setMachineWindowsCreated(true);
+
+#ifdef Q_WS_X11
+    switch (vboxGlobal().typeOfWindowManager())
+    {
+        case X11WMType_GNOMEShell:
+        case X11WMType_Mutter:
+        {
+            // WORKAROUND:
+            // Under certain WMs we can loose machine-window activation due to any Qt::Tool
+            // overlay asynchronously shown above it. Qt is not become aware of such event.
+            // We are going to ask to return machine-window activation in let's say 100ms.
+            QTimer::singleShot(100, machineWindows().first(), SLOT(sltActivateWindow()));
+            break;
+        }
+        default:
+            break;
+    }
+#endif /* Q_WS_X11 */
 }
 
 void UIMachineLogicFullscreen::prepareMenu()
@@ -738,9 +755,9 @@ void UIMachineLogicFullscreen::revalidateNativeFullScreen(UIMachineWindow *pMach
         {
             /* Variables to compare: */
             const int iWantedHostScreenIndex = hostScreenForGuestScreen((int)uScreenID);
-            const int iCurrentHostScreenIndex = QApplication::desktop()->screenNumber(pMachineWindow);
+            const int iCurrentHostScreenIndex = vboxGlobal().screenNumber(pMachineWindow);
             const QSize frameBufferSize((int)uisession()->frameBuffer(uScreenID)->width(), (int)uisession()->frameBuffer(uScreenID)->height());
-            const QSize screenSize = QApplication::desktop()->screenGeometry(iWantedHostScreenIndex).size();
+            const QSize screenSize = vboxGlobal().screenGeometry(iWantedHostScreenIndex).size();
 
             /* If that window
              * 1. shouldn't really be shown or

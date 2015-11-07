@@ -24,9 +24,10 @@
  * terms and conditions of either the GPL or the CDDL or both.
  */
 
-/*******************************************************************************
-*   Header Files                                                               *
-*******************************************************************************/
+
+/*********************************************************************************************************************************
+*   Header Files                                                                                                                 *
+*********************************************************************************************************************************/
 #include <iprt/thread.h>
 
 #include <iprt/asm-amd64-x86.h>
@@ -356,8 +357,9 @@ DECLEXPORT(int) TSTRTR0ThreadPreemptionSrvReqHandler(PSUPDRVSESSION pSession, ui
             if (!fRegistered)
             {
                 RTThreadPreemptRestore(&PreemptState);
+                RTThreadCtxHookDestroy(hThreadCtx);
                 RTMemFree(pCtxData);
-                RTStrPrintf(pszErr, cchErr, "!RTThreadCtxHookIsEnabled return false when hooks are supposedly registered");
+                RTStrPrintf(pszErr, cchErr, "!RTThreadCtxHookIsEnabled return false when hooks are supposed to be enabled");
                 break;
             }
 
@@ -390,12 +392,12 @@ DECLEXPORT(int) TSTRTR0ThreadPreemptionSrvReqHandler(PSUPDRVSESSION pSession, ui
                 if (pCtxData->uSourceCpuId != uCurrentCpuId)
                 {
                     RTStrPrintf(pszErr, cchErr,
-                                "!tstRTR0ThreadCtxHooks[RTTHREADCTXEVENT_PREEMPTING] not invoked before migrating from CPU %RU32 to %RU32",
+                                "!tstRTR0ThreadCtxHooks[RTTHREADCTXEVENT_OUT] not invoked before migrating from CPU %RU32 to %RU32",
                                 pCtxData->uSourceCpuId, uCurrentCpuId);
                 }
                 else
                 {
-                    RTStrPrintf(pszErr, cchErr, "!tstRTR0ThreadCtxHooks[RTTHREADCTXEVENT_PREEMPTING] not invoked after ca. %u ms",
+                    RTStrPrintf(pszErr, cchErr, "!tstRTR0ThreadCtxHooks[RTTHREADCTXEVENT_OUT] not invoked after ca. %u ms",
                                 cMsSlept);
                 }
             }
@@ -419,22 +421,27 @@ DECLEXPORT(int) TSTRTR0ThreadPreemptionSrvReqHandler(PSUPDRVSESSION pSession, ui
 
                 if (!ASMAtomicReadBool(&pCtxData->fResumedInvoked))
                 {
-                    RTStrPrintf(pszErr, cchErr, "!tstRTR0ThreadCtxHooks[RTTHREADCTXEVENT_RESUMED] not invoked after ca. %u ms",
+                    RTStrPrintf(pszErr, cchErr, "!tstRTR0ThreadCtxHooks[RTTHREADCTXEVENT_IN] not invoked after ca. %u ms",
                                 cMsSlept);
                 }
                 else if (!pCtxData->fResumedSuccess)
                     RTStrCopy(pszErr, cchErr, pCtxData->achResult);
             }
 
-            RTThreadCtxHookDisable(hThreadCtx);
-
-            fRegistered = RTThreadCtxHookIsEnabled(hThreadCtx);
-            if (fRegistered)
+            rc = RTThreadCtxHookDisable(hThreadCtx);
+            if (RT_SUCCESS(rc))
             {
-                RTMemFree(pCtxData);
-                RTStrPrintf(pszErr, cchErr, "!RTThreadCtxHookIsEnabled return true when hooks are deregistered");
-                break;
+                fRegistered = RTThreadCtxHookIsEnabled(hThreadCtx);
+                if (fRegistered)
+                {
+                    RTThreadCtxHookDestroy(hThreadCtx);
+                    RTMemFree(pCtxData);
+                    RTStrPrintf(pszErr, cchErr, "!RTThreadCtxHookIsEnabled return true when hooks are disabled");
+                    break;
+                }
             }
+            else
+                RTStrPrintf(pszErr, cchErr, "!RTThreadCtxHookDisable failed, returns %Rrc!", rc);
 
             Assert(RTThreadPreemptIsEnabled(NIL_RTTHREAD));
             rc = RTThreadCtxHookDestroy(hThreadCtx);

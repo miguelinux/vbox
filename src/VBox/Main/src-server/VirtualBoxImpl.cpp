@@ -1410,7 +1410,7 @@ void sanitiseMachineFilename(Utf8Str &strName)
 
 #ifdef DEBUG
 /** Simple unit test/operation examples for sanitiseMachineFilename(). */
-static unsigned testSanitiseMachineFilename(void (*pfnPrintf)(const char *, ...))
+static unsigned testSanitiseMachineFilename(DECLCALLBACKMEMBER(void, pfnPrintf)(const char *, ...))
 {
     unsigned cErrors = 0;
 
@@ -3035,8 +3035,8 @@ ComObjPtr<GuestOSType> VirtualBox::i_getUnknownOSType()
 }
 
 /**
- * Returns the list of opened machines (machines having direct sessions opened
- * by client processes) and optionally the list of direct session controls.
+ * Returns the list of opened machines (machines having VM sessions opened,
+ * ignoring other sessions) and optionally the list of direct session controls.
  *
  * @param aMachines     Where to put opened machines (will be empty if none).
  * @param aControls     Where to put direct session controls (optional).
@@ -3068,7 +3068,7 @@ void VirtualBox::i_getOpenedMachines(SessionMachinesList &aMachines,
     {
         ComObjPtr<SessionMachine> sm;
         ComPtr<IInternalSessionControl> ctl;
-        if ((*it)->i_isSessionOpen(sm, &ctl))
+        if ((*it)->i_isSessionOpenVM(sm, &ctl))
         {
             aMachines.push_back(sm);
             if (aControls)
@@ -3883,7 +3883,7 @@ struct SaveMediaRegistriesDesc
     ComObjPtr<VirtualBox> pVirtualBox;
 };
 
-static int fntSaveMediaRegistries(RTTHREAD ThreadSelf, void *pvUser)
+static DECLCALLBACK(int) fntSaveMediaRegistries(RTTHREAD ThreadSelf, void *pvUser)
 {
     NOREF(ThreadSelf);
     SaveMediaRegistriesDesc *pDesc = (SaveMediaRegistriesDesc *)pvUser;

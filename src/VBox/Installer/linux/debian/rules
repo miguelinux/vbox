@@ -80,13 +80,11 @@ endif
 
 debrel  := $(if $(shell which lsb_release),_$(shell lsb_release -si)_$(shell lsb_release -sc),unknown)
 
-# shipping Linux kernel modules with bleeding-edge releases doesn't make sense
-instmod := $(if $(filter _Ubuntu_lucid _Ubuntu_maverick _Ubuntu_natty _Ubuntu_oneiric _Debian_sid,$(debrel)),,1)
-
 ifneq ($(MAKECMDGOALS),clean)
  debdist  := $(strip $(shell grep $(debrel) $(current)/distributions_deb | cut -d'=' -f2))
  ifeq ($(debdist),)
-  $(error package distribution not detected (debrel=$(debrel)))
+  debdist := $(if $(shell which lsb_release),_$(shell lsb_release -si | tr a-z A-Z)_$(shell lsb_release -sr | sed -e 's/\./_/g' -e 's/\([^_]*\)\(_[^_]*\).*/\1\2/'),unknown)
+  # $(error package distribution not detected (debrel=$(debrel)))
  endif
 endif
 
@@ -243,8 +241,6 @@ else
 endif
 	mv $(archdir) $(prefix)/usr/lib/$(package)
 	ln -s ../VBoxVMM.so $(prefix)/usr/lib/$(package)/components/VBoxVMM.so
-	mkdir $(prefix)/sbin
-	ln -s ../etc/init.d/vboxdrv $(prefix)/sbin/rcvboxdrv
 	rmdir $(prefix)/opt
 	dh_desktop
 	$(if $(NOMODS),,dh_installmodules)
@@ -254,14 +250,10 @@ endif
 	    -e 's|%PACKAGE%|virtualbox|g' \
 	    -e "s|%VERSION%|$(VBOX_VERSION_STRING)|g" \
 	    -e "s|%GROUP%|$(if $(VBOX_WITHOUT_HARDENING),vboxusers,root)|g" \
-	    $(vboxroot)/src/VBox/Installer/linux/vboxdrv.sh.in > debian/vboxdrv.init
-	dh_installinit --name=vboxdrv --noscripts
-	cp $(vboxroot)/src/VBox/Installer/linux/vboxballoonctrl-service.sh debian/vboxballoonctrl-service.init
-	dh_installinit --name=vboxballoonctrl-service --noscripts
-	cp $(vboxroot)/src/VBox/Installer/linux/vboxautostart-service.sh debian/vboxautostart-service.init
-	dh_installinit --name=vboxautostart-service --noscripts
-	cp $(vboxroot)/src/VBox/Installer/linux/vboxweb-service.sh debian/vboxweb-service.init
-	dh_installinit --name=vboxweb-service --noscripts
+	    $(vboxroot)/src/VBox/Installer/linux/vboxdrv.sh.in > $(prefix)/usr/lib/$(package)/vboxdrv.sh
+	cp $(vboxroot)/src/VBox/Installer/linux/vboxballoonctrl-service.sh $(prefix)/usr/lib/$(package)
+	cp $(vboxroot)/src/VBox/Installer/linux/vboxautostart-service.sh $(prefix)/usr/lib/$(package)
+	cp $(vboxroot)/src/VBox/Installer/linux/vboxweb-service.sh $(prefix)/usr/lib/$(package)
 	sed -e 's|%VER%|$(debver)|g' \
 	    -e 's|%DATE%|$(shell date -R)|g' \
 	    -e 's|%DEBREL%|$(subst _,~,$(debrel))|g' \

@@ -15,9 +15,10 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-/*******************************************************************************
-*   Header Files                                                               *
-*******************************************************************************/
+
+/*********************************************************************************************************************************
+*   Header Files                                                                                                                 *
+*********************************************************************************************************************************/
 #define LOG_GROUP LOG_GROUP_VD_RAW
 #include <VBox/vd-plugin.h>
 #include <VBox/err.h>
@@ -29,9 +30,10 @@
 
 #include "VDBackends.h"
 
-/*******************************************************************************
-*   Constants And Macros, Structures and Typedefs                              *
-*******************************************************************************/
+
+/*********************************************************************************************************************************
+*   Constants And Macros, Structures and Typedefs                                                                                *
+*********************************************************************************************************************************/
 
 /**
  * Raw image data structure.
@@ -77,9 +79,10 @@ typedef struct RAWIMAGE
 /** The maximum reasonable size of a floppy image (big format 2.88MB medium). */
 #define RAW_MAX_FLOPPY_IMG_SIZE (512 * 82 * 48 * 2)
 
-/*******************************************************************************
-*   Static Variables                                                           *
-*******************************************************************************/
+
+/*********************************************************************************************************************************
+*   Static Variables                                                                                                             *
+*********************************************************************************************************************************/
 
 /** NULL-terminated array of supported file extensions. */
 static const VDFILEEXTENSION s_aRawFileExtensions[] =
@@ -94,9 +97,10 @@ static const VDFILEEXTENSION s_aRawFileExtensions[] =
     {NULL, VDTYPE_INVALID}
 };
 
-/*******************************************************************************
-*   Internal Functions                                                         *
-*******************************************************************************/
+
+/*********************************************************************************************************************************
+*   Internal Functions                                                                                                           *
+*********************************************************************************************************************************/
 
 /**
  * Internal. Flush image data to disk.
@@ -208,7 +212,7 @@ static int rawOpenImage(PRAWIMAGE pImage, unsigned uOpenFlags)
         goto out;
     if (pImage->cbSize % 512)
     {
-        rc = VERR_VD_RAW_INVALID_HEADER;
+        rc = VERR_VD_RAW_SIZE_MODULO_512;
         goto out;
     }
     pImage->uImageFlags |= VD_IMAGE_FLAGS_FIXED;
@@ -343,8 +347,8 @@ out:
 
 
 /** @copydoc VBOXHDDBACKEND::pfnCheckIfValid */
-static int rawCheckIfValid(const char *pszFilename, PVDINTERFACE pVDIfsDisk,
-                           PVDINTERFACE pVDIfsImage, VDTYPE *penmType)
+static DECLCALLBACK(int) rawCheckIfValid(const char *pszFilename, PVDINTERFACE pVDIfsDisk,
+                                         PVDINTERFACE pVDIfsImage, VDTYPE *penmType)
 {
     LogFlowFunc(("pszFilename=\"%s\" pVDIfsDisk=%#p pVDIfsImage=%#p\n", pszFilename, pVDIfsDisk, pVDIfsImage));
     PVDIOSTORAGE pStorage = NULL;
@@ -385,13 +389,15 @@ static int rawCheckIfValid(const char *pszFilename, PVDINTERFACE pVDIfsDisk,
              * between raw floppy and CD images based on their size (and cannot be reliably done
              * based on contents, either).
              */
-            if (cbFile > 32768 && !(cbFile % 2048))
+            if (cbFile % 2048)
+                rc = VERR_VD_RAW_SIZE_MODULO_2048;
+            else if (cbFile <= 32768)
+                rc = VERR_VD_RAW_SIZE_OPTICAL_TOO_SMALL;
+            else
             {
                 *penmType = VDTYPE_DVD;
                 rc = VINF_SUCCESS;
             }
-            else
-                rc = VERR_VD_RAW_INVALID_HEADER;
         }
         else if (   !RTStrICmp(pszSuffix, ".img")
                  || !RTStrICmp(pszSuffix, ".ima")
@@ -399,13 +405,15 @@ static int rawCheckIfValid(const char *pszFilename, PVDINTERFACE pVDIfsDisk,
                  || !RTStrICmp(pszSuffix, ".flp")
                  || !RTStrICmp(pszSuffix, ".vfd")) /* Floppy images */
         {
-            if (!(cbFile % 512) && cbFile <= RAW_MAX_FLOPPY_IMG_SIZE)
+            if (cbFile % 512)
+                rc = VERR_VD_RAW_SIZE_MODULO_512;
+            else if (cbFile > RAW_MAX_FLOPPY_IMG_SIZE)
+                rc = VERR_VD_RAW_SIZE_FLOPPY_TOO_BIG;
+            else
             {
                 *penmType = VDTYPE_FLOPPY;
                 rc = VINF_SUCCESS;
             }
-            else
-                rc = VERR_VD_RAW_INVALID_HEADER;
         }
         else
             rc = VERR_VD_RAW_INVALID_HEADER;
@@ -422,9 +430,9 @@ out:
 }
 
 /** @copydoc VBOXHDDBACKEND::pfnOpen */
-static int rawOpen(const char *pszFilename, unsigned uOpenFlags,
-                   PVDINTERFACE pVDIfsDisk, PVDINTERFACE pVDIfsImage,
-                   VDTYPE enmType, void **ppBackendData)
+static DECLCALLBACK(int) rawOpen(const char *pszFilename, unsigned uOpenFlags,
+                                 PVDINTERFACE pVDIfsDisk, PVDINTERFACE pVDIfsImage,
+                                 VDTYPE enmType, void **ppBackendData)
 {
     LogFlowFunc(("pszFilename=\"%s\" uOpenFlags=%#x pVDIfsDisk=%#p pVDIfsImage=%#p enmType=%u ppBackendData=%#p\n", pszFilename, uOpenFlags, pVDIfsDisk, pVDIfsImage, enmType, ppBackendData));
     int rc;
@@ -477,14 +485,14 @@ out:
 }
 
 /** @copydoc VBOXHDDBACKEND::pfnCreate */
-static int rawCreate(const char *pszFilename, uint64_t cbSize,
-                     unsigned uImageFlags, const char *pszComment,
-                     PCVDGEOMETRY pPCHSGeometry, PCVDGEOMETRY pLCHSGeometry,
-                     PCRTUUID pUuid, unsigned uOpenFlags,
-                     unsigned uPercentStart, unsigned uPercentSpan,
-                     PVDINTERFACE pVDIfsDisk, PVDINTERFACE pVDIfsImage,
-                     PVDINTERFACE pVDIfsOperation, VDTYPE enmType,
-                     void **ppBackendData)
+static DECLCALLBACK(int) rawCreate(const char *pszFilename, uint64_t cbSize,
+                                   unsigned uImageFlags, const char *pszComment,
+                                   PCVDGEOMETRY pPCHSGeometry, PCVDGEOMETRY pLCHSGeometry,
+                                   PCRTUUID pUuid, unsigned uOpenFlags,
+                                   unsigned uPercentStart, unsigned uPercentSpan,
+                                   PVDINTERFACE pVDIfsDisk, PVDINTERFACE pVDIfsImage,
+                                   PVDINTERFACE pVDIfsOperation, VDTYPE enmType,
+                                   void **ppBackendData)
 {
     LogFlowFunc(("pszFilename=\"%s\" cbSize=%llu uImageFlags=%#x pszComment=\"%s\" pPCHSGeometry=%#p pLCHSGeometry=%#p Uuid=%RTuuid uOpenFlags=%#x uPercentStart=%u uPercentSpan=%u pVDIfsDisk=%#p pVDIfsImage=%#p pVDIfsOperation=%#p enmType=%u ppBackendData=%#p",
                  pszFilename, cbSize, uImageFlags, pszComment, pPCHSGeometry, pLCHSGeometry, pUuid, uOpenFlags, uPercentStart, uPercentSpan, pVDIfsDisk, pVDIfsImage, pVDIfsOperation, enmType, ppBackendData));
@@ -564,7 +572,7 @@ out:
 }
 
 /** @copydoc VBOXHDDBACKEND::pfnRename */
-static int rawRename(void *pBackendData, const char *pszFilename)
+static DECLCALLBACK(int) rawRename(void *pBackendData, const char *pszFilename)
 {
     LogFlowFunc(("pBackendData=%#p pszFilename=%#p\n", pBackendData, pszFilename));
     int rc = VINF_SUCCESS;
@@ -610,7 +618,7 @@ out:
 }
 
 /** @copydoc VBOXHDDBACKEND::pfnClose */
-static int rawClose(void *pBackendData, bool fDelete)
+static DECLCALLBACK(int) rawClose(void *pBackendData, bool fDelete)
 {
     LogFlowFunc(("pBackendData=%#p fDelete=%d\n", pBackendData, fDelete));
     PRAWIMAGE pImage = (PRAWIMAGE)pBackendData;
@@ -624,27 +632,48 @@ static int rawClose(void *pBackendData, bool fDelete)
 }
 
 /** @copydoc VBOXHDDBACKEND::pfnRead */
-static int rawRead(void *pBackendData, uint64_t uOffset, size_t cbRead,
-                   PVDIOCTX pIoCtx, size_t *pcbActuallyRead)
+static DECLCALLBACK(int) rawRead(void *pBackendData, uint64_t uOffset, size_t cbRead,
+                                 PVDIOCTX pIoCtx, size_t *pcbActuallyRead)
 {
     int rc = VINF_SUCCESS;
     PRAWIMAGE pImage = (PRAWIMAGE)pBackendData;
 
+    /* For sequential access do not allow to go back. */
+    if (   pImage->uOpenFlags & VD_OPEN_FLAGS_SEQUENTIAL
+        && uOffset < pImage->offAccess)
+    {
+        *pcbActuallyRead = 0;
+        return VERR_INVALID_PARAMETER;
+    }
+
     rc = vdIfIoIntFileReadUser(pImage->pIfIo, pImage->pStorage, uOffset,
                                pIoCtx, cbRead);
     if (RT_SUCCESS(rc))
+    {
         *pcbActuallyRead = cbRead;
+        pImage->offAccess = uOffset + cbRead;
+    }
 
     return rc;
 }
 
 /** @copydoc VBOXHDDBACKEND::pfnWrite */
-static int rawWrite(void *pBackendData, uint64_t uOffset, size_t cbWrite,
-                    PVDIOCTX pIoCtx, size_t *pcbWriteProcess, size_t *pcbPreRead,
-                    size_t *pcbPostRead, unsigned fWrite)
+static DECLCALLBACK(int) rawWrite(void *pBackendData, uint64_t uOffset, size_t cbWrite,
+                                  PVDIOCTX pIoCtx, size_t *pcbWriteProcess, size_t *pcbPreRead,
+                                  size_t *pcbPostRead, unsigned fWrite)
 {
     int rc = VINF_SUCCESS;
     PRAWIMAGE pImage = (PRAWIMAGE)pBackendData;
+
+    /* For sequential access do not allow to go back. */
+    if (   pImage->uOpenFlags & VD_OPEN_FLAGS_SEQUENTIAL
+        && uOffset < pImage->offAccess)
+    {
+        *pcbWriteProcess = 0;
+        *pcbPostRead = 0;
+        *pcbPreRead  = 0;
+        return VERR_INVALID_PARAMETER;
+    }
 
     rc = vdIfIoIntFileWriteUser(pImage->pIfIo, pImage->pStorage, uOffset,
                                 pIoCtx, cbWrite, NULL, NULL);
@@ -653,13 +682,14 @@ static int rawWrite(void *pBackendData, uint64_t uOffset, size_t cbWrite,
         *pcbWriteProcess = cbWrite;
         *pcbPostRead = 0;
         *pcbPreRead  = 0;
+        pImage->offAccess = uOffset + cbWrite;
     }
 
     return rc;
 }
 
 /** @copydoc VBOXHDDBACKEND::pfnFlush */
-static int rawFlush(void *pBackendData, PVDIOCTX pIoCtx)
+static DECLCALLBACK(int) rawFlush(void *pBackendData, PVDIOCTX pIoCtx)
 {
     int rc = VINF_SUCCESS;
     PRAWIMAGE pImage = (PRAWIMAGE)pBackendData;
@@ -672,7 +702,7 @@ static int rawFlush(void *pBackendData, PVDIOCTX pIoCtx)
 }
 
 /** @copydoc VBOXHDDBACKEND::pfnGetVersion */
-static unsigned rawGetVersion(void *pBackendData)
+static DECLCALLBACK(unsigned) rawGetVersion(void *pBackendData)
 {
     LogFlowFunc(("pBackendData=%#p\n", pBackendData));
     PRAWIMAGE pImage = (PRAWIMAGE)pBackendData;
@@ -686,7 +716,7 @@ static unsigned rawGetVersion(void *pBackendData)
 }
 
 /** @copydoc VBOXHDDBACKEND::pfnGetSize */
-static uint32_t rawGetSectorSize(void *pBackendData)
+static DECLCALLBACK(uint32_t) rawGetSectorSize(void *pBackendData)
 {
     LogFlowFunc(("pBackendData=%#p\n", pBackendData));
     PRAWIMAGE pImage = (PRAWIMAGE)pBackendData;
@@ -702,7 +732,7 @@ static uint32_t rawGetSectorSize(void *pBackendData)
 }
 
 /** @copydoc VBOXHDDBACKEND::pfnGetSize */
-static uint64_t rawGetSize(void *pBackendData)
+static DECLCALLBACK(uint64_t) rawGetSize(void *pBackendData)
 {
     LogFlowFunc(("pBackendData=%#p\n", pBackendData));
     PRAWIMAGE pImage = (PRAWIMAGE)pBackendData;
@@ -718,7 +748,7 @@ static uint64_t rawGetSize(void *pBackendData)
 }
 
 /** @copydoc VBOXHDDBACKEND::pfnGetFileSize */
-static uint64_t rawGetFileSize(void *pBackendData)
+static DECLCALLBACK(uint64_t) rawGetFileSize(void *pBackendData)
 {
     LogFlowFunc(("pBackendData=%#p\n", pBackendData));
     PRAWIMAGE pImage = (PRAWIMAGE)pBackendData;
@@ -742,8 +772,8 @@ static uint64_t rawGetFileSize(void *pBackendData)
 }
 
 /** @copydoc VBOXHDDBACKEND::pfnGetPCHSGeometry */
-static int rawGetPCHSGeometry(void *pBackendData,
-                              PVDGEOMETRY pPCHSGeometry)
+static DECLCALLBACK(int) rawGetPCHSGeometry(void *pBackendData,
+                                            PVDGEOMETRY pPCHSGeometry)
 {
     LogFlowFunc(("pBackendData=%#p pPCHSGeometry=%#p\n", pBackendData, pPCHSGeometry));
     PRAWIMAGE pImage = (PRAWIMAGE)pBackendData;
@@ -769,8 +799,8 @@ static int rawGetPCHSGeometry(void *pBackendData,
 }
 
 /** @copydoc VBOXHDDBACKEND::pfnSetPCHSGeometry */
-static int rawSetPCHSGeometry(void *pBackendData,
-                              PCVDGEOMETRY pPCHSGeometry)
+static DECLCALLBACK(int) rawSetPCHSGeometry(void *pBackendData,
+                                            PCVDGEOMETRY pPCHSGeometry)
 {
     LogFlowFunc(("pBackendData=%#p pPCHSGeometry=%#p PCHS=%u/%u/%u\n", pBackendData, pPCHSGeometry, pPCHSGeometry->cCylinders, pPCHSGeometry->cHeads, pPCHSGeometry->cSectors));
     PRAWIMAGE pImage = (PRAWIMAGE)pBackendData;
@@ -798,8 +828,8 @@ out:
 }
 
 /** @copydoc VBOXHDDBACKEND::pfnGetLCHSGeometry */
-static int rawGetLCHSGeometry(void *pBackendData,
-                              PVDGEOMETRY pLCHSGeometry)
+static DECLCALLBACK(int) rawGetLCHSGeometry(void *pBackendData,
+                                            PVDGEOMETRY pLCHSGeometry)
 {
      LogFlowFunc(("pBackendData=%#p pLCHSGeometry=%#p\n", pBackendData, pLCHSGeometry));
     PRAWIMAGE pImage = (PRAWIMAGE)pBackendData;
@@ -825,8 +855,8 @@ static int rawGetLCHSGeometry(void *pBackendData,
 }
 
 /** @copydoc VBOXHDDBACKEND::pfnSetLCHSGeometry */
-static int rawSetLCHSGeometry(void *pBackendData,
-                               PCVDGEOMETRY pLCHSGeometry)
+static DECLCALLBACK(int) rawSetLCHSGeometry(void *pBackendData,
+                                            PCVDGEOMETRY pLCHSGeometry)
 {
     LogFlowFunc(("pBackendData=%#p pLCHSGeometry=%#p LCHS=%u/%u/%u\n", pBackendData, pLCHSGeometry, pLCHSGeometry->cCylinders, pLCHSGeometry->cHeads, pLCHSGeometry->cSectors));
     PRAWIMAGE pImage = (PRAWIMAGE)pBackendData;
@@ -854,7 +884,7 @@ out:
 }
 
 /** @copydoc VBOXHDDBACKEND::pfnGetImageFlags */
-static unsigned rawGetImageFlags(void *pBackendData)
+static DECLCALLBACK(unsigned) rawGetImageFlags(void *pBackendData)
 {
     LogFlowFunc(("pBackendData=%#p\n", pBackendData));
     PRAWIMAGE pImage = (PRAWIMAGE)pBackendData;
@@ -872,7 +902,7 @@ static unsigned rawGetImageFlags(void *pBackendData)
 }
 
 /** @copydoc VBOXHDDBACKEND::pfnGetOpenFlags */
-static unsigned rawGetOpenFlags(void *pBackendData)
+static DECLCALLBACK(unsigned) rawGetOpenFlags(void *pBackendData)
 {
     LogFlowFunc(("pBackendData=%#p\n", pBackendData));
     PRAWIMAGE pImage = (PRAWIMAGE)pBackendData;
@@ -890,7 +920,7 @@ static unsigned rawGetOpenFlags(void *pBackendData)
 }
 
 /** @copydoc VBOXHDDBACKEND::pfnSetOpenFlags */
-static int rawSetOpenFlags(void *pBackendData, unsigned uOpenFlags)
+static DECLCALLBACK(int) rawSetOpenFlags(void *pBackendData, unsigned uOpenFlags)
 {
     LogFlowFunc(("pBackendData=%#p\n uOpenFlags=%#x", pBackendData, uOpenFlags));
     PRAWIMAGE pImage = (PRAWIMAGE)pBackendData;
@@ -917,8 +947,8 @@ out:
 }
 
 /** @copydoc VBOXHDDBACKEND::pfnGetComment */
-static int rawGetComment(void *pBackendData, char *pszComment,
-                          size_t cbComment)
+static DECLCALLBACK(int) rawGetComment(void *pBackendData, char *pszComment,
+                                       size_t cbComment)
 {
     LogFlowFunc(("pBackendData=%#p pszComment=%#p cbComment=%zu\n", pBackendData, pszComment, cbComment));
     PRAWIMAGE pImage = (PRAWIMAGE)pBackendData;
@@ -936,7 +966,7 @@ static int rawGetComment(void *pBackendData, char *pszComment,
 }
 
 /** @copydoc VBOXHDDBACKEND::pfnSetComment */
-static int rawSetComment(void *pBackendData, const char *pszComment)
+static DECLCALLBACK(int) rawSetComment(void *pBackendData, const char *pszComment)
 {
     LogFlowFunc(("pBackendData=%#p pszComment=\"%s\"\n", pBackendData, pszComment));
     PRAWIMAGE pImage = (PRAWIMAGE)pBackendData;
@@ -959,7 +989,7 @@ static int rawSetComment(void *pBackendData, const char *pszComment)
 }
 
 /** @copydoc VBOXHDDBACKEND::pfnGetUuid */
-static int rawGetUuid(void *pBackendData, PRTUUID pUuid)
+static DECLCALLBACK(int) rawGetUuid(void *pBackendData, PRTUUID pUuid)
 {
     LogFlowFunc(("pBackendData=%#p pUuid=%#p\n", pBackendData, pUuid));
     PRAWIMAGE pImage = (PRAWIMAGE)pBackendData;
@@ -977,7 +1007,7 @@ static int rawGetUuid(void *pBackendData, PRTUUID pUuid)
 }
 
 /** @copydoc VBOXHDDBACKEND::pfnSetUuid */
-static int rawSetUuid(void *pBackendData, PCRTUUID pUuid)
+static DECLCALLBACK(int) rawSetUuid(void *pBackendData, PCRTUUID pUuid)
 {
     LogFlowFunc(("pBackendData=%#p Uuid=%RTuuid\n", pBackendData, pUuid));
     PRAWIMAGE pImage = (PRAWIMAGE)pBackendData;
@@ -1001,7 +1031,7 @@ static int rawSetUuid(void *pBackendData, PCRTUUID pUuid)
 }
 
 /** @copydoc VBOXHDDBACKEND::pfnGetModificationUuid */
-static int rawGetModificationUuid(void *pBackendData, PRTUUID pUuid)
+static DECLCALLBACK(int) rawGetModificationUuid(void *pBackendData, PRTUUID pUuid)
 {
     LogFlowFunc(("pBackendData=%#p pUuid=%#p\n", pBackendData, pUuid));
     PRAWIMAGE pImage = (PRAWIMAGE)pBackendData;
@@ -1019,7 +1049,7 @@ static int rawGetModificationUuid(void *pBackendData, PRTUUID pUuid)
 }
 
 /** @copydoc VBOXHDDBACKEND::pfnSetModificationUuid */
-static int rawSetModificationUuid(void *pBackendData, PCRTUUID pUuid)
+static DECLCALLBACK(int) rawSetModificationUuid(void *pBackendData, PCRTUUID pUuid)
 {
     LogFlowFunc(("pBackendData=%#p Uuid=%RTuuid\n", pBackendData, pUuid));
     PRAWIMAGE pImage = (PRAWIMAGE)pBackendData;
@@ -1042,7 +1072,7 @@ static int rawSetModificationUuid(void *pBackendData, PCRTUUID pUuid)
 }
 
 /** @copydoc VBOXHDDBACKEND::pfnGetParentUuid */
-static int rawGetParentUuid(void *pBackendData, PRTUUID pUuid)
+static DECLCALLBACK(int) rawGetParentUuid(void *pBackendData, PRTUUID pUuid)
 {
     LogFlowFunc(("pBackendData=%#p pUuid=%#p\n", pBackendData, pUuid));
     PRAWIMAGE pImage = (PRAWIMAGE)pBackendData;
@@ -1060,7 +1090,7 @@ static int rawGetParentUuid(void *pBackendData, PRTUUID pUuid)
 }
 
 /** @copydoc VBOXHDDBACKEND::pfnSetParentUuid */
-static int rawSetParentUuid(void *pBackendData, PCRTUUID pUuid)
+static DECLCALLBACK(int) rawSetParentUuid(void *pBackendData, PCRTUUID pUuid)
 {
     LogFlowFunc(("pBackendData=%#p Uuid=%RTuuid\n", pBackendData, pUuid));
     PRAWIMAGE pImage = (PRAWIMAGE)pBackendData;
@@ -1083,7 +1113,7 @@ static int rawSetParentUuid(void *pBackendData, PCRTUUID pUuid)
 }
 
 /** @copydoc VBOXHDDBACKEND::pfnGetParentModificationUuid */
-static int rawGetParentModificationUuid(void *pBackendData, PRTUUID pUuid)
+static DECLCALLBACK(int) rawGetParentModificationUuid(void *pBackendData, PRTUUID pUuid)
 {
     LogFlowFunc(("pBackendData=%#p pUuid=%#p\n", pBackendData, pUuid));
     PRAWIMAGE pImage = (PRAWIMAGE)pBackendData;
@@ -1101,7 +1131,7 @@ static int rawGetParentModificationUuid(void *pBackendData, PRTUUID pUuid)
 }
 
 /** @copydoc VBOXHDDBACKEND::pfnSetParentModificationUuid */
-static int rawSetParentModificationUuid(void *pBackendData, PCRTUUID pUuid)
+static DECLCALLBACK(int) rawSetParentModificationUuid(void *pBackendData, PCRTUUID pUuid)
 {
     LogFlowFunc(("pBackendData=%#p Uuid=%RTuuid\n", pBackendData, pUuid));
     PRAWIMAGE pImage = (PRAWIMAGE)pBackendData;
@@ -1124,7 +1154,7 @@ static int rawSetParentModificationUuid(void *pBackendData, PCRTUUID pUuid)
 }
 
 /** @copydoc VBOXHDDBACKEND::pfnDump */
-static void rawDump(void *pBackendData)
+static DECLCALLBACK(void) rawDump(void *pBackendData)
 {
     PRAWIMAGE pImage = (PRAWIMAGE)pBackendData;
 

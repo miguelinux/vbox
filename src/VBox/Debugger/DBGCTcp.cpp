@@ -16,9 +16,9 @@
  */
 
 
-/*******************************************************************************
-*   Header Files                                                               *
-*******************************************************************************/
+/*********************************************************************************************************************************
+*   Header Files                                                                                                                 *
+*********************************************************************************************************************************/
 #include <VBox/dbg.h>
 #include <VBox/vmm/cfgm.h>
 #include <VBox/err.h>
@@ -31,9 +31,9 @@
 #include <iprt/string.h>
 
 
-/*******************************************************************************
-*   Structures and Typedefs                                                    *
-*******************************************************************************/
+/*********************************************************************************************************************************
+*   Structures and Typedefs                                                                                                      *
+*********************************************************************************************************************************/
 /**
  * Debug console TCP backend instance data.
  */
@@ -53,10 +53,10 @@ typedef DBGCTCP *PDBGCTCP;
 #define DBGCTCP_BACK2DBGCTCP(pBack) ( (PDBGCTCP)((char *)pBack - RT_OFFSETOF(DBGCTCP, Back)) )
 
 
-/*******************************************************************************
-*   Internal Functions                                                         *
-*******************************************************************************/
-static int  dbgcTcpConnection(RTSOCKET Sock, void *pvUser);
+/*********************************************************************************************************************************
+*   Internal Functions                                                                                                           *
+*********************************************************************************************************************************/
+static DECLCALLBACK(int)  dbgcTcpConnection(RTSOCKET Sock, void *pvUser);
 
 
 
@@ -101,6 +101,8 @@ static DECLCALLBACK(int) dbgcTcpBackRead(PDBGCBACK pBack, void *pvBuf, size_t cb
     if (!pDbgcTcp->fAlive)
         return VERR_INVALID_HANDLE;
     int rc = RTTcpRead(pDbgcTcp->Sock, pvBuf, cbBuf, pcbRead);
+    if (RT_SUCCESS(rc) && pcbRead != NULL && *pcbRead == 0)
+        rc = VERR_NET_SHUTDOWN;
     if (RT_FAILURE(rc))
         pDbgcTcp->fAlive = false;
     return rc;
@@ -135,7 +137,7 @@ static DECLCALLBACK(int) dbgcTcpBackWrite(PDBGCBACK pBack, const void *pvBuf, si
         /* write newlines */
         if (*(const char *)pvBuf == '\n')
         {
-            rc = RTTcpWrite(pDbgcTcp->Sock, "\n\r", 2);
+            rc = RTTcpWrite(pDbgcTcp->Sock, "\r\n", 2);
             cb = 1;
         }
         /* write till next newline */

@@ -16,9 +16,10 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-/*******************************************************************************
-*   Header Files                                                               *
-*******************************************************************************/
+
+/*********************************************************************************************************************************
+*   Header Files                                                                                                                 *
+*********************************************************************************************************************************/
 #include <pwd.h>
 #include <syslog.h>
 #include <stdlib.h>
@@ -841,7 +842,7 @@ static gboolean cb_check_creds(gpointer pvData)
  * @param   enmPhase
  * @param   pfnLog
  */
-static void vboxGreeterLogHeaderFooter(PRTLOGGER pLoggerRelease, RTLOGPHASE enmPhase, PFNRTLOGPHASEMSG pfnLog)
+static DECLCALLBACK(void) vboxGreeterLogHeaderFooter(PRTLOGGER pLoggerRelease, RTLOGPHASE enmPhase, PFNRTLOGPHASEMSG pfnLog)
 {
     /* Some introductory information. */
     static RTTIMESPEC s_TimeSpec;

@@ -15,9 +15,10 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-/*******************************************************************************
-*   Header Files                                                               *
-*******************************************************************************/
+
+/*********************************************************************************************************************************
+*   Header Files                                                                                                                 *
+*********************************************************************************************************************************/
 #define LOG_GROUP LOG_GROUP_GIM
 #include "GIMInternal.h"
 #include "GIMKvmInternal.h"
@@ -37,6 +38,7 @@
  * @param   pVM         Pointer to the VM.
  * @param
  * @thread  EMT.
+ * @remarks Can be called with preemption disabled!
  */
 VMM_INT_DECL(int) gimR0KvmUpdateSystemTime(PVM pVM, PVMCPU pVCpu)
 {

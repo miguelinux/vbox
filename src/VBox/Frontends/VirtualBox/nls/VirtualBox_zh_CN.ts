@@ -52,8 +52,8 @@
         <translation>重新安装VirtualBox可能解决该问题。</translation>
     </message>
     <message>
-        <source>The VirtualBox Linux kernel driver (vboxdrv) is either not loaded or there is a permission problem with /dev/vboxdrv. Please reinstall the kernel module by executing&lt;br/&gt;&lt;br/&gt;  &lt;font color=blue&gt;&apos;/etc/init.d/vboxdrv setup&apos;&lt;/font&gt;&lt;br/&gt;&lt;br/&gt;as root. Users of Ubuntu, Fedora or Mandriva should install the DKMS package first. This package keeps track of Linux kernel changes and recompiles the vboxdrv kernel module if necessary.</source>
-        <translation type="obsolete">VirtualBox Linux 内核驱动程序 (vboxdrv) 没有加载，或 /dev/vboxdrv 有权限问题。请以 root 权限执行&lt;br/&gt;&lt;br/&gt;&lt;font color=blue&gt;“/etc/init.d/vboxdrv setup”&lt;/font&gt;&lt;br/&gt;&lt;br/&gt;，以便重新安装核心模块。Ubuntu、Fedora 或 Mandriva 的用户应该首先安装 DKMS 软件包。此程序包跟踪 Linux 内核的更改，并在必要时重新编译 vboxdrv 内核模块。</translation>
+        <source>The VirtualBox Linux kernel driver (vboxdrv) is either not loaded or there is a permission problem with /dev/vboxdrv. Please reinstall the kernel module by executing&lt;br/&gt;&lt;br/&gt;  &lt;font color=blue&gt;&apos;/sbin/vboxconfig&apos;&lt;/font&gt;&lt;br/&gt;&lt;br/&gt;as root. Users of Ubuntu, Fedora or Mandriva should install the DKMS package first. This package keeps track of Linux kernel changes and recompiles the vboxdrv kernel module if necessary.</source>
+        <translation type="obsolete">VirtualBox Linux 内核驱动程序 (vboxdrv) 没有加载，或 /dev/vboxdrv 有权限问题。请以 root 权限执行&lt;br/&gt;&lt;br/&gt;&lt;font color=blue&gt;“/sbin/vboxconfig”&lt;/font&gt;&lt;br/&gt;&lt;br/&gt;，以便重新安装核心模块。Ubuntu、Fedora 或 Mandriva 的用户应该首先安装 DKMS 软件包。此程序包跟踪 Linux 内核的更改，并在必要时重新编译 vboxdrv 内核模块。</translation>
     </message>
     <message>
         <source>Make sure the kernel module has been loaded successfully.</source>
@@ -80,16 +80,16 @@
         <translation>现有的内核模块与当前版本的VirtualBox不匹配。因此导致安装失败，请试着完全卸载VirtualBox后，再重新安装一次.</translation>
     </message>
     <message>
-        <source>The VirtualBox kernel modules do not match this version of VirtualBox. The installation of VirtualBox was apparently not successful. Executing&lt;br/&gt;&lt;br/&gt;  &lt;font color=blue&gt;&apos;/etc/init.d/vboxdrv setup&apos;&lt;/font&gt;&lt;br/&gt;&lt;br/&gt;may correct this. Make sure that you do not mix the OSE version and the PUEL version of VirtualBox.</source>
-        <translation>现有的内核模块与当前版本的VirtualBox不匹配。因此导致安装失败。可尝试执行 &lt;br/&gt;&lt;br/&gt;  &lt;font color=blue&gt;&apos;/etc/init.d/vboxdrv setup&apos;&lt;/font&gt;&lt;br/&gt;&lt;br/&gt;以修复该问题。并确认你没有混合OSE和PUEL版本的VirtualBox.</translation>
+        <source>The VirtualBox kernel modules do not match this version of VirtualBox. The installation of VirtualBox was apparently not successful. Executing&lt;br/&gt;&lt;br/&gt;  &lt;font color=blue&gt;&apos;/sbin/vboxconfig&apos;&lt;/font&gt;&lt;br/&gt;&lt;br/&gt;may correct this. Make sure that you do not mix the OSE version and the PUEL version of VirtualBox.</source>
+        <translation>现有的内核模块与当前版本的VirtualBox不匹配。因此导致安装失败。可尝试执行 &lt;br/&gt;&lt;br/&gt;  &lt;font color=blue&gt;&apos;/sbin/vboxconfig&apos;&lt;/font&gt;&lt;br/&gt;&lt;br/&gt;以修复该问题。并确认你没有混合OSE和PUEL版本的VirtualBox.</translation>
     </message>
     <message>
         <source>This error means that the kernel driver was either not able to allocate enough memory or that some mapping operation failed.</source>
         <translation>该错误意味着当前的内核驱动模块无法分配足够的内存或某些映射操作失败.</translation>
     </message>
     <message>
-        <source>The VirtualBox Linux kernel driver (vboxdrv) is either not loaded or there is a permission problem with /dev/vboxdrv. Please reinstall the kernel module by executing&lt;br/&gt;&lt;br/&gt;  &lt;font color=blue&gt;&apos;/etc/init.d/vboxdrv setup&apos;&lt;/font&gt;&lt;br/&gt;&lt;br/&gt;as root. If it is available in your distribution, you should install the DKMS package first. This package keeps track of Linux kernel changes and recompiles the vboxdrv kernel module if necessary.</source>
-        <translation>VirtualBox Linux 内核驱动程序 (vboxdrv) 没有加载，或 /dev/vboxdrv 有权限问题。请以 root 权限执行&lt;br/&gt;&lt;br/&gt;&lt;font color=blue&gt;“/etc/init.d/vboxdrv setup”&lt;/font&gt;&lt;br/&gt;&lt;br/&gt;，以便重新安装内核模块。如果你所用的发行版bs有DKMS软件包，你应该首先安装之。此程序包跟踪 Linux 内核的更改，并在必要时重新编译 vboxdrv 内核模块。</translation>
+        <source>The VirtualBox Linux kernel driver (vboxdrv) is either not loaded or there is a permission problem with /dev/vboxdrv. Please reinstall the kernel module by executing&lt;br/&gt;&lt;br/&gt;  &lt;font color=blue&gt;&apos;/sbin/vboxconfig&apos;&lt;/font&gt;&lt;br/&gt;&lt;br/&gt;as root. If it is available in your distribution, you should install the DKMS package first. This package keeps track of Linux kernel changes and recompiles the vboxdrv kernel module if necessary.</source>
+        <translation>VirtualBox Linux 内核驱动程序 (vboxdrv) 没有加载，或 /dev/vboxdrv 有权限问题。请以 root 权限执行&lt;br/&gt;&lt;br/&gt;&lt;font color=blue&gt;“/sbin/vboxconfig”&lt;/font&gt;&lt;br/&gt;&lt;br/&gt;，以便重新安装内核模块。如果你所用的发行版bs有DKMS软件包，你应该首先安装之。此程序包跟踪 Linux 内核的更改，并在必要时重新编译 vboxdrv 内核模块。</translation>
     </message>
 </context>
 <context>
@@ -1372,7 +1372,7 @@
     <message>
         <source>Status</source>
         <comment>password table field</comment>
-        <translation>状态</translation>
+        <translation type="obsolete">状态</translation>
     </message>
     <message>
         <source>ID</source>
@@ -6542,7 +6542,7 @@
     </message>
     <message>
         <source>If checked, an absolute pointing device (a USB tablet) will be supported. Otherwise, only a standard PS/2 mouse will be emulated.</source>
-        <translation type="obsolete">如果选中，将支持绝对指点设备(USB平板)。否则，将只模拟标准的PS/2鼠标。</translation>
+        <translation type="obsolete">如果选中，将支持绝对指点设备(USB触控板)。否则，将只模拟标准的PS/2鼠标。</translation>
     </message>
     <message>
         <source>Enable &amp;absolute pointing device</source>
@@ -6596,7 +6596,7 @@
     </message>
     <message>
         <source>Determines whether the emulated pointing device is a standard PS/2 mouse, a USB tablet or a USB multi-touch tablet.</source>
-        <translation>确定模拟的指点设备为标准的 PS/2 鼠标、USB平板或USB多点触摸平板。</translation>
+        <translation>确定模拟的指点设备为标准的 PS/2 鼠标、USB触控板或USB多点触控板。</translation>
     </message>
     <message>
         <source>More than &lt;b&gt;%1%&lt;/b&gt; of the host computer&apos;s memory (&lt;b&gt;%2&lt;/b&gt;) is assigned to the virtual machine. Not enough memory is left for the host operating system. Please select a smaller amount.</source>
@@ -7586,7 +7586,7 @@
     </message>
     <message>
         <source>&lt;p&gt;A critical error has occurred while running the virtual machine and the machine execution has been stopped.&lt;/p&gt;&lt;p&gt;For help, please see the Community section on &lt;a href=http://www.virtualbox.org&gt;http://www.virtualbox.org&lt;/a&gt; or your support contract. Please provide the contents of the log file &lt;tt&gt;VBox.log&lt;/tt&gt; and the image file &lt;tt&gt;VBox.png&lt;/tt&gt;, which you can find in the &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt; directory, as well as a description of what you were doing when this error happened. Note that you can also access the above files by selecting &lt;b&gt;Show Log&lt;/b&gt; from the &lt;b&gt;Machine&lt;/b&gt; menu of the main VirtualBox window.&lt;/p&gt;&lt;p&gt;Press &lt;b&gt;OK&lt;/b&gt; if you want to power off the machine or press &lt;b&gt;Ignore&lt;/b&gt; if you want to leave it as is for debugging. Please note that debugging requires special knowledge and tools, so it is recommended to press &lt;b&gt;OK&lt;/b&gt; now.&lt;/p&gt;</source>
-        <translation type="obsolete">&lt;p&gt;虚拟电脑在运行中发生一个严重错误，现在将被关闭.&lt;/p&gt;&lt;p&gt;请联系您的供应商. 并提供日志文件 &lt;tt&gt;VBox.log&lt;/tt&gt; 和映像文件 &lt;tt&gt;VBox.png&lt;/tt&gt;, 它们位于 &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt; 文件夹, 同时就该错误是如何发生的提供一份详细说明. &lt;/p&gt;&lt;p&gt;按&lt;b&gt;确定&lt;/b&gt; 如果您想关闭该虚拟电脑，或者按 &lt;b&gt;忽略&lt;/b&gt; 如果您想调试它. 请注意调试需要专业的知识和工具, 因此建议您按 &lt;b&gt;确定&lt;/b&gt; .&lt;/p&gt;</translation>
+        <translation type="obsolete">&lt;p&gt;虚拟电脑在运行中发生一个严重错误，现在将被关闭.&lt;/p&gt;&lt;p&gt;请联系您的供应商. 并提供日志文件 &lt;tt&gt;VBox.log&lt;/tt&gt; 和图片文件 &lt;tt&gt;VBox.png&lt;/tt&gt;, 它们位于 &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt; 文件夹, 同时就该错误是如何发生的提供一份详细说明. &lt;/p&gt;&lt;p&gt;按&lt;b&gt;确定&lt;/b&gt; 如果您想关闭该虚拟电脑，或者按 &lt;b&gt;忽略&lt;/b&gt; 如果您想调试它. 请注意调试需要专业的知识和工具, 因此建议您按 &lt;b&gt;确定&lt;/b&gt; .&lt;/p&gt;</translation>
     </message>
     <message>
         <source>The following files already exist:&lt;br /&gt;&lt;br /&gt;%1&lt;br /&gt;&lt;br /&gt;Are you sure you want to replace them? Replacing them will overwrite their contents.</source>
@@ -8645,6 +8645,10 @@
     <message>
         <source>&lt;p&gt;Could not switch the guest display to full-screen mode due to insufficient guest video memory.&lt;/p&gt;&lt;p&gt;You should configure the virtual machine to have at least &lt;b&gt;%1&lt;/b&gt; of video memory.&lt;/p&gt;&lt;p&gt;Press &lt;b&gt;Ignore&lt;/b&gt; to switch to full-screen mode anyway or press &lt;b&gt;Cancel&lt;/b&gt; to cancel the operation.&lt;/p&gt;</source>
         <translation>&lt;p&gt;无法切换到全屏模式，因为虚拟电脑上没有足够的显存.&lt;/p&gt;&lt;p&gt;你应该重新设置虚拟电脑让它至少拥有 &lt;b&gt;%1&lt;/b&gt; 的显存.&lt;/p&gt;&lt;p&gt;按 &lt;b&gt;忽略&lt;/b&gt; 强制切换到全屏模式或按 &lt;b&gt;取消&lt;/b&gt; 撤消该操作.&lt;/p&gt;</translation>
+    </message>
+    <message>
+        <source>Encryption password for &lt;nobr&gt;ID = &apos;%1&apos;&lt;/nobr&gt; is invalid.</source>
+        <translation>&lt;nobr&gt;ID = &apos;%1&apos;&lt;/nobr&gt; 的加密密钥无效。</translation>
     </message>
 </context>
 <context>
@@ -12295,12 +12299,12 @@
     <message>
         <source>USB Tablet</source>
         <comment>PointingHIDType</comment>
-        <translation>USB平板</translation>
+        <translation>USB触控板</translation>
     </message>
     <message>
         <source>USB Multi-Touch Tablet</source>
         <comment>PointingHIDType</comment>
-        <translation>USB多点触摸平板</translation>
+        <translation>USB多点触控板</translation>
     </message>
     <message>
         <source>NAT Network</source>

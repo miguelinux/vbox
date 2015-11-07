@@ -132,16 +132,16 @@
         <translation>VirtualBox kernel modülleri VirtualBox&apos;ın bu sürümüyle uyuşmuyor. VirtualBox&apos;ın kurulumu görünüşe göre başarılı olmadı. Lütfen VirtualBox&apos;ı tamamen kaldırmayı ve yeniden yüklemeyi deneyin.</translation>
     </message>
     <message>
-        <source>The VirtualBox kernel modules do not match this version of VirtualBox. The installation of VirtualBox was apparently not successful. Executing&lt;br/&gt;&lt;br/&gt;  &lt;font color=blue&gt;&apos;/etc/init.d/vboxdrv setup&apos;&lt;/font&gt;&lt;br/&gt;&lt;br/&gt;may correct this. Make sure that you do not mix the OSE version and the PUEL version of VirtualBox.</source>
-        <translation>VirtualBox kernel modülleri VirtualBox&apos;ın bu sürümüyle uyuşmuyor. VirtualBox&apos;ın kurulumu görünüşe göre başarılı olmadı. &lt;br/&gt;&lt;br/&gt;  &lt;font color=blue&gt;&apos;/etc/init.d/vboxdrv setup&apos;&lt;/font&gt;&lt;br/&gt;&lt;br/&gt; dosyasını çalıştırmak bunu düzeltebilir. VirtualBox&apos;ın OSE ve PUEL sürümlerini karıştırmadığınızdan emin olun.</translation>
+        <source>The VirtualBox kernel modules do not match this version of VirtualBox. The installation of VirtualBox was apparently not successful. Executing&lt;br/&gt;&lt;br/&gt;  &lt;font color=blue&gt;&apos;/sbin/vboxconfig&apos;&lt;/font&gt;&lt;br/&gt;&lt;br/&gt;may correct this. Make sure that you do not mix the OSE version and the PUEL version of VirtualBox.</source>
+        <translation>VirtualBox kernel modülleri VirtualBox&apos;ın bu sürümüyle uyuşmuyor. VirtualBox&apos;ın kurulumu görünüşe göre başarılı olmadı. &lt;br/&gt;&lt;br/&gt;  &lt;font color=blue&gt;&apos;/sbin/vboxconfig&apos;&lt;/font&gt;&lt;br/&gt;&lt;br/&gt; dosyasını çalıştırmak bunu düzeltebilir. VirtualBox&apos;ın OSE ve PUEL sürümlerini karıştırmadığınızdan emin olun.</translation>
     </message>
     <message>
         <source>This error means that the kernel driver was either not able to allocate enough memory or that some mapping operation failed.</source>
         <translation>Bu hata kernel sürücüsünün ya yeterli bellek ayıramadığını ya da bazı planlama işleminin başarısız olduğu anlamına gelir.</translation>
     </message>
     <message>
-        <source>The VirtualBox Linux kernel driver (vboxdrv) is either not loaded or there is a permission problem with /dev/vboxdrv. Please reinstall the kernel module by executing&lt;br/&gt;&lt;br/&gt;  &lt;font color=blue&gt;&apos;/etc/init.d/vboxdrv setup&apos;&lt;/font&gt;&lt;br/&gt;&lt;br/&gt;as root. If it is available in your distribution, you should install the DKMS package first. This package keeps track of Linux kernel changes and recompiles the vboxdrv kernel module if necessary.</source>
-        <translation>VirtualBox Linux kernel sürücüsü (vboxdrv) ya yüklenemiyor ya da /dev/vboxdrv ile ilgili izin sorunu var. Lütfen root olarak &lt;br/&gt;&lt;br/&gt;  &lt;font color=blue&gt;&apos;/etc/init.d/vboxdrv setup&apos;&lt;/font&gt;&lt;br/&gt;&lt;br/&gt; dosyasını çalıştırıp kernel modülünü yeniden yükleyin. Eğer dağıtımınızda mevcutsa, önce DKMS paketini yüklemelisiniz. Bu paket Linux kernel değişikliklerinin izini tutar ve eğer gerekirse vboxdrv kernel modülünü yeniden derler.</translation>
+        <source>The VirtualBox Linux kernel driver (vboxdrv) is either not loaded or there is a permission problem with /dev/vboxdrv. Please reinstall the kernel module by executing&lt;br/&gt;&lt;br/&gt;  &lt;font color=blue&gt;&apos;/sbin/vboxconfig&apos;&lt;/font&gt;&lt;br/&gt;&lt;br/&gt;as root. If it is available in your distribution, you should install the DKMS package first. This package keeps track of Linux kernel changes and recompiles the vboxdrv kernel module if necessary.</source>
+        <translation>VirtualBox Linux kernel sürücüsü (vboxdrv) ya yüklenemiyor ya da /dev/vboxdrv ile ilgili izin sorunu var. Lütfen root olarak &lt;br/&gt;&lt;br/&gt;  &lt;font color=blue&gt;&apos;/sbin/vboxconfig&apos;&lt;/font&gt;&lt;br/&gt;&lt;br/&gt; dosyasını çalıştırıp kernel modülünü yeniden yükleyin. Eğer dağıtımınızda mevcutsa, önce DKMS paketini yüklemelisiniz. Bu paket Linux kernel değişikliklerinin izini tutar ve eğer gerekirse vboxdrv kernel modülünü yeniden derler.</translation>
     </message>
     <message>
         <source>Frame Size: %1x%2, Frame Rate: %3fps, Bit Rate: %4kbps</source>
@@ -1467,7 +1467,7 @@
     <message>
         <source>Status</source>
         <comment>password table field</comment>
-        <translation>Durum</translation>
+        <translation type="obsolete">Durum</translation>
     </message>
     <message>
         <source>ID</source>
@@ -7420,7 +7420,7 @@
     <message>
         <source>VirtualBox - Critical Error</source>
         <comment>msg box title</comment>
-        <translation>VirtualBox - Ciddi Hata</translation>
+        <translation>VirtualBox - Önemli Hata</translation>
     </message>
     <message>
         <source>Do not show this message again</source>
@@ -9148,6 +9148,10 @@
     <message>
         <source>&lt;p&gt;Could not switch the guest display to full-screen mode due to insufficient guest video memory.&lt;/p&gt;&lt;p&gt;You should configure the virtual machine to have at least &lt;b&gt;%1&lt;/b&gt; of video memory.&lt;/p&gt;&lt;p&gt;Press &lt;b&gt;Ignore&lt;/b&gt; to switch to full-screen mode anyway or press &lt;b&gt;Cancel&lt;/b&gt; to cancel the operation.&lt;/p&gt;</source>
         <translation>&lt;p&gt;Yetersiz misafir görüntü belleğinden dolayı misafir ekranı tam ekran kipine değiştirilemedi.&lt;/p&gt;&lt;p&gt;Sanal makineyi en az &lt;b&gt;%1&lt;/b&gt; görüntü belleğine sahip olacak şekilde yapılandırmalısınz.&lt;/p&gt;&lt;p&gt;Yine de tam ekran kipine değiştirmek için &lt;b&gt;Yoksay&lt;/b&gt; düğmesine basın ya da işlemi iptal etmek için &lt;b&gt;İptal&lt;/b&gt; düğmesine basın.&lt;/p&gt;</translation>
+    </message>
+    <message>
+        <source>Encryption password for &lt;nobr&gt;ID = &apos;%1&apos;&lt;/nobr&gt; is invalid.</source>
+        <translation>&lt;nobr&gt;ID = &apos;%1&apos;&lt;/nobr&gt; için şifreleme parolası geçersiz.</translation>
     </message>
 </context>
 <context>

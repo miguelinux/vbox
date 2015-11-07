@@ -16,9 +16,9 @@
  */
 
 
-/*******************************************************************************
-*   Header Files                                                               *
-*******************************************************************************/
+/*********************************************************************************************************************************
+*   Header Files                                                                                                                 *
+*********************************************************************************************************************************/
 #define LOG_GROUP LOG_GROUP_PDM_QUEUE
 #include "PDMInternal.h"
 #include <VBox/vmm/pdm.h>
@@ -36,9 +36,9 @@
 #include <iprt/thread.h>
 
 
-/*******************************************************************************
-*   Internal Functions                                                         *
-*******************************************************************************/
+/*********************************************************************************************************************************
+*   Internal Functions                                                                                                           *
+*********************************************************************************************************************************/
 DECLINLINE(void)            pdmR3QueueFreeItem(PPDMQUEUE pQueue, PPDMQUEUEITEMCORE pItem);
 static bool                 pdmR3QueueFlush(PPDMQUEUE pQueue);
 static DECLCALLBACK(void)   pdmR3QueueTimer(PVM pVM, PTMTIMER pTimer, void *pvUser);
@@ -233,7 +233,7 @@ VMMR3_INT_DECL(int) PDMR3QueueCreateDevice(PVM pVM, PPDMDEVINS pDevIns, size_t c
 
         *ppQueue = pQueue;
         Log(("PDM: Created device queue %p; cbItem=%d cItems=%d cMillies=%d pfnCallback=%p pDevIns=%p\n",
-             cbItem, cItems, cMilliesInterval, pfnCallback, pDevIns));
+             pQueue, cbItem, cItems, cMilliesInterval, pfnCallback, pDevIns));
     }
     return rc;
 }
@@ -279,7 +279,7 @@ VMMR3_INT_DECL(int) PDMR3QueueCreateDriver(PVM pVM, PPDMDRVINS pDrvIns, size_t c
 
         *ppQueue = pQueue;
         Log(("PDM: Created driver queue %p; cbItem=%d cItems=%d cMillies=%d pfnCallback=%p pDrvIns=%p\n",
-             cbItem, cItems, cMilliesInterval, pfnCallback, pDrvIns));
+             pQueue, cbItem, cItems, cMilliesInterval, pfnCallback, pDrvIns));
     }
     return rc;
 }
@@ -324,7 +324,7 @@ VMMR3_INT_DECL(int) PDMR3QueueCreateInternal(PVM pVM, size_t cbItem, uint32_t cI
 
         *ppQueue = pQueue;
         Log(("PDM: Created internal queue %p; cbItem=%d cItems=%d cMillies=%d pfnCallback=%p\n",
-             cbItem, cItems, cMilliesInterval, pfnCallback));
+             pQueue, cbItem, cItems, cMilliesInterval, pfnCallback));
     }
     return rc;
 }
@@ -369,7 +369,7 @@ VMMR3_INT_DECL(int) PDMR3QueueCreateExternal(PVM pVM, size_t cbItem, uint32_t cI
 
         *ppQueue = pQueue;
         Log(("PDM: Created external queue %p; cbItem=%d cItems=%d cMillies=%d pfnCallback=%p pvUser=%p\n",
-             cbItem, cItems, cMilliesInterval, pfnCallback, pvUser));
+             pQueue, cbItem, cItems, cMilliesInterval, pfnCallback, pvUser));
     }
     return rc;
 }

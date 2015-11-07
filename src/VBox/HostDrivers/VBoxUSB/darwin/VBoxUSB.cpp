@@ -20,9 +20,9 @@
  */
 
 
-/*******************************************************************************
-*   Header Files                                                               *
-*******************************************************************************/
+/*********************************************************************************************************************************
+*   Header Files                                                                                                                 *
+*********************************************************************************************************************************/
 #define LOG_GROUP  LOG_GROUP_USB_DRV
 /* Deal with conflicts first.
  * (This is mess inherited from BSD. The *BSDs has clean this up long ago.) */
@@ -66,27 +66,27 @@ extern void     *get_bsdtask_info(task_t);
 RT_C_DECLS_END
 
 
-/*******************************************************************************
-*   Defined Constants And Macros                                               *
-*******************************************************************************/
+/*********************************************************************************************************************************
+*   Defined Constants And Macros                                                                                                 *
+*********************************************************************************************************************************/
 /** Locks the lists. */
 #define VBOXUSB_LOCK()      do { int rc = RTSemFastMutexRequest(g_Mtx); AssertRC(rc); } while (0)
 /** Unlocks the lists. */
 #define VBOXUSB_UNLOCK()    do { int rc = RTSemFastMutexRelease(g_Mtx); AssertRC(rc); } while (0)
 
 
-/*******************************************************************************
-*   Internal Functions                                                         *
-*******************************************************************************/
+/*********************************************************************************************************************************
+*   Internal Functions                                                                                                           *
+*********************************************************************************************************************************/
 RT_C_DECLS_BEGIN
 static kern_return_t    VBoxUSBStart(struct kmod_info *pKModInfo, void *pvData);
 static kern_return_t    VBoxUSBStop(struct kmod_info *pKModInfo, void *pvData);
 RT_C_DECLS_END
 
 
-/*******************************************************************************
-*   Structures and Typedefs                                                    *
-*******************************************************************************/
+/*********************************************************************************************************************************
+*   Structures and Typedefs                                                                                                      *
+*********************************************************************************************************************************/
 /**
  * The service class.
  *
@@ -193,6 +193,8 @@ public:
 
     static void  scheduleReleaseByOwner(RTPROCESS Owner);
 private:
+    /** Padding to guard against parent class expanding (see class remarks). */
+    uint8_t m_abPadding[256];
     /** The interface we're driving (aka. the provider). */
     IOUSBDevice *m_pDevice;
     /** The owner process, meaning the VBoxSVC process. */
@@ -265,9 +267,9 @@ OSDefineMetaClassAndStructors(org_virtualbox_VBoxUSBInterface, IOUSBUserClientIn
 
 
 
-/*******************************************************************************
-*   Global Variables                                                           *
-*******************************************************************************/
+/*********************************************************************************************************************************
+*   Global Variables                                                                                                             *
+*********************************************************************************************************************************/
 /*
  * Declare the module stuff.
  */
@@ -1089,7 +1091,8 @@ org_virtualbox_VBoxUSBDevice::probe(IOService *pProvider, SInt32 *pi32Score)
      * It matched. Save the owner in the provider registry (hope that works).
      */
     IOService *pRet = IOUSBUserClientInit::probe(pProvider, pi32Score);
-    Assert(pRet == this);
+    /*AssertMsg(pRet == this, ("pRet=%p this=%p *pi32Score=%d \n", pRet, this, pi32Score ? *pi32Score : 0)); - call always returns NULL on 10.11+ */
+    pRet = this;
     m_Owner = Owner;
     m_uId = uId;
     Log(("%p: m_Owner=%d m_uId=%d\n", this, (int)m_Owner, (int)m_uId));

@@ -90,40 +90,107 @@ typedef struct GuestDnDData
 } GuestDnDData;
 
 /**
+ * Structure for keeping an URI object's context around.
+ */
+typedef struct GuestDnDURIObjCtx
+{
+    GuestDnDURIObjCtx(void)
+        : pObjURI(NULL)
+        , fAllocated(false)
+        , fHeaderSent(false) { }
+
+    virtual ~GuestDnDURIObjCtx(void)
+    {
+        Reset();
+    }
+
+public:
+
+    void Reset(void)
+    {
+        if (   pObjURI
+            && fAllocated)
+        {
+            delete pObjURI;
+        }
+
+        pObjURI     = NULL;
+
+        fAllocated  = false;
+        fHeaderSent = false;
+    }
+
+
+    /** Pointer to current object being handled. */
+    DnDURIObject             *pObjURI;
+    /** Flag whether pObjURI needs deletion after use. */
+    bool                      fAllocated;
+    /** Flag whether the object's file header has been sent already. */
+    bool                      fHeaderSent;
+    /** @todo Add more statistics / information here. */
+
+} GuestDnDURIObjCtx;
+
+/**
  * Structure for keeping around URI (list) data.
  */
 typedef struct GuestDnDURIData
 {
     GuestDnDURIData(void)
         : pvScratchBuf(NULL)
-        , cbScratchBuf(0) { }
+        , cbScratchBuf(0)
+    {
+        RT_ZERO(mDropDir);
+    }
 
     virtual ~GuestDnDURIData(void)
     {
         Reset();
     }
 
+    int Init(size_t cbBuf = _64K)
+    {
+        Reset();
+
+        pvScratchBuf = RTMemAlloc(cbBuf);
+        if (!pvScratchBuf)
+            return VERR_NO_MEMORY;
+
+        cbScratchBuf = cbBuf;
+        return VINF_SUCCESS;
+    }
+
+    void * GetBufferMutable(void) { return pvScratchBuf; }
+
+    size_t GetBufferSize(void) { return cbScratchBuf; }
+
     void Reset(void)
     {
         lstURI.Clear();
-#if 0 /* Currently the scratch buffer will be maintained elswewhere. */
+        objCtx.Reset();
+
+        DnDDirDroppedFilesRollback(&mDropDir);
+        DnDDirDroppedFilesClose(&mDropDir, true /* fRemove */);
+
         if (pvScratchBuf)
         {
+            Assert(cbScratchBuf);
             RTMemFree(pvScratchBuf);
             pvScratchBuf = NULL;
         }
         cbScratchBuf = 0;
-#else
-        pvScratchBuf = NULL;
-        cbScratchBuf = 0;
-#endif
     }
 
     DNDDIRDROPPEDFILES              mDropDir;
-    /** (Non-recursive) List of root URI objects to receive. */
+    /** (Non-recursive) List of URI objects to handle. */
     DnDURIList                      lstURI;
-    /** Current object to receive. */
-    DnDURIObject                    objURI;
+    /** Context to current object being handled.
+     *  As we currently do all transfers one after another we
+     *  only have one context at a time. */
+    GuestDnDURIObjCtx               objCtx;
+
+protected:
+
     /** Pointer to an optional scratch buffer to use for
      *  doing the actual chunk transfers. */
     void                           *pvScratchBuf;
@@ -131,6 +198,9 @@ typedef struct GuestDnDURIData
     size_t                          cbScratchBuf;
 
 } GuestDnDURIData;
+
+/** List (vector) of MIME types. */
+typedef std::vector<com::Utf8Str> GuestDnDMIMEList;
 
 /**
  * Context structure for sending data to the guest.
@@ -170,8 +240,19 @@ typedef struct RECVDATACTX
     /** Flag indicating whether a file transfer is active and
      *  initiated by the host. */
     bool                                mIsActive;
-    /** Drag'n drop format to send. */
-    com::Utf8Str                        mFormat;
+    /** Formats offered by the guest (and supported by the host). */
+    GuestDnDMIMEList                    mFmtOffered;
+    /** Original drop format requested to receive from the guest. */
+    com::Utf8Str                        mFmtReq;
+    /** Intermediate drop format to be received from the host.
+     *  Some original drop formats require a different intermediate
+     *  drop format:
+     *
+     *  Receiving a file link as "text/plain"  requires still to
+     *  receive the file from the guest as "text/uri-list" first,
+     *  then pointing to the file path on the host in the "text/plain"
+     *  data returned. */
+    com::Utf8Str                        mFmtRecv;
     /** Desired drop action to perform on the host.
      *  Needed to tell the guest if data has to be
      *  deleted e.g. when moving instead of copying. */
@@ -360,8 +441,8 @@ public:
     void setDefAction(uint32_t a) { m_defAction = a; }
     uint32_t defAction(void) const { return m_defAction; }
 
-    void setFmtReq(const Utf8Str &strFormat) { m_strFmtReq = strFormat; }
-    Utf8Str fmtReq(void) const { return m_strFmtReq; }
+    void setFormats(const GuestDnDMIMEList &lstFormats) { m_lstFormats = lstFormats; }
+    GuestDnDMIMEList formats(void) const { return m_lstFormats; }
 
     void reset(void);
 
@@ -390,8 +471,8 @@ protected:
     /** Actions supported by the guest in case of
      *  a successful drop. */
     uint32_t              m_allActions;
-    /** Format requested by the guest. */
-    Utf8Str               m_strFmtReq;
+    /** Format(s) requested/supported from the guest. */
+    GuestDnDMIMEList      m_lstFormats;
     /** Pointer to IGuest parent object. */
     ComObjPtr<Guest>      m_parent;
     /** Pointer to associated progress object. Optional. */
@@ -440,7 +521,7 @@ public:
 
     /** @name Public helper functions.
      * @{ */
-    int                        adjustScreenCoordinates(ULONG uScreenId, ULONG *puX, ULONG *puY) const;
+    HRESULT                    adjustScreenCoordinates(ULONG uScreenId, ULONG *puX, ULONG *puY) const;
     int                        hostCall(uint32_t u32Function, uint32_t cParms, PVBOXHGCMSVCPARM paParms) const;
     GuestDnDResponse          *response(void) { return m_pResponse; }
     std::vector<com::Utf8Str>  defaultFormats(void) const { return m_strDefaultFormats; }
@@ -455,12 +536,15 @@ public:
 
     /** @name Static helper methods.
      * @{ */
-    static com::Utf8Str        toFormatString(const std::vector<com::Utf8Str> &lstSupportedFormats, const std::vector<com::Utf8Str> &lstWantedFormats);
-    static void                toFormatVector(const std::vector<com::Utf8Str> &lstSupportedFormats, const com::Utf8Str &strFormats, std::vector<com::Utf8Str> &vecformats);
-    static DnDAction_T         toMainAction(uint32_t uAction);
-    static void                toMainActions(uint32_t uActions, std::vector<DnDAction_T> &vecActions);
-    static uint32_t            toHGCMAction(DnDAction_T enmAction);
-    static void                toHGCMActions(DnDAction_T enmDefAction, uint32_t *puDefAction, const std::vector<DnDAction_T> vecAllowedActions, uint32_t *puAllowedActions);
+    static bool                     isFormatInFormatList(const com::Utf8Str &strFormat, const GuestDnDMIMEList &lstFormats);
+    static GuestDnDMIMEList         toFormatList(const com::Utf8Str &strFormats);
+    static com::Utf8Str             toFormatString(const GuestDnDMIMEList &lstFormats);
+    static GuestDnDMIMEList         toFilteredFormatList(const GuestDnDMIMEList &lstFormatsSupported, const GuestDnDMIMEList &lstFormatsWanted);
+    static GuestDnDMIMEList         toFilteredFormatList(const GuestDnDMIMEList &lstFormatsSupported, const com::Utf8Str &strFormatsWanted);
+    static DnDAction_T              toMainAction(uint32_t uAction);
+    static std::vector<DnDAction_T> toMainActions(uint32_t uActions);
+    static uint32_t                 toHGCMAction(DnDAction_T enmAction);
+    static void                     toHGCMActions(DnDAction_T enmDefAction, uint32_t *puDefAction, const std::vector<DnDAction_T> vecAllowedActions, uint32_t *puAllowedActions);
     /** @}  */
 
 protected:
@@ -503,9 +587,9 @@ protected:
     /** Shared (internal) IDnDBase method implementations.
      * @{ */
     HRESULT i_isFormatSupported(const com::Utf8Str &aFormat, BOOL *aSupported);
-    HRESULT i_getFormats(std::vector<com::Utf8Str> &aFormats);
-    HRESULT i_addFormats(const std::vector<com::Utf8Str> &aFormats);
-    HRESULT i_removeFormats(const std::vector<com::Utf8Str> &aFormats);
+    HRESULT i_getFormats(GuestDnDMIMEList &aFormats);
+    HRESULT i_addFormats(const GuestDnDMIMEList &aFormats);
+    HRESULT i_removeFormats(const GuestDnDMIMEList &aFormats);
 
     HRESULT i_getProtocolVersion(ULONG *puVersion);
     /** @}  */
@@ -531,11 +615,10 @@ protected:
      * @{ */
     /** Pointer to guest implementation. */
     const ComObjPtr<Guest>          m_pGuest;
-    /** List of supported MIME/Content-type formats. */
-    std::vector<com::Utf8Str>       m_vecFmtSup;
-    /** List of offered/compatible MIME/Content-type formats to the
-     *  counterpart. */
-    std::vector<com::Utf8Str>       m_vecFmtOff;
+    /** List of supported MIME types by the source. */
+    GuestDnDMIMEList                m_lstFmtSupported;
+    /** List of offered MIME types to the counterpart. */
+    GuestDnDMIMEList                m_lstFmtOffered;
     /** @}  */
 
     struct

@@ -76,8 +76,16 @@ endif
 # Include Qt project file, we'll use FORMS and TRANSLATIONS in
 # the VirtualBox setup below.
 #
+# This is a bit messy.  We boldly ASSUME that LANGUAGE, IMAGES, FORMS
+# and TRANSLATIONS are all unused by kBuild and the host toolchain.
+#
 SAVED_TEMPLATE := $(TEMPLATE)
 include $(PATH_SUB_CURRENT)/VBoxUI.pro
+TEMPLATE       := $(SAVED_TEMPLATE)
+SAVED_TEMPLATE :=
+LANGUAGE       :=
+IMAGES         :=
+# FORMS and TRANSLATIONS are reset further down.
 
 
 #
@@ -117,6 +125,7 @@ VirtualBox_DEFS          += \
 	$(if $(VBOX_WITH_HARDENING),VBOXR3_HARDENED_DLL) \
 	$(if $(VBOX_WITH_DRAG_AND_DROP),VBOX_WITH_DRAG_AND_DROP) \
 	$(if $(VBOX_WITH_DRAG_AND_DROP_GH),VBOX_WITH_DRAG_AND_DROP_GH) \
+	$(if $(VBOX_WITH_DRAG_AND_DROP_PROMISES),VBOX_WITH_DRAG_AND_DROP_PROMISES) \
 	$(if $(VBOX_WITH_CRHGSMI),VBOX_WITH_CRHGSMI) \
 	$(if $(VBOX_WITH_VIRTIO),VBOX_WITH_VIRTIO) \
 	$(if $(VBOX_WITH_WDDM),VBOX_WITH_WDDM) \
@@ -299,6 +308,7 @@ VirtualBox_QT_MOCHDRS = \
 	src/extradata/UIExtraDataManager.h \
 	src/globals/UIActionPool.h \
 	src/globals/UIAnimationFramework.h \
+	src/globals/UIDesktopWidgetWatchdog.h \
 	src/globals/UIMainEventListener.h \
 	src/globals/UIMessageCenter.h \
 	src/globals/UIModalWindowManager.h \
@@ -499,6 +509,7 @@ VirtualBox_QT_MOCSRCS = \
 	src/extensions/QIAdvancedToolBar.cpp \
 	src/extradata/UIExtraDataManager.cpp \
 	src/globals/UIActionPool.cpp \
+	src/globals/UIDesktopWidgetWatchdog.cpp \
 	src/globals/UIThreadPool.cpp \
 	src/medium/UIMediumEnumerator.cpp \
 	src/medium/UIMediumManager.cpp \
@@ -512,6 +523,7 @@ VirtualBox_QT_MOCSRCS = \
 	src/settings/machine/UIMachineSettingsStorage.cpp \
 	src/settings/machine/UIMachineSettingsUSB.cpp \
 	src/widgets/UIHotKeyEditor.cpp \
+	src/widgets/UIMiniToolBar.cpp \
 	src/widgets/UIPortForwardingTable.cpp \
 	src/wizards/importappliance/UIWizardImportApp.cpp
 
@@ -577,6 +589,7 @@ VirtualBox_SOURCES = \
 	src/globals/COMDefs.cpp \
 	src/globals/UIActionPool.cpp \
 	src/globals/UIAnimationFramework.cpp \
+	src/globals/UIDesktopWidgetWatchdog.cpp \
 	src/globals/UIIconPool.cpp \
 	src/globals/UIImageTools.cpp \
 	src/globals/UIMainEventListener.cpp \
@@ -805,6 +818,9 @@ if defined(VBOX_WITH_VIDEOHWACCEL) || defined(VBOX_GUI_USE_QGL)
 	src/VBoxGLSupportInfo.cpp
 endif
 
+#
+# Drag and drop support.
+#
 ifdef VBOX_WITH_DRAG_AND_DROP
  VirtualBox_SOURCES += \
 	src/runtime/UIDnDHandler.cpp
@@ -993,6 +1009,13 @@ $$(VirtualBox_0_OUTDIR)/VirtualBox-icon.rc: $(MAKEFILE_CURRENT) $(VBOX_WINDOWS_I
 endif # win
 
 
+#
+# Unset everything that was loaded from VBoxUI.pro.
+#
+FORMS :=
+TRANSLATIONS :=
+
+
 ifeq ($(KBUILD_TARGET),darwin)
 #
 # Create directories for each approved language or the application
@@ -1015,14 +1038,14 @@ VirtualBox.app_SOURCES = \
 	$(VirtualBox.app_0_OUTDIR)/Info.plist \
 	$(VBOX_MACOSX_ICON_FILE)=>Resources/virtualbox.icns \
 	$(VBOX_BRAND_GUI_VBOX_64PX_PNG)=>Resources/virtualbox.png \
-	$(PATH_ROOT)/src/VBox/Resources/darwin/virtualbox-vbox.icns=>Resources/virtualbox-vbox.icns \
-	$(PATH_ROOT)/src/VBox/Resources/darwin/virtualbox-vbox-extpack.icns=>Resources/virtualbox-vbox-extpack.icns \
-	$(PATH_ROOT)/src/VBox/Resources/darwin/virtualbox-ovf.icns=>Resources/virtualbox-ovf.icns \
-	$(PATH_ROOT)/src/VBox/Resources/darwin/virtualbox-ova.icns=>Resources/virtualbox-ova.icns \
-	$(PATH_ROOT)/src/VBox/Resources/darwin/virtualbox-vdi.icns=>Resources/virtualbox-vdi.icns \
-	$(PATH_ROOT)/src/VBox/Resources/darwin/virtualbox-vmdk.icns=>Resources/virtualbox-vmdk.icns \
-	$(PATH_ROOT)/src/VBox/Resources/darwin/virtualbox-vhd.icns=>Resources/virtualbox-vhd.icns \
-	$(PATH_ROOT)/src/VBox/Resources/darwin/virtualbox-hdd.icns=>Resources/virtualbox-hdd.icns
+	$(PATH_ROOT)/src/VBox/Artwork/darwin/virtualbox-vbox.icns=>Resources/virtualbox-vbox.icns \
+	$(PATH_ROOT)/src/VBox/Artwork/darwin/virtualbox-vbox-extpack.icns=>Resources/virtualbox-vbox-extpack.icns \
+	$(PATH_ROOT)/src/VBox/Artwork/darwin/virtualbox-ovf.icns=>Resources/virtualbox-ovf.icns \
+	$(PATH_ROOT)/src/VBox/Artwork/darwin/virtualbox-ova.icns=>Resources/virtualbox-ova.icns \
+	$(PATH_ROOT)/src/VBox/Artwork/darwin/virtualbox-vdi.icns=>Resources/virtualbox-vdi.icns \
+	$(PATH_ROOT)/src/VBox/Artwork/darwin/virtualbox-vmdk.icns=>Resources/virtualbox-vmdk.icns \
+	$(PATH_ROOT)/src/VBox/Artwork/darwin/virtualbox-vhd.icns=>Resources/virtualbox-vhd.icns \
+	$(PATH_ROOT)/src/VBox/Artwork/darwin/virtualbox-hdd.icns=>Resources/virtualbox-hdd.icns
 
 $$(VirtualBox.app_0_OUTDIR)/Info.plist: $(PATH_SUB_CURRENT)/src/platform/darwin/Info.plist $(VBOX_VERSION_MK) | $$(@D)/
 	$(call MSG_GENERATE,VirtualBox.app,$<,$@)
@@ -1105,33 +1128,41 @@ if defined(VBOX_WITH_VIDEOHWACCEL)
  endif
 endif
 
+
 #
 # Testcase for the darwin keyboard routines.
 #
 ifdef VBOX_WITH_TESTCASES
-PROGRAMS.darwin += tstDarwinKeyboard
-tstDarwinKeyboard_NAME = tstDarwinKeyboard
-tstDarwinKeyboard_TEMPLATE = VBOXR3TSTEXE
-tstDarwinKeyboard_DEFS.x86 = USE_HID_FOR_MODIFIERS
-tstDarwinKeyboard_INCS = include
-tstDarwinKeyboard_SOURCES = \
-	src/platform/darwin/tstDarwinKeyboard.cpp \
-	src/platform/darwin/DarwinKeyboard.cpp
-tstDarwinKeyboard_SOURCES.amd64 = \
-	src/platform/darwin/CocoaEventHelper.mm
-tstDarwinKeyboard_LDFLAGS = -framework IOKit -framework Carbon -framework AppKit
-tstDarwinKeyboard_LIBS = \
-	$(LIB_RUNTIME)
+ PROGRAMS.darwin += tstDarwinKeyboard
+ tstDarwinKeyboard_TEMPLATE = VBOXR3TSTEXE
+ tstDarwinKeyboard_DEFS.x86 = USE_HID_FOR_MODIFIERS
+ tstDarwinKeyboard_INCS = include
+ tstDarwinKeyboard_SOURCES = \
+ 	src/platform/darwin/tstDarwinKeyboard.cpp \
+ 	src/platform/darwin/DarwinKeyboard.cpp
+ tstDarwinKeyboard_SOURCES.amd64 = \
+ 	src/platform/darwin/CocoaEventHelper.mm
+ tstDarwinKeyboard_LDFLAGS = -framework IOKit -framework Carbon -framework AppKit
+ tstDarwinKeyboard_LIBS = \
+ 	$(LIB_RUNTIME)
 endif
 
 
-# Unset everything that was loaded from VBoxUI.pro.
-TEMPLATE := $(SAVED_TEMPLATE)
-SAVED_TEMPLATE :=
-LANGUAGE :=
-FORMS :=
-TRANSLATIONS :=
-IMAGES :=
+#
+# Testcase for SSL certificate downloading.
+#
+if defined(VBOX_WITH_TESTCASES) && defined(VBOX_GUI_WITH_NETWORK_MANAGER)
+ PROGRAMS += tstSSLCertDownloads
+ tstSSLCertDownloads_TEMPLATE   = VBOXQT4GUIEXE
+ tstSSLCertDownloads_USES       = qt4
+ tstSSLCertDownloads_QTTOOL     = QT4
+ tstSSLCertDownloads_QT_MODULES = Core Gui Network
+ tstSSLCertDownloads_DEFS = VBOX_GUI_IN_TST_SSL_CERT_DOWNLOADS
+ tstSSLCertDownloads_INCS = \
+ 	$(VBOX_GUI_INC_DIRS)
+ tstSSLCertDownloads_SOURCES = \
+ 	src/net/tstSSLCertDownloads.cpp
+endif
 
 
 #

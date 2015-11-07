@@ -594,11 +594,6 @@ protected:
         return QString("GuestAutoresize");
     }
 
-    QKeySequence defaultShortcut(UIActionPoolType) const
-    {
-        return QKeySequence("G");
-    }
-
     void retranslateUi()
     {
         setName(QApplication::translate("UIActionPool", "Auto-resize &Guest Display"));
@@ -1214,11 +1209,6 @@ protected:
         return QString("MouseIntegration");
     }
 
-    QKeySequence defaultShortcut(UIActionPoolType) const
-    {
-        return QKeySequence("I");
-    }
-
     void retranslateUi()
     {
         setName(QApplication::translate("UIActionPool", "&Mouse Integration"));
@@ -1624,11 +1614,6 @@ protected:
         return QString("InstallGuestAdditions");
     }
 
-    QKeySequence defaultShortcut(UIActionPoolType) const
-    {
-        return QKeySequence("D");
-    }
-
     void retranslateUi()
     {
         setName(QApplication::translate("UIActionPool", "&Insert Guest Additions CD image..."));
@@ -1871,26 +1856,36 @@ void UIActionPoolRuntime::setSession(UISession *pSession)
 
 void UIActionPoolRuntime::setMultiScreenLayout(UIMultiScreenLayout *pMultiScreenLayout)
 {
-    /* Disconnect old stuff: */
-    if (m_pMultiScreenLayout)
-    {
-        disconnect(this, SIGNAL(sigNotifyAboutTriggeringViewScreenRemap(int, int)),
-                   m_pMultiScreenLayout, SLOT(sltHandleScreenLayoutChange(int, int)));
-        disconnect(m_pMultiScreenLayout, SIGNAL(sigScreenLayoutUpdate()),
-                   this, SLOT(sltHandleScreenLayoutUpdate()));
-    }
+    /* Do not allow NULL pointers: */
+    AssertPtrReturnVoid(pMultiScreenLayout);
 
     /* Assign new multi-screen layout: */
     m_pMultiScreenLayout = pMultiScreenLayout;
 
     /* Connect new stuff: */
-    if (m_pMultiScreenLayout)
-    {
-        connect(this, SIGNAL(sigNotifyAboutTriggeringViewScreenRemap(int, int)),
-                m_pMultiScreenLayout, SLOT(sltHandleScreenLayoutChange(int, int)));
-        connect(m_pMultiScreenLayout, SIGNAL(sigScreenLayoutUpdate()),
-                this, SLOT(sltHandleScreenLayoutUpdate()));
-    }
+    connect(this, SIGNAL(sigNotifyAboutTriggeringViewScreenRemap(int, int)),
+            m_pMultiScreenLayout, SLOT(sltHandleScreenLayoutChange(int, int)));
+    connect(m_pMultiScreenLayout, SIGNAL(sigScreenLayoutUpdate()),
+            this, SLOT(sltHandleScreenLayoutUpdate()));
+
+    /* Invalidate View menu: */
+    m_invalidations << UIActionIndexRT_M_View;
+}
+
+void UIActionPoolRuntime::unsetMultiScreenLayout(UIMultiScreenLayout *pMultiScreenLayout)
+{
+    /* Do not allow NULL pointers: */
+    AssertPtrReturnVoid(pMultiScreenLayout);
+
+    /* Disconnect old stuff: */
+    disconnect(this, SIGNAL(sigNotifyAboutTriggeringViewScreenRemap(int, int)),
+               pMultiScreenLayout, SLOT(sltHandleScreenLayoutChange(int, int)));
+    disconnect(pMultiScreenLayout, SIGNAL(sigScreenLayoutUpdate()),
+               this, SLOT(sltHandleScreenLayoutUpdate()));
+
+    /* Unset old multi-screen layout: */
+    if (m_pMultiScreenLayout == pMultiScreenLayout)
+        m_pMultiScreenLayout = 0;
 
     /* Invalidate View menu: */
     m_invalidations << UIActionIndexRT_M_View;
@@ -2161,6 +2156,7 @@ void UIActionPoolRuntime::preparePool()
 void UIActionPoolRuntime::prepareConnections()
 {
     /* Prepare connections: */
+    connect(gShortcutPool, SIGNAL(sigSelectorShortcutsReloaded()), this, SLOT(sltApplyShortcuts()));
     connect(gShortcutPool, SIGNAL(sigMachineShortcutsReloaded()), this, SLOT(sltApplyShortcuts()));
     connect(gEDataManager, SIGNAL(sigMenuBarConfigurationChange(const QString&)),
             this, SLOT(sltHandleConfigurationChange(const QString&)));
@@ -2644,6 +2640,7 @@ void UIActionPoolRuntime::updateMenuViewScreen(QMenu *pMenu)
                                << QSize(640, 480)
                                << QSize(800, 600)
                                << QSize(1024, 768)
+                               << QSize(1152, 864)
                                << QSize(1280, 720)
                                << QSize(1280, 800)
                                << QSize(1366, 768)
@@ -2988,10 +2985,10 @@ void UIActionPoolRuntime::updateMenuDebug()
 }
 #endif /* VBOX_WITH_DEBUGGER_GUI */
 
-void UIActionPoolRuntime::retranslateUi()
+void UIActionPoolRuntime::updateShortcuts()
 {
     /* Call to base-class: */
-    UIActionPool::retranslateUi();
+    UIActionPool::updateShortcuts();
     /* Create temporary Selector UI pool to do the same: */
     if (!m_fTemporary)
         UIActionPool::createTemporary(UIActionPoolType_Selector);

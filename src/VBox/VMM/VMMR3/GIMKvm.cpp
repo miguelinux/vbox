@@ -15,9 +15,10 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-/*******************************************************************************
-*   Header Files                                                               *
-*******************************************************************************/
+
+/*********************************************************************************************************************************
+*   Header Files                                                                                                                 *
+*********************************************************************************************************************************/
 #define LOG_GROUP LOG_GROUP_GIM
 #include "GIMInternal.h"
 
@@ -37,9 +38,9 @@
 #include <VBox/version.h>
 
 
-/*******************************************************************************
-*   Defined Constants And Macros                                               *
-*******************************************************************************/
+/*********************************************************************************************************************************
+*   Defined Constants And Macros                                                                                                 *
+*********************************************************************************************************************************/
 
 /**
  * GIM KVM saved-state version.
@@ -58,9 +59,10 @@ typedef struct KVMWALLCLOCKINFO
 /** Pointer to the wall-clock info. struct. */
 typedef KVMWALLCLOCKINFO *PKVMWALLCLOCKINFO;
 
-/*******************************************************************************
-*   Global Variables                                                           *
-*******************************************************************************/
+
+/*********************************************************************************************************************************
+*   Global Variables                                                                                                             *
+*********************************************************************************************************************************/
 #ifdef VBOX_WITH_STATISTICS
 # define GIMKVM_MSRRANGE(a_uFirst, a_uLast, a_szName) \
     { (a_uFirst), (a_uLast), kCpumMsrRdFn_Gim, kCpumMsrWrFn_Gim, 0, 0, 0, 0, 0, a_szName, { 0 }, { 0 }, { 0 }, { 0 } }
@@ -409,7 +411,7 @@ VMMR3_INT_DECL(int) gimR3KvmEnableSystemTime(PVM pVM, PVMCPU pVCpu)
     if (!PGMPhysIsGCPhysNormal(pVM, pKvmCpu->GCPhysSystemTime))
     {
         LogRel(("GIM: KVM: VCPU%3d: Invalid physical addr requested for mapping system-time struct. GCPhysSystemTime=%#RGp\n",
-                pKvmCpu->GCPhysSystemTime));
+               pVCpu->idCpu, pKvmCpu->GCPhysSystemTime));
         return VERR_GIM_OPERATION_FAILED;
     }
 
@@ -461,7 +463,8 @@ VMMR3_INT_DECL(int) gimR3KvmEnableSystemTime(PVM pVM, PVMCPU pVCpu)
         TMR3CpuTickParavirtEnable(pVM);
     }
     else
-        LogRel(("GIM: KVM: VCPU%3d: Failed to write system-time struct. at %#RGp. rc=%Rrc\n", pKvmCpu->GCPhysSystemTime, rc));
+        LogRel(("GIM: KVM: VCPU%3d: Failed to write system-time struct. at %#RGp. rc=%Rrc\n",
+                pVCpu->idCpu, pKvmCpu->GCPhysSystemTime, rc));
 
     return rc;
 }

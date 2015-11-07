@@ -15,9 +15,10 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-/*******************************************************************************
-*   Header Files                                                               *
-*******************************************************************************/
+
+/*********************************************************************************************************************************
+*   Header Files                                                                                                                 *
+*********************************************************************************************************************************/
 #define LOG_GROUP LOG_GROUP_DBGC
 #include <VBox/dbg.h>
 #include <VBox/err.h>
@@ -35,16 +36,16 @@
 #define BETTER_ARGUMENT_MATCHING
 
 
-/*******************************************************************************
-*   Global Variables                                                           *
-*******************************************************************************/
+/*********************************************************************************************************************************
+*   Global Variables                                                                                                             *
+*********************************************************************************************************************************/
 /** Bitmap where set bits indicates the characters the may start an operator name. */
 static uint32_t g_bmOperatorChars[256 / (4*8)];
 
 
-/*******************************************************************************
-*   Internal Functions                                                         *
-*******************************************************************************/
+/*********************************************************************************************************************************
+*   Internal Functions                                                                                                           *
+*********************************************************************************************************************************/
 static int dbgcCheckAndTypePromoteArgument(PDBGC pDbgc, DBGCVARCAT enmCategory, PDBGCVAR pArg);
 static int dbgcProcessArguments(PDBGC pDbgc, const char *pszCmdOrFunc,
                                 uint32_t const cArgsMin, uint32_t const cArgsMax,
@@ -870,7 +871,7 @@ static int dbgcCheckAndTypePromoteArgument(PDBGC pDbgc, DBGCVARCAT enmCategory, 
                     return VINF_SUCCESS;
 
                 default:
-                    AssertMsgFailedReturn(("Invalid type %d\n"), VERR_DBGC_PARSE_INCORRECT_ARG_TYPE);
+                    AssertMsgFailedReturn(("Invalid type %d\n", pArg->enmType), VERR_DBGC_PARSE_INCORRECT_ARG_TYPE);
             }
             break;                      /* (not reached) */
 
@@ -924,7 +925,7 @@ static int dbgcCheckAndTypePromoteArgument(PDBGC pDbgc, DBGCVARCAT enmCategory, 
                 }
 
                 default:
-                    AssertMsgFailedReturn(("Invalid type %d\n"), VERR_DBGC_PARSE_INCORRECT_ARG_TYPE);
+                    AssertMsgFailedReturn(("Invalid type %d\n", pArg->enmType), VERR_DBGC_PARSE_INCORRECT_ARG_TYPE);
             }
             break;                      /* (not reached) */
 
@@ -971,7 +972,7 @@ static int dbgcCheckAndTypePromoteArgument(PDBGC pDbgc, DBGCVARCAT enmCategory, 
                 }
 
                 default:
-                    AssertMsgFailedReturn(("Invalid type %d\n"), VERR_DBGC_PARSE_INCORRECT_ARG_TYPE);
+                    AssertMsgFailedReturn(("Invalid type %d\n", pArg->enmType), VERR_DBGC_PARSE_INCORRECT_ARG_TYPE);
             }
             break;                      /* (not reached) */
 
@@ -1434,7 +1435,7 @@ int dbgcEvalCommand(PDBGC pDbgc, char *pszCmd, size_t cchCmd, bool fNoExecute)
                 break;
             case VERR_DBGC_PARSE_NO_MEMORY:
                 rc = DBGCCmdHlpPrintf(&pDbgc->CmdHlp,
-                    "Error: Out memory in the regular heap! Expect odd stuff to happen...\n", cArgs);
+                    "Error: Out memory in the regular heap! Expect odd stuff to happen...\n");
                 break;
             case VERR_DBGC_PARSE_INCORRECT_ARG_TYPE:
                 rc = DBGCCmdHlpPrintf(&pDbgc->CmdHlp,

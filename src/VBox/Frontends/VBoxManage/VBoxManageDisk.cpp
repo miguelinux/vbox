@@ -17,9 +17,10 @@
 
 #ifndef VBOX_ONLY_DOCS
 
-/*******************************************************************************
-*   Header Files                                                               *
-*******************************************************************************/
+
+/*********************************************************************************************************************************
+*   Header Files                                                                                                                 *
+*********************************************************************************************************************************/
 #include <VBox/com/com.h>
 #include <VBox/com/array.h>
 #include <VBox/com/ErrorInfo.h>
@@ -696,8 +697,10 @@ RTEXITCODE handleModifyMedium(HandlerArg *a)
                 RTMsgError("Resize medium operation is not implemented!");
             else if (rc == VBOX_E_NOT_SUPPORTED)
                 RTMsgError("Resize medium operation for this format is not implemented yet!");
-            else
+            else if (!pProgress.isNull())
                 CHECK_PROGRESS_ERROR(pProgress, ("Failed to resize medium"));
+            else
+                RTMsgError("Failed to resize medium!");
         }
     }
 

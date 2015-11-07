@@ -146,9 +146,9 @@
  */
 
 
-/*******************************************************************************
-*   Header Files                                                               *
-*******************************************************************************/
+/*********************************************************************************************************************************
+*   Header Files                                                                                                                 *
+*********************************************************************************************************************************/
 #define LOG_GROUP LOG_GROUP_GMM
 #include <VBox/rawpci.h>
 #include <VBox/vmm/vm.h>
@@ -174,9 +174,9 @@
 #include <iprt/time.h>
 
 
-/*******************************************************************************
-*   Defined Constants And Macros                                               *
-*******************************************************************************/
+/*********************************************************************************************************************************
+*   Defined Constants And Macros                                                                                                 *
+*********************************************************************************************************************************/
 /** @def VBOX_USE_CRIT_SECT_FOR_GIANT
  * Use a critical section instead of a fast mutex for the giant GMM lock.
  *
@@ -187,9 +187,9 @@
 #endif
 
 
-/*******************************************************************************
-*   Structures and Typedefs                                                    *
-*******************************************************************************/
+/*********************************************************************************************************************************
+*   Structures and Typedefs                                                                                                      *
+*********************************************************************************************************************************/
 /** Pointer to set of free chunks.  */
 typedef struct GMMCHUNKFREESET *PGMMCHUNKFREESET;
 
@@ -648,9 +648,9 @@ typedef struct GMMFINDDUPPAGEINFO
 } GMMFINDDUPPAGEINFO;
 
 
-/*******************************************************************************
-*   Global Variables                                                           *
-*******************************************************************************/
+/*********************************************************************************************************************************
+*   Global Variables                                                                                                             *
+*********************************************************************************************************************************/
 /** Pointer to the GMM instance data. */
 static PGMM g_pGMM = NULL;
 
@@ -728,9 +728,9 @@ static PGMM g_pGMM = NULL;
 #endif
 
 
-/*******************************************************************************
-*   Internal Functions                                                         *
-*******************************************************************************/
+/*********************************************************************************************************************************
+*   Internal Functions                                                                                                           *
+*********************************************************************************************************************************/
 static DECLCALLBACK(int)    gmmR0TermDestroyChunk(PAVLU32NODECORE pNode, void *pvGMM);
 static bool                 gmmR0CleanupVMScanChunk(PGMM pGMM, PGVM pGVM, PGMMCHUNK pChunk);
 DECLINLINE(void)            gmmR0UnlinkChunk(PGMMCHUNK pChunk);
@@ -1459,7 +1459,7 @@ static bool gmmR0CleanupVMScanChunk(PGMM pGMM, PGVM pGVM, PGMMCHUNK pChunk)
                         ||  pChunk->cShared != cShared))
         {
             SUPR0Printf("gmmR0CleanupVMScanChunk: Chunk %p/%#x has bogus stats - free=%d/%d private=%d/%d shared=%d/%d\n",
-                        pChunk->cFree, cFree, pChunk->cPrivate, cPrivate, pChunk->cShared, cShared);
+                        pChunk, pChunk->Core.Key, pChunk->cFree, cFree, pChunk->cPrivate, cPrivate, pChunk->cShared, cShared);
             pChunk->cFree = cFree;
             pChunk->cPrivate = cPrivate;
             pChunk->cShared = cShared;
@@ -3239,7 +3239,7 @@ static bool gmmR0FreeChunk(PGMM pGMM, PGVM pGVM, PGMMCHUNK pChunk, bool fRelaxed
     {
         /** @todo R0 -> VM request */
         /* The chunk can be mapped by more than one VM if fBoundMemoryMode is false! */
-        Log(("gmmR0FreeChunk: chunk still has %d/%d mappings; don't free!\n", pChunk->cMappingsX));
+        Log(("gmmR0FreeChunk: chunk still has %d mappings; don't free!\n", pChunk->cMappingsX));
         gmmR0ChunkMutexRelease(&MtxState, pChunk);
         return false;
     }
@@ -4378,7 +4378,7 @@ static int gmmR0ShModNewGlobal(PGMM pGMM, uint32_t uHash, uint32_t cbModule, VBO
                                uint32_t cRegions, const char *pszModuleName, const char *pszVersion,
                                struct VMMDEVSHAREDREGIONDESC const *paRegions, PGMMSHAREDMODULE *ppGblMod)
 {
-    Log(("gmmR0ShModNewGlobal: %s %s size %#x os %u rgn %u\n", pszModuleName, pszVersion, cbModule, cRegions));
+    Log(("gmmR0ShModNewGlobal: %s %s size %#x os %u rgn %u\n", pszModuleName, pszVersion, cbModule, enmGuestOS, cRegions));
     if (pGMM->cShareableModules >= GMM_MAX_SHARED_GLOBAL_MODULES)
     {
         Log(("gmmR0ShModNewGlobal: Too many modules\n"));
@@ -4971,7 +4971,7 @@ GMMR0DECL(int) GMMR0SharedModuleCheckPage(PGVM pGVM, PGMMSHAREDMODULE pModule, u
     pPageDesc->u32StrictChecksum = RTCrc32(pbSharedPage, PAGE_SIZE);
     uint32_t uChecksum = pPageDesc->u32StrictChecksum & UINT32_C(0x00003fff);
     AssertMsg(!uChecksum || uChecksum == pPage->Shared.u14Checksum || !pPage->Shared.u14Checksum,
-              ("%#x vs %#x - idPage=%# - %s %s\n", uChecksum, pPage->Shared.u14Checksum,
+              ("%#x vs %#x - idPage=%#x - %s %s\n", uChecksum, pPage->Shared.u14Checksum,
                pGlobalRegion->paidPages[idxPage], pModule->szName, pModule->szVersion));
 #endif
 

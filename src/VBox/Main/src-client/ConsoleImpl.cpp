@@ -567,6 +567,9 @@ HRESULT Console::init(IMachine *aMachine, IInternalMachineControl *aControl, Loc
         AssertReturn(mUsbCardReader, E_FAIL);
 #endif
 
+        m_cDisksPwProvided = 0;
+        m_cDisksEncrypted = 0;
+
         unconst(m_pKeyStore) = new SecretKeyStore(true /* fKeyBufNonPageable */);
         AssertReturn(m_pKeyStore, E_FAIL);
 
@@ -4079,6 +4082,10 @@ HRESULT Console::i_onNATRedirectRuleChange(ULONG ulInstance, BOOL aNatRuleRemove
             int vrc = PDMR3QueryLun(ptrVM.rawUVM(), pszAdapterName, ulInstance, 0, &pBase);
             if (RT_FAILURE(vrc))
             {
+                /* This may happen if the NAT network adapter is currently not attached.
+                 * This is a valid condition. */
+                if (vrc == VERR_PDM_NO_DRIVER_ATTACHED_TO_LUN)
+                    break;
                 ComAssertRC(vrc);
                 rc = E_FAIL;
                 break;
@@ -5855,7 +5862,7 @@ HRESULT Console::i_enumerateGuestProperties(const Utf8Str &aPatterns,
 /*
  * Internal: helper function for connecting progress reporting
  */
-static int onlineMergeMediumProgress(void *pvUser, unsigned uPercentage)
+static DECLCALLBACK(int) onlineMergeMediumProgress(void *pvUser, unsigned uPercentage)
 {
     HRESULT rc = S_OK;
     IProgress *pProgress = static_cast<IProgress *>(pvUser);
@@ -7115,7 +7122,7 @@ HRESULT Console::i_powerUp(IProgress **aProgress, bool aPaused)
                 throw rc;
         }
 
-        if (!fCurrentSnapshotIsOnline)
+        if (savedStateFile.isEmpty() && !fCurrentSnapshotIsOnline)
         {
             LogFlowThisFunc(("Looking for immutable images to reset\n"));
 

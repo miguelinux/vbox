@@ -153,6 +153,9 @@ public:
     /** Defines UI multi-screen layout object reference.
       * @note For menus which uses it to build contents. */
     void setMultiScreenLayout(UIMultiScreenLayout *pMultiScreenLayout);
+    /** Undefines UI multi-screen layout object reference.
+      * @note For menus which uses it to build contents. */
+    void unsetMultiScreenLayout(UIMultiScreenLayout *pMultiScreenLayout);
     /** Returns UI multi-screen layout object reference. */
     UIMultiScreenLayout* multiScreenLayout() const { return m_pMultiScreenLayout; }
 
@@ -264,8 +267,8 @@ protected:
     void updateMenuDebug();
 #endif /* VBOX_WITH_DEBUGGER_GUI */
 
-    /** Translation handler. */
-    virtual void retranslateUi();
+    /** Update shortcuts. */
+    virtual void updateShortcuts();
 
     /** Returns extra-data ID to save keyboard shortcuts under. */
     virtual QString shortcutsExtraDataID() const;

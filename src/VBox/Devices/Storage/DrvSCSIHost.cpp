@@ -15,9 +15,10 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-/*******************************************************************************
-*   Header Files                                                               *
-*******************************************************************************/
+
+/*********************************************************************************************************************************
+*   Header Files                                                                                                                 *
+*********************************************************************************************************************************/
 //#define DEBUG
 #define LOG_GROUP LOG_GROUP_DRV_SCSIHOST
 #include <VBox/vmm/pdmdrv.h>
@@ -339,7 +340,7 @@ static int drvscsihostAsyncIOLoopWakeupFunc(void)
  * @param   pDrvIns    Pointer to the device instance data.
  * @param   pThread    Pointer to the thread instance data.
  */
-static int drvscsihostAsyncIOLoop(PPDMDRVINS pDrvIns, PPDMTHREAD pThread)
+static DECLCALLBACK(int) drvscsihostAsyncIOLoop(PPDMDRVINS pDrvIns, PPDMTHREAD pThread)
 {
     int rc = VINF_SUCCESS;
     PDRVSCSIHOST pThis = PDMINS_2_DATA(pDrvIns, PDRVSCSIHOST);
@@ -358,7 +359,7 @@ static int drvscsihostAsyncIOLoop(PPDMDRVINS pDrvIns, PPDMTHREAD pThread)
     return VINF_SUCCESS;
 }
 
-static int drvscsihostAsyncIOLoopWakeup(PPDMDRVINS pDrvIns, PPDMTHREAD pThread)
+static DECLCALLBACK(int) drvscsihostAsyncIOLoopWakeup(PPDMDRVINS pDrvIns, PPDMTHREAD pThread)
 {
     int rc;
     PDRVSCSIHOST pThis = PDMINS_2_DATA(pDrvIns, PDRVSCSIHOST);
@@ -367,7 +368,7 @@ static int drvscsihostAsyncIOLoopWakeup(PPDMDRVINS pDrvIns, PPDMTHREAD pThread)
     AssertReturn(pThis->hQueueRequests != NIL_RTREQQUEUE, VERR_INVALID_STATE);
 
     rc = RTReqQueueCall(pThis->hQueueRequests, &pReq, 10000 /* 10 sec. */, (PFNRT)drvscsihostAsyncIOLoopWakeupFunc, 0);
-    AssertMsgRC(rc, ("Inserting request into queue failed rc=%Rrc\n"));
+    AssertMsgRC(rc, ("Inserting request into queue failed rc=%Rrc\n", rc));
 
     return rc;
 }
@@ -471,7 +472,7 @@ static DECLCALLBACK(int) drvscsihostConstruct(PPDMDRVINS pDrvIns, PCFGMNODE pCfg
 
     /* Create request queue. */
     int rc = RTReqQueueCreate(&pThis->hQueueRequests);
-    AssertMsgReturn(RT_SUCCESS(rc), ("Failed to create request queue rc=%Rrc\n"), rc);
+    AssertMsgReturn(RT_SUCCESS(rc), ("Failed to create request queue rc=%Rrc\n", rc), rc);
 
     /* Open the device. */
     rc = CFGMR3QueryStringAlloc(pCfg, "DevicePath", &pThis->pszDevicePath);
@@ -487,7 +488,7 @@ static DECLCALLBACK(int) drvscsihostConstruct(PPDMDRVINS pDrvIns, PCFGMNODE pCfg
     /* Create I/O thread. */
     rc = PDMDrvHlpThreadCreate(pDrvIns, &pThis->pAsyncIOThread, pThis, drvscsihostAsyncIOLoop,
                                drvscsihostAsyncIOLoopWakeup, 0, RTTHREADTYPE_IO, "SCSI async IO");
-    AssertMsgReturn(RT_SUCCESS(rc), ("Failed to create async I/O thread rc=%Rrc\n"), rc);
+    AssertMsgReturn(RT_SUCCESS(rc), ("Failed to create async I/O thread rc=%Rrc\n", rc), rc);
 
     return VINF_SUCCESS;
 }

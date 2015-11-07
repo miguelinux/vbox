@@ -25,9 +25,9 @@
  */
 
 
-/*******************************************************************************
-*   Header Files                                                               *
-*******************************************************************************/
+/*********************************************************************************************************************************
+*   Header Files                                                                                                                 *
+*********************************************************************************************************************************/
 #define RTSEMEVENTMULTI_WITHOUT_REMAPPING
 #include "the-solaris-kernel.h"
 #include "internal/iprt.h"
@@ -48,9 +48,9 @@
 #include "semeventwait-r0drv-solaris.h"
 
 
-/*******************************************************************************
-*   Defined Constants And Macros                                               *
-*******************************************************************************/
+/*********************************************************************************************************************************
+*   Defined Constants And Macros                                                                                                 *
+*********************************************************************************************************************************/
 /** @name fStateAndGen values
  * @{ */
 /** The state bit number. */
@@ -66,9 +66,9 @@
 /** @}  */
 
 
-/*******************************************************************************
-*   Structures and Typedefs                                                    *
-*******************************************************************************/
+/*********************************************************************************************************************************
+*   Structures and Typedefs                                                                                                      *
+*********************************************************************************************************************************/
 /**
  * Solaris multiple release event semaphore.
  */
@@ -214,7 +214,7 @@ RTDECL(int) RTSemEventMultiSignal(RTSEMEVENTMULTI hEventMultiSem)
 
     rtR0SemEventMultiSolRelease(pThis);
 #ifdef DEBUG_ramshankar
-    /** See @bugref{6318} comment #11. */
+    /** See @bugref{6318#c11}. */
     return VINF_SUCCESS;
 #endif
     RT_ASSERT_PREEMPT_CPUID();
@@ -246,7 +246,7 @@ RTDECL(int) RTSemEventMultiReset(RTSEMEVENTMULTI hEventMultiSem)
     rtR0SemEventMultiSolRelease(pThis);
 
 #ifdef DEBUG_ramshankar
-    /** See @bugref{6318} comment #11. */
+    /** See @bugref{6318#c11}. */
     return VINF_SUCCESS;
 #endif
     RT_ASSERT_PREEMPT_CPUID();

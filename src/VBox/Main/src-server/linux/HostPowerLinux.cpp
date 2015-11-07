@@ -22,16 +22,20 @@
 #include <iprt/power.h>
 #include <iprt/time.h>
 
-static bool checkDBusError(DBusError *pError, DBusConnection *pConnection)
+static bool checkDBusError(DBusError *pError, DBusConnection **pConnection)
 {
     if (dbus_error_is_set(pError))
     {
         LogRel(("HostPowerServiceLinux: DBus connection Error (%s)\n", pError->message));
         dbus_error_free(pError);
-        /* Close the socket or whatever underlying the connection. */
-        dbus_connection_close(pConnection);
-        /* Free in-process resources used for the now-closed connection. */
-        dbus_connection_unref(pConnection);
+        if (*pConnection)
+        {
+            /* Close the socket or whatever underlying the connection. */
+            dbus_connection_close(*pConnection);
+            /* Free in-process resources used for the now-closed connection. */
+            dbus_connection_unref(*pConnection);
+            *pConnection = NULL;
+        }
         return true;
     }
     return false;
@@ -58,7 +62,7 @@ HostPowerServiceLinux::HostPowerServiceLinux(VirtualBox *aVirtualBox)
      * The session bus allows up to 100000 connections per user as it "is just
      * running as the user anyway" (see session.conf.in in the DBus sources). */
     mpConnection = dbus_bus_get_private(DBUS_BUS_SYSTEM, &error);
-    if (checkDBusError(&error, mpConnection))
+    if (checkDBusError(&error, &mpConnection))
         return;
     /* We do not want to exit(1) if the connection is broken. */
     dbus_connection_set_exit_on_disconnect(mpConnection, FALSE);
@@ -68,7 +72,7 @@ HostPowerServiceLinux::HostPowerServiceLinux(VirtualBox *aVirtualBox)
     /* The previous UPower interfaces (2010 - ca 2013). */
     dbus_bus_add_match(mpConnection, "type='signal',interface='org.freedesktop.UPower'", &error);
     dbus_connection_flush(mpConnection);
-    if (checkDBusError(&error, mpConnection))
+    if (checkDBusError(&error, &mpConnection))
         return;
     /* Create the new worker thread. */
     rc = RTThreadCreate(&mThread, HostPowerServiceLinux::powerChangeNotificationThread, this, 0 /* cbStack */,
@@ -80,12 +84,17 @@ HostPowerServiceLinux::HostPowerServiceLinux(VirtualBox *aVirtualBox)
 
 HostPowerServiceLinux::~HostPowerServiceLinux()
 {
+    int rc;
+    RTMSINTERVAL cMillies = 5000;
+
     /* Closing the connection should cause the event loop to exit. */
     LogFunc((": Stopping thread\n"));
     if (mpConnection)
         dbus_connection_close(mpConnection);
 
-    RTThreadWait(mThread, 5000, NULL);
+    rc = RTThreadWait(mThread, cMillies, NULL);
+    if (rc != VINF_SUCCESS)
+        LogRelThisFunc(("RTThreadWait() for %u ms failed with %Rrc\n", cMillies, rc));
     mThread = NIL_RTTHREAD;
 }
 
@@ -94,9 +103,10 @@ DECLCALLBACK(int) HostPowerServiceLinux::powerChangeNotificationThread(RTTHREAD 
 {
     NOREF(hThreadSelf);
     HostPowerServiceLinux *pPowerObj = static_cast<HostPowerServiceLinux *>(pInstance);
+    DBusConnection *pConnection = pPowerObj->mpConnection;
 
     Log(("HostPowerServiceLinux: Thread started\n"));
-    while (dbus_connection_read_write(pPowerObj->mpConnection, -1))
+    while (dbus_connection_read_write(pConnection, -1))
     {
         DBusMessage *pMessage = NULL;
 
@@ -105,7 +115,7 @@ DECLCALLBACK(int) HostPowerServiceLinux::powerChangeNotificationThread(RTTHREAD 
             DBusMessageIter args;
             dbus_bool_t fSuspend;
 
-            pMessage = dbus_connection_pop_message(pPowerObj->mpConnection);
+            pMessage = dbus_connection_pop_message(pConnection);
             if (pMessage == NULL)
                 break;
             /* The systemd-logind interface notification. */
@@ -135,10 +145,9 @@ DECLCALLBACK(int) HostPowerServiceLinux::powerChangeNotificationThread(RTTHREAD 
         }
     }
     /* Close the socket or whatever underlying the connection. */
-    dbus_connection_close(pPowerObj->mpConnection);
+    dbus_connection_close(pConnection);
     /* Free in-process resources used for the now-closed connection. */
-    dbus_connection_unref(pPowerObj->mpConnection);
-    pPowerObj->mpConnection = NULL;
+    dbus_connection_unref(pConnection);
     Log(("HostPowerServiceLinux: Exiting thread\n"));
     return VINF_SUCCESS;
 }

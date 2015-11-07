@@ -20,8 +20,10 @@ EXPORTS
     vmsvga3dCocoaServiceRunLoop
     vmsvga3dCocoaCreateViewAndContext
     vmsvga3dCocoaDestroyViewAndContext
+    vmsvga3dCocoaViewInfo
     vmsvga3dCocoaViewSetPosition
     vmsvga3dCocoaViewSetSize
+    vmsvga3dCocoaViewUpdateViewport
     vmsvga3dCocoaViewMakeCurrentContext
     vmsvga3dCocoaSwapBuffers
 

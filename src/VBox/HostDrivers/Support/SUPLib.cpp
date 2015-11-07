@@ -42,9 +42,10 @@
  * See @ref grp_sup "SUP - Support APIs" for API details.
  */
 
-/*******************************************************************************
-*   Header Files                                                               *
-*******************************************************************************/
+
+/*********************************************************************************************************************************
+*   Header Files                                                                                                                 *
+*********************************************************************************************************************************/
 #define LOG_GROUP LOG_GROUP_SUP
 #include <VBox/sup.h>
 #include <VBox/err.h>
@@ -71,23 +72,23 @@
 #include "SUPLibInternal.h"
 
 
-/*******************************************************************************
-*   Defined Constants And Macros                                               *
-*******************************************************************************/
+/*********************************************************************************************************************************
+*   Defined Constants And Macros                                                                                                 *
+*********************************************************************************************************************************/
 /** R0 VMM module name. */
 #define VMMR0_NAME      "VMMR0"
 
 
-/*******************************************************************************
-*   Structures and Typedefs                                                    *
-*******************************************************************************/
+/*********************************************************************************************************************************
+*   Structures and Typedefs                                                                                                      *
+*********************************************************************************************************************************/
 typedef DECLCALLBACK(int) FNCALLVMMR0(PVMR0 pVMR0, unsigned uOperation, void *pvArg);
 typedef FNCALLVMMR0 *PFNCALLVMMR0;
 
 
-/*******************************************************************************
-*   Global Variables                                                           *
-*******************************************************************************/
+/*********************************************************************************************************************************
+*   Global Variables                                                                                                             *
+*********************************************************************************************************************************/
 /** Init counter. */
 static uint32_t                 g_cInits = 0;
 /** Whether we've been preinitied. */
@@ -137,9 +138,9 @@ static bool                     g_fSupportsPageAllocNoKernel = true;
 uint32_t                        g_uSupFakeMode = ~0;
 
 
-/*******************************************************************************
-*   Internal Functions                                                         *
-*******************************************************************************/
+/*********************************************************************************************************************************
+*   Internal Functions                                                                                                           *
+*********************************************************************************************************************************/
 static int supInitFake(PSUPDRVSESSION *ppSession);
 static int supLoadModule(const char *pszFilename, const char *pszModule, const char *pszSrvReqHandler, void **ppvImageBase);
 static DECLCALLBACK(int) supLoadModuleResolveImport(RTLDRMOD hLdrMod, const char *pszModule, const char *pszSymbol, unsigned uSymbol, RTUINTPTR *pValue, void *pvUser);
@@ -279,7 +280,7 @@ SUPR3DECL(int) SUPR3InitEx(bool fUnrestricted, PSUPDRVSESSION *ppSession)
         strcpy(CookieReq.u.In.szMagic, SUPCOOKIE_MAGIC);
         CookieReq.u.In.u32ReqVersion = SUPDRV_IOC_VERSION;
         const uint32_t uMinVersion = (SUPDRV_IOC_VERSION & 0xffff0000) == 0x00230000
-                                   ? 0x00230000
+                                   ? 0x00230003
                                    : SUPDRV_IOC_VERSION & 0xffff0000;
         CookieReq.u.In.u32MinVersion = uMinVersion;
         rc = suplibOsIOCtl(&g_supLibData, SUP_IOCTL_COOKIE, &CookieReq, SUP_IOCTL_COOKIE_SIZE);
@@ -2244,6 +2245,31 @@ SUPR3DECL(int) SUPR3ReadTsc(uint64_t *puTsc, uint16_t *pidApic)
         if (pidApic)
             *pidApic = Req.u.Out.idApic;
     }
+    return rc;
+}
+
+
+SUPR3DECL(int) SUPR3GipSetFlags(uint32_t fOrMask, uint32_t fAndMask)
+{
+    AssertMsgReturn(!(fOrMask & ~SUPGIP_FLAGS_VALID_MASK),
+                    ("fOrMask=%#x ValidMask=%#x\n", fOrMask, SUPGIP_FLAGS_VALID_MASK), VERR_INVALID_PARAMETER);
+    AssertMsgReturn((fAndMask & ~SUPGIP_FLAGS_VALID_MASK) == ~SUPGIP_FLAGS_VALID_MASK,
+                    ("fAndMask=%#x ValidMask=%#x\n", fAndMask, SUPGIP_FLAGS_VALID_MASK), VERR_INVALID_PARAMETER);
+
+    SUPGIPSETFLAGS Req;
+    Req.Hdr.u32Cookie        = g_u32Cookie;
+    Req.Hdr.u32SessionCookie = g_u32SessionCookie;
+    Req.Hdr.cbIn             = SUP_IOCTL_GIP_SET_FLAGS_SIZE_IN;
+    Req.Hdr.cbOut            = SUP_IOCTL_GIP_SET_FLAGS_SIZE_OUT;
+    Req.Hdr.fFlags           = SUPREQHDR_FLAGS_DEFAULT;
+    Req.Hdr.rc               = VERR_INTERNAL_ERROR;
+
+    Req.u.In.fAndMask        = fAndMask;
+    Req.u.In.fOrMask         = fOrMask;
+
+    int rc = suplibOsIOCtl(&g_supLibData, SUP_IOCTL_GIP_SET_FLAGS, &Req, SUP_IOCTL_GIP_SET_FLAGS_SIZE);
+    if (RT_SUCCESS(rc))
+        rc = Req.Hdr.rc;
     return rc;
 }
 

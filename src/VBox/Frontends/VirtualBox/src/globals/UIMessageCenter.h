@@ -120,7 +120,8 @@ public:
                         const QString &strMessage,
                         const char *pcszAutoConfirmId = 0,
                         const QString &strOkButtonText = QString(),
-                        const QString &strCancelButtonText = QString()) const;
+                        const QString &strCancelButtonText = QString(),
+                        bool fDefaultFocusForOk = true) const;
 
     /* API: Wrapper to 'question' function,
      * Question providing three buttons (Yes, No and Cancel by default): */
@@ -173,6 +174,7 @@ public:
     void cannotOpenURL(const QString &strUrl) const;
     void cannotSetExtraData(const CVirtualBox &vbox, const QString &strKey, const QString &strValue);
     void cannotSetExtraData(const CMachine &machine, const QString &strKey, const QString &strValue);
+    void warnAboutInvalidEncryptionPassword(const QString &strPasswordId, QWidget *pParent = 0);
 
     /* API: Selector warnings: */
     void cannotOpenMachine(const CVirtualBox &vbox, const QString &strMachinePath) const;
@@ -236,6 +238,8 @@ public:
     int confirmRemovingOfLastDVDDevice(QWidget *pParent = 0) const;
     void cannotAttachDevice(const CMachine &machine, UIMediumType type, const QString &strLocation, const StorageSlot &storageSlot, QWidget *pParent = 0);
     bool warnAboutIncorrectPort(QWidget *pParent = 0) const;
+    bool warnAboutIncorrectAddress(QWidget *pParent = 0) const;
+    bool warnAboutEmptyGuestAddress(QWidget *pParent = 0) const;
     bool warnAboutNameShouldBeUnique(QWidget *pParent = 0) const;
     bool warnAboutRulesConflict(QWidget *pParent = 0) const;
     bool confirmCancelingPortForwardingDialog(QWidget *pParent = 0) const;

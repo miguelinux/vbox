@@ -16,9 +16,9 @@
  */
 
 
-/*******************************************************************************
-*   Header Files                                                               *
-*******************************************************************************/
+/*********************************************************************************************************************************
+*   Header Files                                                                                                                 *
+*********************************************************************************************************************************/
 #include "../include/ExtPackUtil.h"
 
 #include <iprt/buildconfig.h>
@@ -70,9 +70,9 @@
 #endif
 
 
-/*******************************************************************************
-*   Defined Constants And Macros                                               *
-*******************************************************************************/
+/*********************************************************************************************************************************
+*   Defined Constants And Macros                                                                                                 *
+*********************************************************************************************************************************/
 /** Enable elevation on Windows and Darwin. */
 #if !defined(RT_OS_OS2) || defined(DOXYGEN_RUNNING)
 # define WITH_ELEVATION
@@ -93,9 +93,9 @@
 /** @}  */
 
 
-/*******************************************************************************
-*   Global Variables                                                           *
-*******************************************************************************/
+/*********************************************************************************************************************************
+*   Global Variables                                                                                                             *
+*********************************************************************************************************************************/
 #ifdef RT_OS_WINDOWS
 static HINSTANCE g_hInstance;
 #endif
@@ -1419,7 +1419,7 @@ static RTEXITCODE RelaunchElevatedNative(const char *pszExecPath, const char **p
     char *pszCmdLine;
     int rc = RTGetOptArgvToString(&pszCmdLine, &papszArgs[cSuArgs], RTGETOPTARGV_CNV_QUOTE_BOURNE_SH);
     if (RT_FAILURE(rc))
-        return RTMsgErrorExit(RTEXITCODE_FAILURE, "RTGetOptArgvToString failed: %Rrc");
+        return RTMsgErrorExit(RTEXITCODE_FAILURE, "RTGetOptArgvToString failed: %Rrc", rc);
 
     /*
      * Look for various standard stuff for executing a program as root.

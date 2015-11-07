@@ -604,6 +604,7 @@ RTDECL(int) RTAsn1Dummy_InitEx(PRTASN1DUMMY pThis);
  */
 DECLINLINE(int) RTAsn1Dummy_Init(PRTASN1DUMMY pThis, PCRTASN1ALLOCATORVTABLE pAllocator)
 {
+    NOREF(pAllocator);
     return RTAsn1Dummy_InitEx(pThis);
 }
 
@@ -1213,7 +1214,10 @@ RTDECL(int) RTAsn1ContextTagN_Clone(PRTASN1CONTEXTTAG pThis, PCRTASN1CONTEXTTAG 
     typedef RT_CONCAT(RTASN1CONTEXTTAG,a_uTag) *RT_CONCAT(PRTASN1CONTEXTTAG,a_uTag); \
     DECLINLINE(int) RT_CONCAT3(RTAsn1ContextTag,a_uTag,_Init)(RT_CONCAT(PRTASN1CONTEXTTAG,a_uTag) pThis, \
                                                               PCRTASN1ALLOCATORVTABLE pAllocator) \
-    {   return RTAsn1ContextTagN_Init((PRTASN1CONTEXTTAG)pThis, a_uTag); } \
+    { \
+        NOREF(pAllocator); \
+        return RTAsn1ContextTagN_Init((PRTASN1CONTEXTTAG)pThis, a_uTag); \
+    } \
     DECLINLINE(int) RT_CONCAT3(RTAsn1ContextTag,a_uTag,_Clone)(RT_CONCAT(PRTASN1CONTEXTTAG,a_uTag) pThis, \
                                                                RT_CONCAT(RTASN1CONTEXTTAG,a_uTag) const *pSrc) \
     {   return RTAsn1ContextTagN_Clone((PRTASN1CONTEXTTAG)pThis, (PCRTASN1CONTEXTTAG)pSrc, a_uTag); } \
@@ -1595,7 +1599,7 @@ RTDECL(PRTASN1ALLOCATION) RTAsn1CursorInitAllocation(PRTASN1CURSOR pCursor, PRTA
  * @param   pszMsg              Message format string.
  * @param   ...                 Format arguments.
  */
-RTDECL(int) RTAsn1CursorSetInfo(PRTASN1CURSOR pCursor, int rc, const char *pszMsg, ...);
+RTDECL(int) RTAsn1CursorSetInfo(PRTASN1CURSOR pCursor, int rc, const char *pszMsg, ...) RT_IPRT_FORMAT_ATTR(3, 4);
 
 /**
  * Wrapper around RTErrInfoSetV.
@@ -1606,7 +1610,7 @@ RTDECL(int) RTAsn1CursorSetInfo(PRTASN1CURSOR pCursor, int rc, const char *pszMs
  * @param   pszMsg              Message format string.
  * @param   va                  Format arguments.
  */
-RTDECL(int) RTAsn1CursorSetInfoV(PRTASN1CURSOR pCursor, int rc, const char *pszMsg, va_list va);
+RTDECL(int) RTAsn1CursorSetInfoV(PRTASN1CURSOR pCursor, int rc, const char *pszMsg, va_list va) RT_IPRT_FORMAT_ATTR(3, 0);
 
 /**
  * Checks that we've reached the end of the data for the cursor.

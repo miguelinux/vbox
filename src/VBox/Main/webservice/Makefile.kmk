@@ -375,7 +375,7 @@ VBoxJWs-inst-jar_GENERATEDSOURCES = $(addprefix $(VBoxJWs-inst-jar_BLDDIRS)/,$(V
 VBoxJWSGlue_KMK = $(PATH_OUT)/vboxjwsglue.kmk
 include $(VBoxJWSGlue_KMK)
 
-$(VBoxJWSGlue_KMK).ts +| $(VBoxJWSGlue_KMK): $(VBOXWEB_IDL_SRC_ORIG) $(VBOX_GLUE_XSLT_DIR)/glue-java.xsl
+$(VBoxJWSGlue_KMK).ts +| $(VBoxJWSGlue_KMK): $(VBOXWEB_IDL_SRC_ORIG) $(VBOX_GLUE_XSLT_DIR)/glue-java.xsl $(VBOX_VERSION_STAMP)
 	$(call MSG_GENERATE,,$(VBoxJWSGlue_KMK))
 	$(QUIET)$(RM) -f $@
 	$(QUIET)$(MKDIR) -p $(@D)
@@ -391,7 +391,8 @@ $(VBOX_JWS_GEN_RAWSRC) \
 +| $(VBoxJWs-inst-jar_GENERATEDSOURCES): \
 		$(VBOXWEB_IDL_SRC_ORIG) \
 		$(VBOX_GLUE_XSLT_DIR)/glue-java.xsl \
-		$(VBOX_FILESPLIT)
+		$(VBOX_FILESPLIT) \
+		$(VBOX_VERSION_STAMP)
 	$(call MSG_L1,Generating JAX-WS Java glue files from XIDL)
 	$(QUIET)$(RM) -f $(filter-out $(VBoxJWs-inst-jar_GENERATEDSOURCES),$(wildcard $(VBOX_JWS_GEN)/java/*/*/*.java))
 	$(QUIET)$(MKDIR) -p $(@D)
@@ -690,13 +691,15 @@ $(VBOXWEB_OUT_DIR)/gsoap_generate_all_ts \
 # Copy the generated headers and stuff.  This was split into a separate rule
 # way back because we thought we could use $(wildcard ) and avoid the shell,
 # however we cannot as it is subject to caching.  Let the shell do the globbing.
+# GSOAP versions 2.8 and later do not generate the unneeded soapvbox*.h files
+# any more. Ignoring the exit code is the simple solution, accepting the error.
 $(VBOXWEB_OUT_DIR)/gsoap_copy_all_ts: $(VBOXWEB_OUT_DIR)/gsoap_generate_all_ts | $$(dir $$@)
 	$(RM) -f $@
 	$(MKDIR) -p $(PATH_TARGET_SOAPDEMOXML) $(PATH_TARGET_SOAPDEMOHEADERS) $(PATH_TARGET_SOAPDEMONSMAPS)
 ifdef VBOX_GSOAP_VERBOSE
 	$(MV_EXT) -f -- $(VBOXWEB_OUT_DIR)/*.req.xml $(VBOXWEB_OUT_DIR)/*.res.xml $(PATH_TARGET_SOAPDEMOXML)/
 endif
-	$(MV_EXT) -f -- $(VBOXWEB_OUT_DIR)/soapvbox*.h $(PATH_TARGET_SOAPDEMOHEADERS)/
+	-$(MV_EXT) -f -- $(VBOXWEB_OUT_DIR)/soapvbox*.h $(PATH_TARGET_SOAPDEMOHEADERS)/
 	$(MV_EXT) -f -- $(VBOXWEB_OUT_DIR)/vboxBinding.nsmap $(PATH_TARGET_SOAPDEMONSMAPS)/
 	$(APPEND) $@ done
 

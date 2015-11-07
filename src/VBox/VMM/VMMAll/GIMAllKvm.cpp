@@ -15,9 +15,10 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-/*******************************************************************************
-*   Header Files                                                               *
-*******************************************************************************/
+
+/*********************************************************************************************************************************
+*   Header Files                                                                                                                 *
+*********************************************************************************************************************************/
 #define LOG_GROUP LOG_GROUP_GIM
 #include "GIMKvmInternal.h"
 #include "GIMInternal.h"
@@ -93,7 +94,7 @@ VMM_INT_DECL(int) gimKvmHypercall(PVMCPU pVCpu, PCPUMCTX pCtx)
 #ifdef IN_RING0
                 /*
                  * We might be here with preemption disabled or enabled (i.e. depending on thread-context hooks
-                 * being used), so don't try obtaining the GVMMR0 used lock here. See @bugref{7270} comment #148.
+                 * being used), so don't try obtaining the GVMMR0 used lock here. See @bugref{7270#c148}.
                  */
                 GVMMR0SchedWakeUpEx(pVM, pVCpuTarget->idCpu, false /* fTakeUsedLock */);
 #elif defined(IN_RING3)
@@ -133,8 +134,8 @@ VMM_INT_DECL(int) gimKvmHypercall(PVMCPU pVCpu, PCPUMCTX pCtx)
  */
 VMM_INT_DECL(bool) gimKvmAreHypercallsEnabled(PVMCPU pVCpu)
 {
-    /* KVM paravirt interface doesn't have hypercall control bits like Hyper-V does
-       that guests can control. It's always enabled. */
+    /* KVM paravirt interface doesn't have hypercall control bits (like Hyper-V does)
+       that guests can control, i.e. hypercalls are always enabled. */
     return true;
 }
 
@@ -370,8 +371,8 @@ VMM_INT_DECL(int) gimKvmXcptUD(PVMCPU pVCpu, PCPUMCTX pCtx, PDISCPUSTATE pDis)
     if (!pDis)
     {
         /*
-         * Disassemble the instruction at RIP to figure out if it's the Intel
-         * VMCALL instruction and if so, handle it as a hypercall.
+         * Disassemble the instruction at RIP to figure out if it's the Intel VMCALL instruction
+         * or the AMD VMMCALL instruction and if so, handle it as a hypercall.
          */
         DISCPUSTATE Dis;
         rc = EMInterpretDisasCurrent(pVM, pVCpu, &Dis, NULL /* pcbInstr */);
@@ -403,7 +404,7 @@ VMM_INT_DECL(int) gimKvmXcptUD(PVMCPU pVCpu, PCPUMCTX pCtx, PDISCPUSTATE pDis)
             /*
              * Perform the hypercall and update RIP.
              *
-             * For HM, we can simply resume guest execution without perform the hypercall now and
+             * For HM, we can simply resume guest execution without performing the hypercall now and
              * do it on the next VMCALL/VMMCALL exit handler on the patched instruction.
              *
              * For raw-mode we need to do this now anyway. So we do it here regardless with an added

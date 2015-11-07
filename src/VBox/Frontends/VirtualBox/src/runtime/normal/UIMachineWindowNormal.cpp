@@ -20,7 +20,6 @@
 #else  /* !VBOX_WITH_PRECOMPILED_HEADERS */
 
 /* Qt includes: */
-# include <QDesktopWidget>
 # include <QMenuBar>
 # include <QTimer>
 # include <QContextMenuEvent>
@@ -45,6 +44,7 @@
 # else  /* Q_WS_MAC */
 #  include "VBoxUtils.h"
 #  include "UIImageTools.h"
+#  include "UICocoaApplication.h"
 # endif /* Q_WS_MAC */
 
 /* COM includes: */
@@ -213,31 +213,19 @@ void UIMachineWindowNormal::prepareSessionConnections()
     /* Call to base-class: */
     UIMachineWindow::prepareSessionConnections();
 
-    /* Medium change updater: */
+    /* We should watch for console events: */
     connect(machineLogic()->uisession(), SIGNAL(sigMediumChange(const CMediumAttachment &)),
             this, SLOT(sltMediumChange(const CMediumAttachment &)));
-
-    /* USB controller change updater: */
     connect(machineLogic()->uisession(), SIGNAL(sigUSBControllerChange()),
             this, SLOT(sltUSBControllerChange()));
-
-    /* USB device state-change updater: */
     connect(machineLogic()->uisession(), SIGNAL(sigUSBDeviceStateChange(const CUSBDevice &, bool, const CVirtualBoxErrorInfo &)),
             this, SLOT(sltUSBDeviceStateChange()));
-
-    /* Network adapter change updater: */
     connect(machineLogic()->uisession(), SIGNAL(sigNetworkAdapterChange(const CNetworkAdapter &)),
             this, SLOT(sltNetworkAdapterChange()));
-
-    /* Shared folder change updater: */
     connect(machineLogic()->uisession(), SIGNAL(sigSharedFolderChange()),
             this, SLOT(sltSharedFolderChange()));
-
-    /* Video capture change updater: */
     connect(machineLogic()->uisession(), SIGNAL(sigVideoCaptureChange()),
             this, SLOT(sltVideoCaptureChange()));
-
-    /* CPU execution cap change updater: */
     connect(machineLogic()->uisession(), SIGNAL(sigCPUExecutionCapChange()),
             this, SLOT(sltCPUExecutionCapChange()));
 }
@@ -316,6 +304,17 @@ void UIMachineWindowNormal::prepareVisualState()
         QPixmap betaLabel = ::betaLabel(QSize(100, 16));
         ::darwinLabelWindow(this, &betaLabel, true);
     }
+
+    /* For 'Yosemite' and above: */
+    if (vboxGlobal().osRelease() >= MacOSXRelease_Yosemite)
+    {
+        /* Enable fullscreen support for every screen which requires it: */
+        if (darwinScreensHaveSeparateSpaces() || m_uScreenId == 0)
+            darwinEnableFullscreenSupport(this);
+        /* Register 'Zoom' button to use our full-screen: */
+        UICocoaApplication::instance()->registerCallbackForStandardWindowButton(this, StandardWindowButtonType_Zoom,
+                                                                                UIMachineWindow::handleStandardWindowButtonCallback);
+    }
 #endif /* Q_WS_MAC */
 }
 
@@ -370,8 +369,8 @@ void UIMachineWindowNormal::loadSettings()
         else
         {
             /* Get available geometry, for screen with (x,y) coords if possible: */
-            QRect availableGeo = !geo.isNull() ? QApplication::desktop()->availableGeometry(QPoint(geo.x(), geo.y())) :
-                                                 QApplication::desktop()->availableGeometry(this);
+            QRect availableGeo = !geo.isNull() ? vboxGlobal().availableGeometry(QPoint(geo.x(), geo.y())) :
+                                                 vboxGlobal().availableGeometry(this);
 
             /* Normalize to the optimal size: */
             normalizeGeometry(true /* adjust position */);
@@ -401,6 +400,37 @@ void UIMachineWindowNormal::saveSettings()
 
     /* Call to base-class: */
     UIMachineWindow::saveSettings();
+}
+
+void UIMachineWindowNormal::cleanupVisualState()
+{
+#ifdef Q_WS_MAC
+    /* Unregister 'Zoom' button from using our full-screen since Yosemite: */
+    if (vboxGlobal().osRelease() >= MacOSXRelease_Yosemite)
+        UICocoaApplication::instance()->unregisterCallbackForStandardWindowButton(this, StandardWindowButtonType_Zoom);
+#endif /* Q_WS_MAC */
+}
+
+void UIMachineWindowNormal::cleanupSessionConnections()
+{
+    /* We should stop watching for console events: */
+    disconnect(machineLogic()->uisession(), SIGNAL(sigMediumChange(const CMediumAttachment &)),
+               this, SLOT(sltMediumChange(const CMediumAttachment &)));
+    disconnect(machineLogic()->uisession(), SIGNAL(sigUSBControllerChange()),
+               this, SLOT(sltUSBControllerChange()));
+    disconnect(machineLogic()->uisession(), SIGNAL(sigUSBDeviceStateChange(const CUSBDevice &, bool, const CVirtualBoxErrorInfo &)),
+               this, SLOT(sltUSBDeviceStateChange()));
+    disconnect(machineLogic()->uisession(), SIGNAL(sigNetworkAdapterChange(const CNetworkAdapter &)),
+               this, SLOT(sltNetworkAdapterChange()));
+    disconnect(machineLogic()->uisession(), SIGNAL(sigSharedFolderChange()),
+               this, SLOT(sltSharedFolderChange()));
+    disconnect(machineLogic()->uisession(), SIGNAL(sigVideoCaptureChange()),
+               this, SLOT(sltVideoCaptureChange()));
+    disconnect(machineLogic()->uisession(), SIGNAL(sigCPUExecutionCapChange()),
+               this, SLOT(sltCPUExecutionCapChange()));
+
+    /* Call to base-class: */
+    UIMachineWindow::cleanupSessionConnections();
 }
 
 bool UIMachineWindowNormal::event(QEvent *pEvent)
@@ -489,11 +519,7 @@ void UIMachineWindowNormal::normalizeGeometry(bool fAdjustPosition)
 
     /* Adjust position if necessary: */
     if (fAdjustPosition)
-    {
-        const QDesktopWidget *pDesktopWidget = QApplication::desktop();
-        const QRegion availableGeo = pDesktopWidget->availableGeometry(pos());
-        frameGeo = VBoxGlobal::normalizeGeometry(frameGeo, availableGeo);
-    }
+        frameGeo = VBoxGlobal::normalizeGeometry(frameGeo, vboxGlobal().availableGeometry(pos()));
 
     /* Finally, set the frame geometry: */
     setGeometry(frameGeo.left() + dl, frameGeo.top() + dt,

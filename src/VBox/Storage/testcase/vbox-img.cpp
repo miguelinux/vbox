@@ -15,9 +15,10 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-/*******************************************************************************
-*   Header Files                                                               *
-*******************************************************************************/
+
+/*********************************************************************************************************************************
+*   Header Files                                                                                                                 *
+*********************************************************************************************************************************/
 #include <VBox/vd.h>
 #include <VBox/err.h>
 #include <VBox/version.h>
@@ -107,15 +108,14 @@ struct HandlerArg
 
 static PVDINTERFACE pVDIfs;
 
-static DECLCALLBACK(void) handleVDError(void *pvUser, int rc, RT_SRC_POS_DECL,
-                                        const char *pszFormat, va_list va)
+static DECLCALLBACK(void) handleVDError(void *pvUser, int rc, RT_SRC_POS_DECL, const char *pszFormat, va_list va)
 {
     NOREF(pvUser);
     NOREF(rc);
     RTMsgErrorV(pszFormat, va);
 }
 
-static int handleVDMessage(void *pvUser, const char *pszFormat, va_list va)
+static DECLCALLBACK(int) handleVDMessage(void *pvUser, const char *pszFormat, va_list va)
 {
     NOREF(pvUser);
     RTPrintfV(pszFormat, va);
@@ -271,13 +271,13 @@ static int handleSetUUID(HandlerArg *a)
     PVBOXHDD pVD = NULL;
     rc = VDCreate(pVDIfs, enmType, &pVD);
     if (RT_FAILURE(rc))
-        return errorRuntime("Cannot create the virtual disk container: %Rrc\n", rc);
+        return errorRuntime("Cannot create the virtual disk container: %Rrf (%Rrc)\n", rc, rc);
 
     /* Open in info mode to be able to open diff images without their parent. */
     rc = VDOpen(pVD, pszFormat, pszFilename, VD_OPEN_FLAGS_INFO, NULL);
     if (RT_FAILURE(rc))
-        return errorRuntime("Cannot open the virtual disk image \"%s\": %Rrc\n",
-                            pszFilename, rc);
+        return errorRuntime("Cannot open the virtual disk image \"%s\": %Rrf (%Rrc)\n",
+                            pszFilename, rc, rc);
 
     RTUUID oldImageUuid;
     rc = VDGetUuid(pVD, VD_LAST_IMAGE, &oldImageUuid);
@@ -300,8 +300,8 @@ static int handleSetUUID(HandlerArg *a)
         RTPrintf("New image UUID:  %RTuuid\n", &imageUuid);
         rc = VDSetUuid(pVD, VD_LAST_IMAGE, &imageUuid);
         if (RT_FAILURE(rc))
-            return errorRuntime("Cannot set UUID of virtual disk image \"%s\": %Rrc\n",
-                                pszFilename, rc);
+            return errorRuntime("Cannot set UUID of virtual disk image \"%s\": %Rrf (%Rrc)\n",
+                                pszFilename, rc, rc);
     }
 
     if (fSetParentUuid)
@@ -309,8 +309,8 @@ static int handleSetUUID(HandlerArg *a)
         RTPrintf("New parent UUID: %RTuuid\n", &parentUuid);
         rc = VDSetParentUuid(pVD, VD_LAST_IMAGE, &parentUuid);
         if (RT_FAILURE(rc))
-            return errorRuntime("Cannot set parent UUID of virtual disk image \"%s\": %Rrc\n",
-                                pszFilename, rc);
+            return errorRuntime("Cannot set parent UUID of virtual disk image \"%s\": %Rrf (%Rrc)\n",
+                                pszFilename, rc, rc);
     }
 
     VDDestroy(pVD);
@@ -407,13 +407,13 @@ static int handleGeometry(HandlerArg *a)
     PVBOXHDD pVD = NULL;
     rc = VDCreate(pVDIfs, enmType, &pVD);
     if (RT_FAILURE(rc))
-        return errorRuntime("Cannot create the virtual disk container: %Rrc\n", rc);
+        return errorRuntime("Cannot create the virtual disk container: %Rrf (%Rrc)\n", rc, rc);
 
     /* Open in info mode to be able to open diff images without their parent. */
     rc = VDOpen(pVD, pszFormat, pszFilename, VD_OPEN_FLAGS_INFO, NULL);
     if (RT_FAILURE(rc))
-        return errorRuntime("Cannot open the virtual disk image \"%s\": %Rrc\n",
-                            pszFilename, rc);
+        return errorRuntime("Cannot open the virtual disk image \"%s\": %Rrf (%Rrc)\n",
+                            pszFilename, rc, rc);
 
     VDGEOMETRY oldLCHSGeometry;
     rc = VDGetLCHSGeometry(pVD, VD_LAST_IMAGE, &oldLCHSGeometry);
@@ -441,8 +441,8 @@ static int handleGeometry(HandlerArg *a)
 
         rc = VDSetLCHSGeometry(pVD, VD_LAST_IMAGE, &newLCHSGeometry);
         if (RT_FAILURE(rc))
-            return errorRuntime("Cannot set LCHS geometry of virtual disk image \"%s\": %Rrc\n",
-                                pszFilename, rc);
+            return errorRuntime("Cannot set LCHS geometry of virtual disk image \"%s\": %Rrf (%Rrc)\n",
+                                pszFilename, rc, rc);
     }
     else
         RTPrintf("Current image LCHS: %u/%u/%u\n", oldLCHSGeometry.cCylinders, oldLCHSGeometry.cHeads, oldLCHSGeometry.cSectors);
@@ -473,9 +473,8 @@ typedef struct FILEIOSTATE
     uint8_t abBuffer[16 *_1M];
 } FILEIOSTATE, *PFILEIOSTATE;
 
-static int convInOpen(void *pvUser, const char *pszLocation,
-                      uint32_t fOpen, PFNVDCOMPLETED pfnCompleted,
-                      void **ppStorage)
+static DECLCALLBACK(int) convInOpen(void *pvUser, const char *pszLocation, uint32_t fOpen, PFNVDCOMPLETED pfnCompleted,
+                                    void **ppStorage)
 {
     NOREF(pvUser);
     /* Validate input. */
@@ -501,7 +500,7 @@ static int convInOpen(void *pvUser, const char *pszLocation,
     return VINF_SUCCESS;
 }
 
-static int convInClose(void *pvUser, void *pStorage)
+static DECLCALLBACK(int) convInClose(void *pvUser, void *pStorage)
 {
     NOREF(pvUser);
     AssertPtrReturn(pStorage, VERR_INVALID_POINTER);
@@ -512,15 +511,14 @@ static int convInClose(void *pvUser, void *pStorage)
     return VINF_SUCCESS;
 }
 
-static int convInDelete(void *pvUser, const char *pcszFilename)
+static DECLCALLBACK(int) convInDelete(void *pvUser, const char *pcszFilename)
 {
     NOREF(pvUser);
     NOREF(pcszFilename);
     AssertFailedReturn(VERR_NOT_SUPPORTED);
 }
 
-static int convInMove(void *pvUser, const char *pcszSrc, const char *pcszDst,
-                      unsigned fMove)
+static DECLCALLBACK(int) convInMove(void *pvUser, const char *pcszSrc, const char *pcszDst, unsigned fMove)
 {
     NOREF(pvUser);
     NOREF(pcszSrc);
@@ -529,8 +527,7 @@ static int convInMove(void *pvUser, const char *pcszSrc, const char *pcszDst,
     AssertFailedReturn(VERR_NOT_SUPPORTED);
 }
 
-static int convInGetFreeSpace(void *pvUser, const char *pcszFilename,
-                              int64_t *pcbFreeSpace)
+static DECLCALLBACK(int) convInGetFreeSpace(void *pvUser, const char *pcszFilename, int64_t *pcbFreeSpace)
 {
     NOREF(pvUser);
     NOREF(pcszFilename);
@@ -539,8 +536,7 @@ static int convInGetFreeSpace(void *pvUser, const char *pcszFilename,
     return VINF_SUCCESS;
 }
 
-static int convInGetModificationTime(void *pvUser, const char *pcszFilename,
-                                     PRTTIMESPEC pModificationTime)
+static DECLCALLBACK(int) convInGetModificationTime(void *pvUser, const char *pcszFilename, PRTTIMESPEC pModificationTime)
 {
     NOREF(pvUser);
     NOREF(pcszFilename);
@@ -548,7 +544,7 @@ static int convInGetModificationTime(void *pvUser, const char *pcszFilename,
     AssertFailedReturn(VERR_NOT_SUPPORTED);
 }
 
-static int convInGetSize(void *pvUser, void *pStorage, uint64_t *pcbSize)
+static DECLCALLBACK(int) convInGetSize(void *pvUser, void *pStorage, uint64_t *pcbSize)
 {
     NOREF(pvUser);
     NOREF(pStorage);
@@ -556,7 +552,7 @@ static int convInGetSize(void *pvUser, void *pStorage, uint64_t *pcbSize)
     AssertFailedReturn(VERR_NOT_SUPPORTED);
 }
 
-static int convInSetSize(void *pvUser, void *pStorage, uint64_t cbSize)
+static DECLCALLBACK(int) convInSetSize(void *pvUser, void *pStorage, uint64_t cbSize)
 {
     NOREF(pvUser);
     NOREF(pStorage);
@@ -564,8 +560,8 @@ static int convInSetSize(void *pvUser, void *pStorage, uint64_t cbSize)
     AssertFailedReturn(VERR_NOT_SUPPORTED);
 }
 
-static int convInRead(void *pvUser, void *pStorage, uint64_t uOffset,
-                      void *pvBuffer, size_t cbBuffer, size_t *pcbRead)
+static DECLCALLBACK(int) convInRead(void *pvUser, void *pStorage, uint64_t uOffset,
+                                    void *pvBuffer, size_t cbBuffer, size_t *pcbRead)
 {
     NOREF(pvUser);
     AssertPtrReturn(pStorage, VERR_INVALID_POINTER);
@@ -651,9 +647,8 @@ static int convInRead(void *pvUser, void *pStorage, uint64_t uOffset,
     return VINF_SUCCESS;
 }
 
-static int convInWrite(void *pvUser, void *pStorage, uint64_t uOffset,
-                       const void *pvBuffer, size_t cbBuffer,
-                       size_t *pcbWritten)
+static DECLCALLBACK(int) convInWrite(void *pvUser, void *pStorage, uint64_t uOffset, const void *pvBuffer, size_t cbBuffer,
+                                     size_t *pcbWritten)
 {
     NOREF(pvUser);
     NOREF(pStorage);
@@ -664,16 +659,15 @@ static int convInWrite(void *pvUser, void *pStorage, uint64_t uOffset,
     AssertFailedReturn(VERR_NOT_SUPPORTED);
 }
 
-static int convInFlush(void *pvUser, void *pStorage)
+static DECLCALLBACK(int) convInFlush(void *pvUser, void *pStorage)
 {
     NOREF(pvUser);
     NOREF(pStorage);
     return VINF_SUCCESS;
 }
 
-static int convOutOpen(void *pvUser, const char *pszLocation,
-                       uint32_t fOpen, PFNVDCOMPLETED pfnCompleted,
-                       void **ppStorage)
+static DECLCALLBACK(int) convOutOpen(void *pvUser, const char *pszLocation, uint32_t fOpen, PFNVDCOMPLETED pfnCompleted,
+                                     void **ppStorage)
 {
     NOREF(pvUser);
     /* Validate input. */
@@ -699,7 +693,7 @@ static int convOutOpen(void *pvUser, const char *pszLocation,
     return VINF_SUCCESS;
 }
 
-static int convOutClose(void *pvUser, void *pStorage)
+static DECLCALLBACK(int) convOutClose(void *pvUser, void *pStorage)
 {
     NOREF(pvUser);
     AssertPtrReturn(pStorage, VERR_INVALID_POINTER);
@@ -715,15 +709,14 @@ static int convOutClose(void *pvUser, void *pStorage)
     return rc;
 }
 
-static int convOutDelete(void *pvUser, const char *pcszFilename)
+static DECLCALLBACK(int) convOutDelete(void *pvUser, const char *pcszFilename)
 {
     NOREF(pvUser);
     NOREF(pcszFilename);
     AssertFailedReturn(VERR_NOT_SUPPORTED);
 }
 
-static int convOutMove(void *pvUser, const char *pcszSrc, const char *pcszDst,
-                       unsigned fMove)
+static DECLCALLBACK(int) convOutMove(void *pvUser, const char *pcszSrc, const char *pcszDst, unsigned fMove)
 {
     NOREF(pvUser);
     NOREF(pcszSrc);
@@ -732,8 +725,7 @@ static int convOutMove(void *pvUser, const char *pcszSrc, const char *pcszDst,
     AssertFailedReturn(VERR_NOT_SUPPORTED);
 }
 
-static int convOutGetFreeSpace(void *pvUser, const char *pcszFilename,
-                               int64_t *pcbFreeSpace)
+static DECLCALLBACK(int) convOutGetFreeSpace(void *pvUser, const char *pcszFilename, int64_t *pcbFreeSpace)
 {
     NOREF(pvUser);
     NOREF(pcszFilename);
@@ -742,8 +734,7 @@ static int convOutGetFreeSpace(void *pvUser, const char *pcszFilename,
     return VINF_SUCCESS;
 }
 
-static int convOutGetModificationTime(void *pvUser, const char *pcszFilename,
-                                      PRTTIMESPEC pModificationTime)
+static DECLCALLBACK(int) convOutGetModificationTime(void *pvUser, const char *pcszFilename, PRTTIMESPEC pModificationTime)
 {
     NOREF(pvUser);
     NOREF(pcszFilename);
@@ -751,7 +742,7 @@ static int convOutGetModificationTime(void *pvUser, const char *pcszFilename,
     AssertFailedReturn(VERR_NOT_SUPPORTED);
 }
 
-static int convOutGetSize(void *pvUser, void *pStorage, uint64_t *pcbSize)
+static DECLCALLBACK(int) convOutGetSize(void *pvUser, void *pStorage, uint64_t *pcbSize)
 {
     NOREF(pvUser);
     NOREF(pStorage);
@@ -759,7 +750,7 @@ static int convOutGetSize(void *pvUser, void *pStorage, uint64_t *pcbSize)
     AssertFailedReturn(VERR_NOT_SUPPORTED);
 }
 
-static int convOutSetSize(void *pvUser, void *pStorage, uint64_t cbSize)
+static DECLCALLBACK(int) convOutSetSize(void *pvUser, void *pStorage, uint64_t cbSize)
 {
     NOREF(pvUser);
     NOREF(pStorage);
@@ -767,8 +758,8 @@ static int convOutSetSize(void *pvUser, void *pStorage, uint64_t cbSize)
     AssertFailedReturn(VERR_NOT_SUPPORTED);
 }
 
-static int convOutRead(void *pvUser, void *pStorage, uint64_t uOffset,
-                       void *pvBuffer, size_t cbBuffer, size_t *pcbRead)
+static DECLCALLBACK(int) convOutRead(void *pvUser, void *pStorage, uint64_t uOffset, void *pvBuffer, size_t cbBuffer,
+                                     size_t *pcbRead)
 {
     NOREF(pvUser);
     NOREF(pStorage);
@@ -779,9 +770,8 @@ static int convOutRead(void *pvUser, void *pStorage, uint64_t uOffset,
     AssertFailedReturn(VERR_NOT_SUPPORTED);
 }
 
-static int convOutWrite(void *pvUser, void *pStorage, uint64_t uOffset,
-                        const void *pvBuffer, size_t cbBuffer,
-                        size_t *pcbWritten)
+static DECLCALLBACK(int) convOutWrite(void *pvUser, void *pStorage, uint64_t uOffset, const void *pvBuffer, size_t cbBuffer,
+                                      size_t *pcbWritten)
 {
     NOREF(pvUser);
     AssertPtrReturn(pStorage, VERR_INVALID_POINTER);
@@ -825,7 +815,7 @@ static int convOutWrite(void *pvUser, void *pStorage, uint64_t uOffset,
     return VINF_SUCCESS;
 }
 
-static int convOutFlush(void *pvUser, void *pStorage)
+static DECLCALLBACK(int) convOutFlush(void *pvUser, void *pStorage)
 {
     NOREF(pvUser);
     NOREF(pStorage);
@@ -1012,7 +1002,7 @@ static int handleConvert(HandlerArg *a)
         rc = VDCreate(pVDIfs, enmSrcType, &pSrcDisk);
         if (RT_FAILURE(rc))
         {
-            errorRuntime("Error while creating source disk container: %Rrc\n", rc);
+            errorRuntime("Error while creating source disk container: %Rrf (%Rrc)\n", rc, rc);
             break;
         }
 
@@ -1021,14 +1011,14 @@ static int handleConvert(HandlerArg *a)
                     pIfsImageInput);
         if (RT_FAILURE(rc))
         {
-            errorRuntime("Error while opening source image: %Rrc\n", rc);
+            errorRuntime("Error while opening source image: %Rrf (%Rrc)\n", rc, rc);
             break;
         }
 
         rc = VDCreate(pVDIfs, VDTYPE_HDD, &pDstDisk);
         if (RT_FAILURE(rc))
         {
-            errorRuntime("Error while creating the destination disk container: %Rrc\n", rc);
+            errorRuntime("Error while creating the destination disk container: %Rrf (%Rrc)\n", rc, rc);
             break;
         }
 
@@ -1042,7 +1032,7 @@ static int handleConvert(HandlerArg *a)
                     pIfsImageOutput, NULL);
         if (RT_FAILURE(rc))
         {
-            errorRuntime("Error while copying the image: %Rrc\n", rc);
+            errorRuntime("Error while copying the image: %Rrf (%Rrc)\n", rc, rc);
             break;
         }
 
@@ -1101,12 +1091,12 @@ static int handleInfo(HandlerArg *a)
 
     rc = VDCreate(pVDIfs, enmType, &pDisk);
     if (RT_FAILURE(rc))
-        return errorRuntime("Error while creating the virtual disk container: %Rrc\n", rc);
+        return errorRuntime("Error while creating the virtual disk container: %Rrf (%Rrc)\n", rc, rc);
 
     /* Open the image */
     rc = VDOpen(pDisk, pszFormat, pszFilename, VD_OPEN_FLAGS_INFO | VD_OPEN_FLAGS_READONLY, NULL);
     if (RT_FAILURE(rc))
-        return errorRuntime("Error while opening the image: %Rrc\n", rc);
+        return errorRuntime("Error while opening the image: %Rrf (%Rrc)\n", rc, rc);
 
     VDDumpImages(pDisk);
 
@@ -1260,12 +1250,12 @@ static int handleCompact(HandlerArg *a)
 
     rc = VDCreate(pVDIfs, enmType, &pDisk);
     if (RT_FAILURE(rc))
-        return errorRuntime("Error while creating the virtual disk container: %Rrc\n", rc);
+        return errorRuntime("Error while creating the virtual disk container: %Rrf (%Rrc)\n", rc, rc);
 
     /* Open the image */
     rc = VDOpen(pDisk, pszFormat, pszFilename, VD_OPEN_FLAGS_NORMAL, NULL);
     if (RT_FAILURE(rc))
-        return errorRuntime("Error while opening the image: %Rrc\n", rc);
+        return errorRuntime("Error while opening the image: %Rrf (%Rrc)\n", rc, rc);
 
     if (   RT_SUCCESS(rc)
         && fFilesystemAware)
@@ -1351,10 +1341,10 @@ static int handleCompact(HandlerArg *a)
                     RTPrintf("No known volume format on disk found\n");
                 }
                 else
-                    errorRuntime("Error while opening the volume manager: %Rrc\n", rc);
+                    errorRuntime("Error while opening the volume manager: %Rrf (%Rrc)\n", rc, rc);
             }
             else
-                errorRuntime("Error creating the volume manager: %Rrc\n", rc);
+                errorRuntime("Error creating the volume manager: %Rrf (%Rrc)\n", rc, rc);
         }
         else
         {
@@ -1367,7 +1357,7 @@ static int handleCompact(HandlerArg *a)
     {
         rc = VDCompact(pDisk, 0, pIfsCompact);
         if (RT_FAILURE(rc))
-            errorRuntime("Error while compacting image: %Rrc\n", rc);
+            errorRuntime("Error while compacting image: %Rrf (%Rrc)\n", rc, rc);
     }
 
     while (pVBoxImgVfsHead)
@@ -1434,12 +1424,12 @@ static int handleCreateCache(HandlerArg *a)
     /* just try it */
     rc = VDCreate(pVDIfs, VDTYPE_HDD, &pDisk);
     if (RT_FAILURE(rc))
-        return errorRuntime("Error while creating the virtual disk container: %Rrc\n", rc);
+        return errorRuntime("Error while creating the virtual disk container: %Rrf (%Rrc)\n", rc, rc);
 
     rc = VDCreateCache(pDisk, "VCI", pszFilename, cbSize, VD_IMAGE_FLAGS_DEFAULT,
                        NULL, NULL, VD_OPEN_FLAGS_NORMAL, NULL, NULL);
     if (RT_FAILURE(rc))
-        return errorRuntime("Error while creating the virtual disk cache: %Rrc\n", rc);
+        return errorRuntime("Error while creating the virtual disk cache: %Rrf (%Rrc)\n", rc, rc);
 
     VDDestroy(pDisk);
 
@@ -1571,13 +1561,13 @@ static int handleCreateBase(HandlerArg *a)
     /* just try it */
     rc = VDCreate(pVDIfs, VDTYPE_HDD, &pDisk);
     if (RT_FAILURE(rc))
-        return errorRuntime("Error while creating the virtual disk container: %Rrc\n", rc);
+        return errorRuntime("Error while creating the virtual disk container: %Rrf (%Rrc)\n", rc, rc);
 
     rc = VDCreateBase(pDisk, pszBackend, pszFilename, cbSize, uImageFlags,
                       NULL, &PCHSGeometry, &LCHSGeometry, NULL, VD_OPEN_FLAGS_NORMAL,
                       NULL, pVDIfsOperation);
     if (RT_FAILURE(rc))
-        return errorRuntime("Error while creating the virtual disk: %Rrc\n", rc);
+        return errorRuntime("Error while creating the virtual disk: %Rrf (%Rrc)\n", rc, rc);
 
     VDDestroy(pDisk);
 
@@ -1644,7 +1634,7 @@ static int handleRepair(HandlerArg *a)
 
     rc = VDRepair(pVDIfs, NULL, pszFilename, pszFormat, fDryRun ? VD_REPAIR_DRY_RUN : 0);
     if (RT_FAILURE(rc))
-        rc = errorRuntime("Error while repairing the virtual disk: %Rrc\n", rc);
+        rc = errorRuntime("Error while repairing the virtual disk: %Rrf (%Rrc)\n", rc, rc);
 
     if (pszBackend)
         RTStrFree(pszBackend);
@@ -1696,12 +1686,12 @@ static int handleClearComment(HandlerArg *a)
 
     rc = VDCreate(pVDIfs, enmType, &pDisk);
     if (RT_FAILURE(rc))
-        return errorRuntime("Error while creating the virtual disk container: %Rrc\n", rc);
+        return errorRuntime("Error while creating the virtual disk container: %Rrf (%Rrc)\n", rc, rc);
 
     /* Open the image */
     rc = VDOpen(pDisk, pszFormat, pszFilename, VD_OPEN_FLAGS_INFO, NULL);
     if (RT_FAILURE(rc))
-        return errorRuntime("Error while opening the image: %Rrc\n", rc);
+        return errorRuntime("Error while opening the image: %Rrf (%Rrc)\n", rc, rc);
 
     VDSetComment(pDisk, 0, NULL);
 
@@ -1767,16 +1757,16 @@ static int handleClearResize(HandlerArg *a)
 
     rc = VDCreate(pVDIfs, enmType, &pDisk);
     if (RT_FAILURE(rc))
-        return errorRuntime("Error while creating the virtual disk container: %Rrc\n", rc);
+        return errorRuntime("Error while creating the virtual disk container: %Rrf (%Rrc)\n", rc, rc);
 
     /* Open the image */
     rc = VDOpen(pDisk, pszFormat, pszFilename, VD_OPEN_FLAGS_NORMAL, NULL);
     if (RT_FAILURE(rc))
-        return errorRuntime("Error while opening the image: %Rrc\n", rc);
+        return errorRuntime("Error while opening the image: %Rrf (%Rrc)\n", rc, rc);
 
     rc = VDResize(pDisk, cbNew, &PCHSGeometry, &LCHSGeometry, NULL);
     if (RT_FAILURE(rc))
-        rc = errorRuntime("Error while resizing the virtual disk: %Rrc\n", rc);
+        rc = errorRuntime("Error while resizing the virtual disk: %Rrf (%Rrc)\n", rc, rc);
 
     VDDestroy(pDisk);
     return rc;

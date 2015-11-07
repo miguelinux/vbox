@@ -16,9 +16,9 @@
  */
 
 
-/*******************************************************************************
-*   Header Files                                                               *
-*******************************************************************************/
+/*********************************************************************************************************************************
+*   Header Files                                                                                                                 *
+*********************************************************************************************************************************/
 #include <iprt/asm.h>
 #include <iprt/assert.h>
 #include <iprt/env.h>
@@ -42,9 +42,10 @@
 
 using namespace guestControl;
 
-/*******************************************************************************
-*   Internal Functions                                                         *
-*******************************************************************************/
+
+/*********************************************************************************************************************************
+*   Internal Functions                                                                                                           *
+*********************************************************************************************************************************/
 static int                  gstcntlProcessAssignPID(PVBOXSERVICECTRLPROCESS pThread, uint32_t uPID);
 static int                  gstcntlProcessLock(PVBOXSERVICECTRLPROCESS pProcess);
 static int                  gstcntlProcessRequest(PVBOXSERVICECTRLPROCESS pProcess, const PVBGLR3GUESTCTRLCMDCTX pHostCtx, PFNRT pfnFunction, unsigned cArgs, ...);
@@ -1370,8 +1371,9 @@ static int gstcntlProcessCreateProcess(const char *pszExec, const char * const *
             {
                 if (fFlags & EXECUTEPROCESSFLAG_HIDDEN)
                     uProcFlags |= RTPROC_FLAGS_HIDDEN;
-                if (fFlags & EXECUTEPROCESSFLAG_NO_PROFILE)
-                    uProcFlags |= RTPROC_FLAGS_NO_PROFILE;
+                /** @todo Rename to EXECUTEPROCESSFLAG_PROFILE in next API change. */
+                if (!(fFlags & EXECUTEPROCESSFLAG_NO_PROFILE))
+                    uProcFlags |= RTPROC_FLAGS_PROFILE;
                 if (fFlags & EXECUTEPROCESSFLAG_UNQUOTED_ARGS)
                     uProcFlags |= RTPROC_FLAGS_UNQUOTED_ARGS;
             }
@@ -1495,7 +1497,7 @@ static int gstcntlProcessProcessWorker(PVBOXSERVICECTRLPROCESS pProcess)
                                 (pProcess->StartupInfo.uNumArgs > 0) ? pProcess->StartupInfo.szArgs : "",
                                 RTGETOPTARGV_CNV_QUOTE_BOURNE_SH, NULL);
     /* Did we get the same result? */
-    Assert(pProcess->StartupInfo.uNumArgs == uNumArgs);
+    Assert(pProcess->StartupInfo.uNumArgs == uNumArgs + 1 /* Take argv[0] into account */);
 
     /*
      * Prepare environment variables list.
@@ -1613,7 +1615,7 @@ static int gstcntlProcessProcessWorker(PVBOXSERVICECTRLPROCESS pProcess)
                             if (RT_SUCCESS(rc))
                             {
                                 AssertPtr(pProcess->pSession);
-                                bool fNeedsImpersonation = !(pProcess->pSession->uFlags & VBOXSERVICECTRLSESSION_FLAG_FORK);
+                                bool fNeedsImpersonation = !(pProcess->pSession->fFlags & VBOXSERVICECTRLSESSION_FLAG_SPAWN);
 
                                 rc = gstcntlProcessCreateProcess(pProcess->StartupInfo.szCmd, papszArgs, hEnv,
                                                                  pProcess->StartupInfo.uFlags,
@@ -1970,7 +1972,7 @@ static DECLCALLBACK(int) gstcntlProcessOnOutput(PVBOXSERVICECTRLPROCESS pThis,
 #ifdef DEBUG
         if (RT_SUCCESS(rc))
         {
-            if (   pSession->uFlags & VBOXSERVICECTRLSESSION_FLAG_DUMPSTDOUT
+            if (   pSession->fFlags & VBOXSERVICECTRLSESSION_FLAG_DUMPSTDOUT
                 && (   uHandle == OUTPUT_HANDLE_ID_STDOUT
                     || uHandle == OUTPUT_HANDLE_ID_STDOUT_DEPRECATED)
                )
@@ -1982,7 +1984,7 @@ static DECLCALLBACK(int) gstcntlProcessOnOutput(PVBOXSERVICECTRLPROCESS pThis,
                     rc = gstcntlProcessDumpToFile(szDumpFile, pvBuf, cbRead);
                 AssertRC(rc);
             }
-            else if (   pSession->uFlags & VBOXSERVICECTRLSESSION_FLAG_DUMPSTDERR
+            else if (   pSession->fFlags & VBOXSERVICECTRLSESSION_FLAG_DUMPSTDERR
                      && uHandle == OUTPUT_HANDLE_ID_STDERR)
             {
                 char szDumpFile[RTPATH_MAX];

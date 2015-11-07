@@ -21,7 +21,6 @@
 
 /* Qt includes: */
 # include <QApplication>
-# include <QDesktopWidget>
 # include <QMainWindow>
 # include <QMenuBar>
 # include <QScrollBar>
@@ -144,15 +143,11 @@ void UIMachineViewNormal::resendSizeHint()
     /* Expand current limitations: */
     setMaxGuestSize(sizeHint);
 
-    if (uisession()->isGuestSupportsGraphics())
-    {
-        /* Temporarily restrict the size to prevent a brief resize to the
-         * framebuffer dimensions (see @a UIMachineView::sizeHint()) before
-         * the following resize() is acted upon.  Expand current limitations
-         * too. */
-        setMaximumSize(sizeHint);
-        m_sizeHintOverride = sizeHint;
-    }
+    /* Temporarily restrict the size to prevent a brief resize to the
+     * frame-buffer dimensions when we exit full-screen.  This is only
+     * applied if the frame-buffer is at full-screen dimensions and
+     * until the first machine view resize. */
+    m_sizeHintOverride = QSize(800, 600).expandedTo(sizeHint);
 
     /* Send saved size-hint to the guest: */
     /// @todo What if not m_bIsGuestAutoresizeEnabled?
@@ -164,21 +159,66 @@ void UIMachineViewNormal::resendSizeHint()
 
 void UIMachineViewNormal::adjustGuestScreenSize()
 {
-    /* Acquire central-widget size: */
-    const QSize centralWidgetSize = machineWindow()->centralWidget()->size();
-    /* Acquire frame-buffer size: */
-    QSize frameBufferSize(frameBuffer()->width(), frameBuffer()->height());
-    /* Take the scale-factor(s) into account: */
-    frameBufferSize = scaledForward(frameBufferSize);
-    /* Check if we should adjust guest-screen to new size: */
-    if (frameBufferSize != centralWidgetSize)
-        if (m_bIsGuestAutoresizeEnabled && uisession()->isGuestSupportsGraphics())
-            sltPerformGuestResize(centralWidgetSize);
+    /* Should we adjust guest-screen size? Logging paranoia is required here to reveal the truth. */
+    LogRel(("GUI: UIMachineViewNormal::adjustGuestScreenSize: Adjust guest-screen size if necessary.\n"));
+    bool fAdjust = false;
+
+    /* Step 1: Is the guest-screen of another size than necessary? */
+    if (!fAdjust)
+    {
+        /* Acquire frame-buffer size: */
+        QSize frameBufferSize(frameBuffer()->width(), frameBuffer()->height());
+        /* Take the scale-factor(s) into account: */
+        frameBufferSize = scaledForward(frameBufferSize);
+
+        /* Acquire central-widget size: */
+        const QSize centralWidgetSize = machineWindow()->centralWidget()->size();
+
+        if (frameBufferSize != centralWidgetSize)
+        {
+            LogRel2(("GUI: UIMachineViewNormal::adjustGuestScreenSize: Guest-screen is of another size than necessary, adjustment is required.\n"));
+            fAdjust = true;
+        }
+    }
+
+    /* Step 2: Is guest-additions supports graphics? */
+    if (fAdjust)
+    {
+        if (!uisession()->isGuestSupportsGraphics())
+        {
+            LogRel2(("GUI: UIMachineViewNormal::adjustGuestScreenSize: Guest-additions are not supporting graphics, adjustment is omitted.\n"));
+            fAdjust = false;
+        }
+    }
+    /* Step 3: Is guest-screen visible? */
+    if (fAdjust)
+    {
+        if (!uisession()->isScreenVisible(screenId()))
+        {
+            LogRel2(("GUI: UIMachineViewNormal::adjustGuestScreenSize: Guest-screen is not visible, adjustment is omitted.\n"));
+            fAdjust = false;
+        }
+    }
+    /* Step 4: Is guest-screen auto-resize enabled? */
+    if (fAdjust)
+    {
+        if (!m_bIsGuestAutoresizeEnabled)
+        {
+            LogRel2(("GUI: UIMachineViewNormal::adjustGuestScreenSize: Guest-screen auto-resize is disabled, adjustment is omitted.\n"));
+            fAdjust = false;
+        }
+    }
+
+    /* Final step: Adjust if requested/allowed. */
+    if (fAdjust)
+    {
+        sltPerformGuestResize(machineWindow()->centralWidget()->size());
+    }
 }
 
 QRect UIMachineViewNormal::workingArea() const
 {
-    return QApplication::desktop()->availableGeometry(this);
+    return vboxGlobal().availableGeometry(this);
 }
 
 QSize UIMachineViewNormal::calculateMaxGuestSize() const

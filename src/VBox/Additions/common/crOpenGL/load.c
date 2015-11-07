@@ -499,7 +499,7 @@ static void stubSignalHandler(int signo)
 
 #ifndef RT_OS_WINDOWS
 # ifdef CHROMIUM_THREADSAFE
-static DECLCALLBACK(void) stubThreadTlsDtor(void *pvValue)
+static void stubThreadTlsDtor(void *pvValue)
 {
     ContextInfo *pCtx = (ContextInfo*)pvValue;
     VBoxTlsRefRelease(pCtx);
@@ -583,6 +583,8 @@ static void stubInitVars(void)
 #endif
 }
 
+
+#if 0 /* unused */
 
 /**
  * Return a free port number for the mothership to use, or -1 if we
@@ -711,6 +713,8 @@ MothershipPhoneHome(int signo)
     crDebug("Got signal %d: mothership is awake!", signo);
     Mothership_Awake = 1;
 }
+
+#endif /* 0 */
 
 void stubSetDefaultConfigurationOptions(void)
 {

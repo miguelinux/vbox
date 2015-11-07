@@ -16,9 +16,9 @@
  */
 
 
-/*******************************************************************************
-*   Header files                                                               *
-*******************************************************************************/
+/*********************************************************************************************************************************
+*   Header files                                                                                                                 *
+*********************************************************************************************************************************/
 #define LOG_GROUP LOG_GROUP_DRV_VD
 #include <VBox/vd.h>
 #include <VBox/vmm/pdmdrv.h>
@@ -51,6 +51,8 @@ RT_C_DECLS_BEGIN
 RT_C_DECLS_END
 #endif /* VBOX_WITH_INIP */
 
+#include "HBDMgmt.h"
+
 #include "VBoxDD.h"
 
 #ifdef VBOX_WITH_INIP
@@ -59,9 +61,9 @@ extern bool DevINIPConfigured(void);
 #endif /* VBOX_WITH_INIP */
 
 
-/*******************************************************************************
-*   Defined types, constants and macros                                        *
-*******************************************************************************/
+/*********************************************************************************************************************************
+*   Defined types, constants and macros                                                                                          *
+*********************************************************************************************************************************/
 
 /** Converts a pointer to VBOXDISK::IMedia to a PVBOXDISK. */
 #define PDMIMEDIA_2_VBOXDISK(pInterface) \
@@ -186,6 +188,8 @@ typedef struct VBOXDISK
 
     /** The block cache handle if configured. */
     PPDMBLKCACHE             pBlkCache;
+    /** Host block device manager. */
+    HBDMGR                   hHbdMgr;
 
     /** Cryptographic support
      * @{ */
@@ -204,9 +208,9 @@ typedef struct VBOXDISK
 } VBOXDISK, *PVBOXDISK;
 
 
-/*******************************************************************************
-*   Internal Functions                                                         *
-*******************************************************************************/
+/*********************************************************************************************************************************
+*   Internal Functions                                                                                                           *
+*********************************************************************************************************************************/
 
 /**
  * Internal: allocate new image descriptor and put it in the list
@@ -290,11 +294,11 @@ static int drvvdSetWritable(PVBOXDISK pThis)
 }
 
 
-/*******************************************************************************
-*   Error reporting callback                                                   *
-*******************************************************************************/
+/*********************************************************************************************************************************
+*   Error reporting callback                                                                                                     *
+*********************************************************************************************************************************/
 
-static void drvvdErrorCallback(void *pvUser, int rc, RT_SRC_POS_DECL,
+static DECLCALLBACK(void) drvvdErrorCallback(void *pvUser, int rc, RT_SRC_POS_DECL,
                                const char *pszFormat, va_list va)
 {
     PPDMDRVINS pDrvIns = (PPDMDRVINS)pvUser;
@@ -310,9 +314,10 @@ static void drvvdErrorCallback(void *pvUser, int rc, RT_SRC_POS_DECL,
         PDMDrvHlpVMSetErrorV(pDrvIns, rc, RT_SRC_POS_ARGS, pszFormat, va);
 }
 
-/*******************************************************************************
-*   VD Async I/O interface implementation                                      *
-*******************************************************************************/
+
+/*********************************************************************************************************************************
+*   VD Async I/O interface implementation                                                                                        *
+*********************************************************************************************************************************/
 
 #ifdef VBOX_WITH_PDM_ASYNC_COMPLETION
 
@@ -349,9 +354,29 @@ static DECLCALLBACK(int) drvvdAsyncIOOpen(void *pvUser, const char *pszLocation,
                                           void **ppStorage)
 {
     PVBOXDISK pThis = (PVBOXDISK)pvUser;
-    PDRVVDSTORAGEBACKEND pStorageBackend = (PDRVVDSTORAGEBACKEND)RTMemAllocZ(sizeof(DRVVDSTORAGEBACKEND));
+    PDRVVDSTORAGEBACKEND pStorageBackend = NULL;
     int rc = VINF_SUCCESS;
 
+    /*
+     * Check whether the backend wants to open a block device and try to prepare it
+     * if we didn't claim it yet.
+     *
+     * We only create a block device manager on demand to not waste any resources.
+     */
+    if (HBDMgrIsBlockDevice(pszLocation))
+    {
+        if (pThis->hHbdMgr == NIL_HBDMGR)
+            rc = HBDMgrCreate(&pThis->hHbdMgr);
+
+        if (   RT_SUCCESS(rc)
+            && !HBDMgrIsBlockDeviceClaimed(pThis->hHbdMgr, pszLocation))
+            rc = HBDMgrClaimBlockDevice(pThis->hHbdMgr, pszLocation);
+
+        if (RT_FAILURE(rc))
+            return rc;
+    }
+
+    pStorageBackend = (PDRVVDSTORAGEBACKEND)RTMemAllocZ(sizeof(DRVVDSTORAGEBACKEND));
     if (pStorageBackend)
     {
         pStorageBackend->fSyncIoPending = false;
@@ -414,11 +439,17 @@ static DECLCALLBACK(int) drvvdAsyncIOClose(void *pvUser, void *pStorage)
     PVBOXDISK pThis = (PVBOXDISK)pvUser;
     PDRVVDSTORAGEBACKEND pStorageBackend = (PDRVVDSTORAGEBACKEND)pStorage;
 
+    /*
+     * We don't unclaim any block devices on purpose here because they
+     * might get reopened shortly (switching to readonly during suspend)
+     *
+     * Block devices will get unclaimed during destruction of the driver.
+     */
+
     PDMR3AsyncCompletionEpClose(pStorageBackend->pEndpoint);
     PDMR3AsyncCompletionTemplateDestroy(pStorageBackend->pTemplate);
     RTSemEventDestroy(pStorageBackend->EventSem);
     RTMemFree(pStorageBackend);
-
     return VINF_SUCCESS;;
 }
 
@@ -579,9 +610,9 @@ static DECLCALLBACK(int) drvvdAsyncIOSetSize(void *pvUser, void *pStorage, uint6
 #endif /* VBOX_WITH_PDM_ASYNC_COMPLETION */
 
 
-/*******************************************************************************
-*   VD Thread Synchronization interface implementation                         *
-*******************************************************************************/
+/*********************************************************************************************************************************
+*   VD Thread Synchronization interface implementation                                                                           *
+*********************************************************************************************************************************/
 
 static DECLCALLBACK(int) drvvdThreadStartRead(void *pvUser)
 {
@@ -612,26 +643,26 @@ static DECLCALLBACK(int) drvvdThreadFinishWrite(void *pvUser)
 }
 
 
-/*******************************************************************************
-*   VD Configuration interface implementation                                  *
-*******************************************************************************/
+/*********************************************************************************************************************************
+*   VD Configuration interface implementation                                                                                    *
+*********************************************************************************************************************************/
 
-static bool drvvdCfgAreKeysValid(void *pvUser, const char *pszzValid)
+static DECLCALLBACK(bool) drvvdCfgAreKeysValid(void *pvUser, const char *pszzValid)
 {
     return CFGMR3AreValuesValid((PCFGMNODE)pvUser, pszzValid);
 }
 
-static int drvvdCfgQuerySize(void *pvUser, const char *pszName, size_t *pcb)
+static DECLCALLBACK(int) drvvdCfgQuerySize(void *pvUser, const char *pszName, size_t *pcb)
 {
     return CFGMR3QuerySize((PCFGMNODE)pvUser, pszName, pcb);
 }
 
-static int drvvdCfgQuery(void *pvUser, const char *pszName, char *pszString, size_t cchString)
+static DECLCALLBACK(int) drvvdCfgQuery(void *pvUser, const char *pszName, char *pszString, size_t cchString)
 {
     return CFGMR3QueryString((PCFGMNODE)pvUser, pszName, pszString, cchString);
 }
 
-static int drvvdCfgQueryBytes(void *pvUser, const char *pszName, void *ppvData, size_t cbData)
+static DECLCALLBACK(int) drvvdCfgQueryBytes(void *pvUser, const char *pszName, void *ppvData, size_t cbData)
 {
     return CFGMR3QueryBytes((PCFGMNODE)pvUser, pszName, ppvData, cbData);
 }
@@ -698,9 +729,11 @@ static DECLCALLBACK(int) drvvdCryptoKeyStorePasswordRelease(void *pvUser, const 
 }
 
 #ifdef VBOX_WITH_INIP
-/*******************************************************************************
-*   VD TCP network stack interface implementation - INIP case                  *
-*******************************************************************************/
+
+
+/*********************************************************************************************************************************
+*   VD TCP network stack interface implementation - INIP case                                                                    *
+*********************************************************************************************************************************/
 
 /**
  * vvl: this structure duplicate meaning of sockaddr,
@@ -1079,9 +1112,9 @@ static DECLCALLBACK(int) drvvdINIPPoke(VDSOCKET Sock)
 #endif /* VBOX_WITH_INIP */
 
 
-/*******************************************************************************
-*   VD TCP network stack interface implementation - Host TCP case              *
-*******************************************************************************/
+/*********************************************************************************************************************************
+*   VD TCP network stack interface implementation - Host TCP case                                                                *
+*********************************************************************************************************************************/
 
 /**
  * Socket data.
@@ -1340,8 +1373,8 @@ static DECLCALLBACK(int) drvvdTcpGetPeerAddress(VDSOCKET Sock, PRTNETADDR pAddr)
     return RTTcpGetPeerAddress(pSockInt->hSocket, pAddr);
 }
 
-static int drvvdTcpSelectOneExPoll(VDSOCKET Sock, uint32_t fEvents,
-                                   uint32_t *pfEvents, RTMSINTERVAL cMillies)
+static DECLCALLBACK(int) drvvdTcpSelectOneExPoll(VDSOCKET Sock, uint32_t fEvents,
+                                                 uint32_t *pfEvents, RTMSINTERVAL cMillies)
 {
     int rc = VINF_SUCCESS;
     uint32_t id = 0;
@@ -1595,9 +1628,10 @@ static int drvvdKeyCheckPrereqs(PVBOXDISK pThis)
     return VINF_SUCCESS;
 }
 
-/*******************************************************************************
-*   Media interface methods                                                    *
-*******************************************************************************/
+
+/*********************************************************************************************************************************
+*   Media interface methods                                                                                                      *
+*********************************************************************************************************************************/
 
 /** @copydoc PDMIMEDIA::pfnRead */
 static DECLCALLBACK(int) drvvdRead(PPDMIMEDIA pInterface,
@@ -2009,9 +2043,9 @@ static DECLCALLBACK(int) drvvdIoBufFree(PPDMIMEDIA pInterface, void *pv, size_t 
 }
 
 
-/*******************************************************************************
-*   Async Media interface methods                                              *
-*******************************************************************************/
+/*********************************************************************************************************************************
+*   Async Media interface methods                                                                                                *
+*********************************************************************************************************************************/
 
 static void drvvdAsyncReqComplete(void *pvUser1, void *pvUser2, int rcReq)
 {
@@ -2139,7 +2173,7 @@ static DECLCALLBACK(int) drvvdStartDiscard(PPDMIMEDIAASYNC pInterface, PCRTRANGE
 }
 
 /** @copydoc FNPDMBLKCACHEXFERCOMPLETEDRV */
-static void drvvdBlkCacheXferComplete(PPDMDRVINS pDrvIns, void *pvUser, int rcReq)
+static DECLCALLBACK(void) drvvdBlkCacheXferComplete(PPDMDRVINS pDrvIns, void *pvUser, int rcReq)
 {
     PVBOXDISK pThis = PDMINS_2_DATA(pDrvIns, PVBOXDISK);
 
@@ -2149,10 +2183,10 @@ static void drvvdBlkCacheXferComplete(PPDMDRVINS pDrvIns, void *pvUser, int rcRe
 }
 
 /** @copydoc FNPDMBLKCACHEXFERENQUEUEDRV */
-static int drvvdBlkCacheXferEnqueue(PPDMDRVINS pDrvIns,
-                                    PDMBLKCACHEXFERDIR enmXferDir,
-                                    uint64_t off, size_t cbXfer,
-                                    PCRTSGBUF pcSgBuf, PPDMBLKCACHEIOXFER hIoXfer)
+static DECLCALLBACK(int) drvvdBlkCacheXferEnqueue(PPDMDRVINS pDrvIns,
+                                                  PDMBLKCACHEXFERDIR enmXferDir,
+                                                  uint64_t off, size_t cbXfer,
+                                                  PCRTSGBUF pcSgBuf, PPDMBLKCACHEIOXFER hIoXfer)
 {
     int rc = VINF_SUCCESS;
     PVBOXDISK pThis = PDMINS_2_DATA(pDrvIns, PVBOXDISK);
@@ -2186,8 +2220,8 @@ static int drvvdBlkCacheXferEnqueue(PPDMDRVINS pDrvIns,
 }
 
 /** @copydoc FNPDMBLKCACHEXFERENQUEUEDISCARDDRV */
-static int drvvdBlkCacheXferEnqueueDiscard(PPDMDRVINS pDrvIns, PCRTRANGE paRanges,
-                                           unsigned cRanges, PPDMBLKCACHEIOXFER hIoXfer)
+static DECLCALLBACK(int) drvvdBlkCacheXferEnqueueDiscard(PPDMDRVINS pDrvIns, PCRTRANGE paRanges,
+                                                         unsigned cRanges, PPDMBLKCACHEIOXFER hIoXfer)
 {
     int rc = VINF_SUCCESS;
     PVBOXDISK pThis = PDMINS_2_DATA(pDrvIns, PVBOXDISK);
@@ -2273,9 +2307,10 @@ static int drvvdSetupFilters(PVBOXDISK pThis, PCFGMNODE pCfg)
     return rc;
 }
 
-/*******************************************************************************
-*   Base interface methods                                                     *
-*******************************************************************************/
+
+/*********************************************************************************************************************************
+*   Base interface methods                                                                                                       *
+*********************************************************************************************************************************/
 
 /**
  * @interface_method_impl{PDMIBASE,pfnQueryInterface}
@@ -2292,9 +2327,9 @@ static DECLCALLBACK(void *) drvvdQueryInterface(PPDMIBASE pInterface, const char
 }
 
 
-/*******************************************************************************
-*   Saved state notification methods                                           *
-*******************************************************************************/
+/*********************************************************************************************************************************
+*   Saved state notification methods                                                                                             *
+*********************************************************************************************************************************/
 
 /**
  * Load done callback for re-opening the image writable during teleportation.
@@ -2324,9 +2359,9 @@ static DECLCALLBACK(int) drvvdLoadDone(PPDMDRVINS pDrvIns, PSSMHANDLE pSSM)
 }
 
 
-/*******************************************************************************
-*   Driver methods                                                             *
-*******************************************************************************/
+/*********************************************************************************************************************************
+*   Driver methods                                                                                                               *
+*********************************************************************************************************************************/
 
 /**
  * Worker for the power off or destruct callback.
@@ -2503,6 +2538,8 @@ static DECLCALLBACK(void) drvvdDestruct(PPDMDRVINS pDrvIns)
         MMR3HeapFree(pThis->pszBwGroup);
         pThis->pszBwGroup = NULL;
     }
+    if (pThis->hHbdMgr != NIL_HBDMGR)
+        HBDMgrDestroy(pThis->hHbdMgr);
 }
 
 /**

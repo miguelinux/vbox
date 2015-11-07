@@ -16,9 +16,9 @@
  */
 
 
-/*******************************************************************************
-*   Header Files                                                               *
-*******************************************************************************/
+/*********************************************************************************************************************************
+*   Header Files                                                                                                                 *
+*********************************************************************************************************************************/
 #define LOG_GROUP LOG_GROUP_DRV_BLOCK
 #include <VBox/vmm/pdmdrv.h>
 #include <iprt/assert.h>
@@ -51,9 +51,9 @@
 #define VBOX_IGNORE_FLUSH
 
 
-/*******************************************************************************
-*   Structures and Typedefs                                                    *
-*******************************************************************************/
+/*********************************************************************************************************************************
+*   Structures and Typedefs                                                                                                      *
+*********************************************************************************************************************************/
 /**
  * Block driver instance data.
  *
@@ -1029,8 +1029,7 @@ static DECLCALLBACK(int) drvblockConstruct(PPDMDRVINS pDrvIns, PCFGMNODE pCfg, u
         rc = RTUuidFromStr(&pThis->Uuid, psz);
         if (RT_FAILURE(rc))
         {
-            PDMDrvHlpVMSetError(pDrvIns, rc, RT_SRC_POS, "%s",
-                                N_("Uuid from string failed on \"%s\""), psz);
+            PDMDrvHlpVMSetError(pDrvIns, rc, RT_SRC_POS, N_("Uuid from string failed on \"%s\""), psz);
             MMR3HeapFree(psz);
             return rc;
         }

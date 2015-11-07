@@ -40,9 +40,9 @@
  */
 
 
-/*******************************************************************************
-*   Header Files                                                               *
-*******************************************************************************/
+/*********************************************************************************************************************************
+*   Header Files                                                                                                                 *
+*********************************************************************************************************************************/
 #define LOG_GROUP RTLOGGROUP_DBG
 #include <iprt/dbg.h>
 #include "internal/iprt.h"
@@ -63,9 +63,9 @@
 #include "internal/magics.h"
 
 
-/*******************************************************************************
-*   Structures and Typedefs                                                    *
-*******************************************************************************/
+/*********************************************************************************************************************************
+*   Structures and Typedefs                                                                                                      *
+*********************************************************************************************************************************/
 /**
  * CodeView Header.  There are two of this, base header at the start of the debug
  * information and a trailing header at the end.
@@ -576,9 +576,9 @@ typedef FNDBGMODCVSUBSECTCALLBACK *PFNDBGMODCVSUBSECTCALLBACK;
 
 
 
-/*******************************************************************************
-*   Defined Constants And Macros                                               *
-*******************************************************************************/
+/*********************************************************************************************************************************
+*   Defined Constants And Macros                                                                                                 *
+*********************************************************************************************************************************/
 /** Light weight assert + return w/ fixed status code. */
 #define RTDBGMODCV_CHECK_RET_BF(a_Expr, a_LogArgs) \
     do { \
@@ -1458,7 +1458,7 @@ static int rtDbgModCvLoadDirectory(PRTDBGMODCV pThis)
                 && pThis->u32CvMagic != RTCVHDR_MAGIC_NB02
                 && pThis->u32CvMagic != RTCVHDR_MAGIC_NB00)
             {
-                Log(("CV directory entry #%u uses module index 0 (uSubSectType=%#x)\n", i, pDirEnt->iMod, pDirEnt->uSubSectType));
+                Log(("CV directory entry #%u uses module index 0 (uSubSectType=%#x)\n", i, pDirEnt->uSubSectType));
                 rc = VERR_CV_BAD_FORMAT;
             }
             if (pDirEnt->iMod == 0 || pDirEnt->iMod == 0xffff)
@@ -1476,7 +1476,7 @@ static int rtDbgModCvLoadDirectory(PRTDBGMODCV pThis)
                     }
                     if (pDirEnt->iMod != iModLast + 1)
                     {
-                        Log(("CV directory entry #%u: skips from mod %#x to %#x modules\n", iModLast, pDirEnt->iMod));
+                        Log(("CV directory entry #%u: skips from mod %#x to %#x modules\n", i, iModLast, pDirEnt->iMod));
                         rc = VERR_CV_BAD_FORMAT;
                     }
                     iModLast = pDirEnt->iMod;

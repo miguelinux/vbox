@@ -17,9 +17,10 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-/*******************************************************************************
-*   Header Files                                                               *
-*******************************************************************************/
+
+/*********************************************************************************************************************************
+*   Header Files                                                                                                                 *
+*********************************************************************************************************************************/
 #include <Windows.h>
 #ifndef ERROR_ELEVATION_REQUIRED    /* Windows Vista and later. */
 # define ERROR_ELEVATION_REQUIRED  740
@@ -200,7 +201,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
         PWCHAR pwsz = pwszNewCmdLine = (PWCHAR)LocalAlloc(LPTR, cchNewCmdLine * sizeof(WCHAR));
         if (!pwsz)
         {
-            fwprintf(stderr, L"ERROR: Out of memory (%u bytes)\n", cchNewCmdLine);
+            fwprintf(stderr, L"ERROR: Out of memory (%u bytes)\n", (unsigned)cchNewCmdLine);
             return 15;
         }
         *pwsz++ = L'"';

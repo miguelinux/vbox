@@ -18,9 +18,10 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-/*******************************************************************************
-*   Header Files                                                               *
-*******************************************************************************/
+
+/*********************************************************************************************************************************
+*   Header Files                                                                                                                 *
+*********************************************************************************************************************************/
 #define LOG_GROUP LOG_GROUP_DEV_PARALLEL
 #include <VBox/vmm/pdmdev.h>
 #include <iprt/assert.h>
@@ -31,9 +32,9 @@
 #include "VBoxDD.h"
 
 
-/*******************************************************************************
-*   Defined Constants And Macros                                               *
-*******************************************************************************/
+/*********************************************************************************************************************************
+*   Defined Constants And Macros                                                                                                 *
+*********************************************************************************************************************************/
 #define PARALLEL_SAVED_STATE_VERSION 1
 
 /* defines for accessing the register bits */
@@ -84,9 +85,9 @@
 #define LPT_ECP_FIFO_DEPTH 2
 
 
-/*******************************************************************************
-*   Structures and Typedefs                                                    *
-*******************************************************************************/
+/*********************************************************************************************************************************
+*   Structures and Typedefs                                                                                                      *
+*********************************************************************************************************************************/
 /**
  * Parallel device state.
  *
@@ -154,9 +155,9 @@ typedef struct PARALLELPORT
 #define PDMIBASE_2_PARALLELPORT(pInstance)             ( (PARALLELPORT *)((uintptr_t)(pInterface) - RT_OFFSETOF(PARALLELPORT, IBase)) )
 
 
-/*******************************************************************************
-*   Internal Functions                                                         *
-*******************************************************************************/
+/*********************************************************************************************************************************
+*   Internal Functions                                                                                                           *
+*********************************************************************************************************************************/
 RT_C_DECLS_BEGIN
 PDMBOTHCBDECL(int) parallelIOPortRead(PPDMDEVINS pDevIns, void *pvUser, RTIOPORT Port, uint32_t *pu32, unsigned cb);
 PDMBOTHCBDECL(int) parallelIOPortWrite(PPDMDEVINS pDevIns, void *pvUser, RTIOPORT Port, uint32_t u32, unsigned cb);
@@ -355,16 +356,23 @@ PDMBOTHCBDECL(int) parallelIOPortWrite(PPDMDEVINS pDevIns, void *pvUser, RTIOPOR
 #ifndef IN_RING3
                     return VINF_IOM_R3_IOPORT_WRITE;
 #else
-                    /* Set data direction. */
-                    if (u8 & LPT_CONTROL_ENABLE_BIDIRECT)
-                        rc = pThis->pDrvHostParallelConnector->pfnSetPortDirection(pThis->pDrvHostParallelConnector, false /* fForward */);
-                    else
-                        rc = pThis->pDrvHostParallelConnector->pfnSetPortDirection(pThis->pDrvHostParallelConnector, true /* fForward */);
-                    AssertRC(rc);
-                    u8 &= ~LPT_CONTROL_ENABLE_BIDIRECT; /* Clear bit. */
+                    if (RT_LIKELY(pThis->pDrvHostParallelConnector))
+                    {
+                        /* Set data direction. */
+                        if (u8 & LPT_CONTROL_ENABLE_BIDIRECT)
+                            rc = pThis->pDrvHostParallelConnector->pfnSetPortDirection(pThis->pDrvHostParallelConnector, false /* fForward */);
+                        else
+                            rc = pThis->pDrvHostParallelConnector->pfnSetPortDirection(pThis->pDrvHostParallelConnector, true /* fForward */);
+                        AssertRC(rc);
 
-                    rc = pThis->pDrvHostParallelConnector->pfnWriteControl(pThis->pDrvHostParallelConnector, u8);
-                    AssertRC(rc);
+                        u8 &= ~LPT_CONTROL_ENABLE_BIDIRECT; /* Clear bit. */
+
+                        rc = pThis->pDrvHostParallelConnector->pfnWriteControl(pThis->pDrvHostParallelConnector, u8);
+                        AssertRC(rc);
+                    }
+                    else
+                        u8 &= ~LPT_CONTROL_ENABLE_BIDIRECT; /* Clear bit. */
+
                     pThis->regControl = u8;
 #endif
                 }
@@ -460,11 +468,15 @@ PDMBOTHCBDECL(int) parallelIOPortRead(PPDMDEVINS pDevIns, void *pvUser, RTIOPORT
                 break;
             case 2:
 #ifndef IN_RING3
-                 rc = VINF_IOM_R3_IOPORT_READ;
+                rc = VINF_IOM_R3_IOPORT_READ;
 #else
-                 rc = pThis->pDrvHostParallelConnector->pfnReadControl(pThis->pDrvHostParallelConnector, &pThis->regControl);
-                 AssertRC(rc);
-                 pThis->regControl |= LPT_CONTROL_BIT6 | LPT_CONTROL_BIT7;
+                if (RT_LIKELY(pThis->pDrvHostParallelConnector))
+                {
+                    rc = pThis->pDrvHostParallelConnector->pfnReadControl(pThis->pDrvHostParallelConnector, &pThis->regControl);
+                    AssertRC(rc);
+                    pThis->regControl |= LPT_CONTROL_BIT6 | LPT_CONTROL_BIT7;
+                }
+
                 *pu32 = pThis->regControl;
 #endif
                 break;
@@ -764,6 +776,12 @@ static DECLCALLBACK(int) parallelR3Construct(PPDMDEVINS pDevIns, int iInstance, 
     if (RT_SUCCESS(rc))
     {
         pThis->pDrvHostParallelConnector = PDMIBASE_QUERY_INTERFACE(pThis->pDrvBase, PDMIHOSTPARALLELCONNECTOR);
+
+        /* Set compatibility mode */
+        //pThis->pDrvHostParallelConnector->pfnSetMode(pThis->pDrvHostParallelConnector, PDM_PARALLEL_PORT_MODE_COMPAT);
+        /* Get status of control register */
+        pThis->pDrvHostParallelConnector->pfnReadControl(pThis->pDrvHostParallelConnector, &pThis->regControl);
+
         AssertMsgReturn(pThis->pDrvHostParallelConnector,
                         ("Configuration error: instance %d has no host parallel interface!\n", iInstance),
                         VERR_PDM_MISSING_INTERFACE);
@@ -780,11 +798,6 @@ static DECLCALLBACK(int) parallelR3Construct(PPDMDEVINS pDevIns, int iInstance, 
         return PDMDevHlpVMSetError(pDevIns, rc, RT_SRC_POS,
                                    N_("Parallel device %d cannot attach to host driver"), iInstance);
     }
-
-    /* Set compatibility mode */
-    //pThis->pDrvHostParallelConnector->pfnSetMode(pThis->pDrvHostParallelConnector, PDM_PARALLEL_PORT_MODE_COMPAT);
-    /* Get status of control register */
-    pThis->pDrvHostParallelConnector->pfnReadControl(pThis->pDrvHostParallelConnector, &pThis->regControl);
 
     return VINF_SUCCESS;
 }
@@ -809,7 +822,7 @@ const PDMDEVREG g_DeviceParallelPort =
     /* fClass */
     PDM_DEVREG_CLASS_PARALLEL,
     /* cMaxInstances */
-    1,
+    2,
     /* cbInstance */
     sizeof(PARALLELPORT),
     /* pfnConstruct */

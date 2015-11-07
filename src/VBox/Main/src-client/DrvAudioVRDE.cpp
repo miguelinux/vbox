@@ -16,9 +16,9 @@
  */
 
 
-/*******************************************************************************
-*   Header Files                                                               *
-*******************************************************************************/
+/*********************************************************************************************************************************
+*   Header Files                                                                                                                 *
+*********************************************************************************************************************************/
 #define LOG_GROUP LOG_GROUP_DRV_VRDE_AUDIO
 #include <VBox/log.h>
 #include "DrvAudioVRDE.h"
@@ -40,9 +40,10 @@
 #include <VBox/vmm/cfgm.h>
 #include <VBox/err.h>
 
-/*******************************************************************************
-*   Structures and Typedefs                                                    *
-*******************************************************************************/
+
+/*********************************************************************************************************************************
+*   Structures and Typedefs                                                                                                      *
+*********************************************************************************************************************************/
 /**
  * Audio VRDE driver instance data.
  */
@@ -183,8 +184,7 @@ static DECLCALLBACK(int) drvAudioVRDECaptureIn(PPDMIHOSTAUDIO pInterface, PPDMAU
         pVRDEStrmIn->cSamplesCaptured -= cProcessed;
     }
 
-    LogFlowFunc(("cSamplesCaptured=%RU32, cProcessed=%RU32\n",
-                 pVRDEStrmIn->cSamplesCaptured, cProcessed, rc));
+    LogFlowFunc(("cSamplesCaptured=%RU32, cProcessed=%RU32 rc=%Rrc\n", pVRDEStrmIn->cSamplesCaptured, cProcessed, rc));
     return rc;
 }
 
@@ -212,7 +212,7 @@ static DECLCALLBACK(int) drvAudioVRDEPlayOut(PPDMIHOSTAUDIO pInterface, PPDMAUDI
     PVRDESTREAMOUT pVRDEStrmOut = (PVRDESTREAMOUT)pHstStrmOut;
     AssertPtrReturn(pVRDEStrmOut, VERR_INVALID_POINTER);
 
-    uint32_t live = drvAudioHstOutSamplesLive(pHstStrmOut, NULL /* pcStreamsLive */);
+    uint32_t live = drvAudioHstOutSamplesLive(pHstStrmOut);
     uint64_t now = PDMDrvHlpTMGetVirtualTime(pDrv->pDrvIns);
     uint64_t ticks = now  - pVRDEStrmOut->old_ticks;
     uint64_t ticks_per_second = PDMDrvHlpTMGetVirtualFreq(pDrv->pDrvIns);

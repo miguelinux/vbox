@@ -38,9 +38,10 @@
  *
  */
 
-/*******************************************************************************
-*   Header Files                                                               *
-*******************************************************************************/
+
+/*********************************************************************************************************************************
+*   Header Files                                                                                                                 *
+*********************************************************************************************************************************/
 #define LOG_GROUP LOG_GROUP_VM
 #include <VBox/vmm/cfgm.h>
 #include <VBox/vmm/vmm.h>
@@ -90,16 +91,16 @@
 #include <iprt/uuid.h>
 
 
-/*******************************************************************************
-*   Global Variables                                                           *
-*******************************************************************************/
+/*********************************************************************************************************************************
+*   Global Variables                                                                                                             *
+*********************************************************************************************************************************/
 /** Pointer to the list of VMs. */
 static PUVM         g_pUVMsHead = NULL;
 
 
-/*******************************************************************************
-*   Internal Functions                                                         *
-*******************************************************************************/
+/*********************************************************************************************************************************
+*   Internal Functions                                                                                                           *
+*********************************************************************************************************************************/
 static int                  vmR3CreateUVM(uint32_t cCpus, PCVMM2USERMETHODS pVmm2UserMethods, PUVM *ppUVM);
 static int                  vmR3CreateU(PUVM pUVM, uint32_t cCpus, PFNCFGMCONSTRUCTOR pfnCFGMConstructor, void *pvUserCFGM);
 static int                  vmR3ReadBaseConfig(PVM pVM, PUVM pUVM, uint32_t cCpus);
@@ -314,7 +315,7 @@ VMMR3DECL(int)   VMR3Create(uint32_t cCpus, PCVMM2USERMETHODS pVmm2UserMethods,
                     pszError = N_("One of the kernel modules was not successfully loaded. Make sure "
                                   "that no kernel modules from an older version of VirtualBox exist. "
                                   "Then try to recompile and reload the kernel modules by executing "
-                                  "'/etc/init.d/vboxdrv setup' as root");
+                                  "'/sbin/vboxconfig' as root");
                     break;
 #endif
 
@@ -380,7 +381,7 @@ VMMR3DECL(int)   VMR3Create(uint32_t cCpus, PCVMM2USERMETHODS pVmm2UserMethods,
                     pszError = N_("VirtualBox kernel driver not loaded. The vboxdrv kernel module "
                                   "was either not loaded or /dev/vboxdrv is not set up properly. "
                                   "Re-setup the kernel module by executing "
-                                  "'/etc/init.d/vboxdrv setup' as root");
+                                  "'/sbin/vboxconfig' as root");
 #else
                     pszError = N_("VirtualBox kernel driver not loaded");
 #endif
@@ -422,7 +423,7 @@ VMMR3DECL(int)   VMR3Create(uint32_t cCpus, PCVMM2USERMETHODS pVmm2UserMethods,
                     pszError = N_("VirtualBox kernel driver not installed. The vboxdrv kernel module "
                                   "was either not loaded or /dev/vboxdrv was not created for some "
                                   "reason. Re-setup the kernel module by executing "
-                                  "'/etc/init.d/vboxdrv setup' as root");
+                                  "'/sbin/vboxconfig' as root");
 #else
                     pszError = N_("VirtualBox kernel driver not installed");
 #endif
@@ -3451,7 +3452,7 @@ static int vmR3TrySetState(PVM pVM, const char *pszWho, unsigned cTransitions, .
             }
             LogRel((" failed, because the VM state is actually %s\n", VMR3GetStateName(enmStateCur)));
             VMSetError(pVM, VERR_VM_INVALID_VM_STATE, RT_SRC_POS,
-                       N_("%s failed because the current VM state, %s, was not found in the state transition table"),
+                       N_("%s failed because the current VM state, %s, was not found in the state transition table (old state %s)"),
                        pszWho, VMR3GetStateName(enmStateCur), VMR3GetStateName(enmStateOld));
             AssertMsgFailed(("%s - state=%s, see release log for full details. Check the cTransitions passed us.\n",
                              pszWho, VMR3GetStateName(enmStateCur)));
@@ -3830,7 +3831,7 @@ VMMR3_INT_DECL(uint32_t) VMR3GetErrorCount(PUVM pUVM)
  * @param   ...             The arguments.
  * @thread  Any thread.
  */
-static int vmR3SetErrorU(PUVM pUVM, int rc, RT_SRC_POS_DECL, const char *pszFormat, ...)
+static int vmR3SetErrorU(PUVM pUVM, int rc, RT_SRC_POS_DECL, const char *pszFormat, ...) RT_IPRT_FORMAT_ATTR(6, 7)
 {
     va_list va;
     va_start(va, pszFormat);
@@ -3937,6 +3938,17 @@ VMMR3DECL(int) VMR3SetError(PUVM pUVM, int rc, RT_SRC_POS_DECL, const char *pszF
 VMMR3DECL(int) VMR3SetErrorV(PUVM pUVM, int rc, RT_SRC_POS_DECL, const char *pszFormat, va_list va)
 {
     UVM_ASSERT_VALID_EXT_RETURN(pUVM, VERR_INVALID_VM_HANDLE);
+
+    /* Take shortcut when called on EMT, skipping VM handle requirement + validation. */
+    if (VMR3GetVMCPUThread(pUVM) != NIL_RTTHREAD)
+    {
+        va_list vaCopy;
+        va_copy(vaCopy, va);
+        vmR3SetErrorUV(pUVM, rc, RT_SRC_POS_ARGS, pszFormat, &vaCopy);
+        va_end(vaCopy);
+        return rc;
+    }
+
     VM_ASSERT_VALID_EXT_RETURN(pUVM->pVM, VERR_INVALID_VM_HANDLE);
     return VMSetErrorV(pUVM->pVM, rc, pszFile, iLine, pszFunction, pszFormat, va);
 }

@@ -16,9 +16,9 @@
  */
 
 
-/*******************************************************************************
-*   Header Files                                                               *
-*******************************************************************************/
+/*********************************************************************************************************************************
+*   Header Files                                                                                                                 *
+*********************************************************************************************************************************/
 #include <VBox/com/com.h>
 #include <VBox/com/string.h>
 #include <VBox/com/Guid.h>
@@ -715,12 +715,10 @@ RTEXITCODE handleControlVM(HandlerArg *a)
                 {
                     if (!strcmp(a->argv[2], "null"))
                     {
-                        CHECK_ERROR_RET(adapter, COMSETTER(Enabled)(TRUE), RTEXITCODE_FAILURE);
                         CHECK_ERROR_RET(adapter, COMSETTER(AttachmentType)(NetworkAttachmentType_Null), RTEXITCODE_FAILURE);
                     }
                     else if (!strcmp(a->argv[2], "nat"))
                     {
-                        CHECK_ERROR_RET(adapter, COMSETTER(Enabled)(TRUE), RTEXITCODE_FAILURE);
                         if (a->argc == 4)
                             CHECK_ERROR_RET(adapter, COMSETTER(NATNetwork)(Bstr(a->argv[3]).raw()), RTEXITCODE_FAILURE);
                         CHECK_ERROR_RET(adapter, COMSETTER(AttachmentType)(NetworkAttachmentType_NAT), RTEXITCODE_FAILURE);
@@ -734,7 +732,6 @@ RTEXITCODE handleControlVM(HandlerArg *a)
                             rc = E_FAIL;
                             break;
                         }
-                        CHECK_ERROR_RET(adapter, COMSETTER(Enabled)(TRUE), RTEXITCODE_FAILURE);
                         CHECK_ERROR_RET(adapter, COMSETTER(BridgedInterface)(Bstr(a->argv[3]).raw()), RTEXITCODE_FAILURE);
                         CHECK_ERROR_RET(adapter, COMSETTER(AttachmentType)(NetworkAttachmentType_Bridged), RTEXITCODE_FAILURE);
                     }
@@ -746,7 +743,6 @@ RTEXITCODE handleControlVM(HandlerArg *a)
                             rc = E_FAIL;
                             break;
                         }
-                        CHECK_ERROR_RET(adapter, COMSETTER(Enabled)(TRUE), RTEXITCODE_FAILURE);
                         CHECK_ERROR_RET(adapter, COMSETTER(InternalNetwork)(Bstr(a->argv[3]).raw()), RTEXITCODE_FAILURE);
                         CHECK_ERROR_RET(adapter, COMSETTER(AttachmentType)(NetworkAttachmentType_Internal), RTEXITCODE_FAILURE);
                     }
@@ -759,7 +755,6 @@ RTEXITCODE handleControlVM(HandlerArg *a)
                             rc = E_FAIL;
                             break;
                         }
-                        CHECK_ERROR_RET(adapter, COMSETTER(Enabled)(TRUE), RTEXITCODE_FAILURE);
                         CHECK_ERROR_RET(adapter, COMSETTER(HostOnlyInterface)(Bstr(a->argv[3]).raw()), RTEXITCODE_FAILURE);
                         CHECK_ERROR_RET(adapter, COMSETTER(AttachmentType)(NetworkAttachmentType_HostOnly), RTEXITCODE_FAILURE);
                     }
@@ -772,7 +767,6 @@ RTEXITCODE handleControlVM(HandlerArg *a)
                             rc = E_FAIL;
                             break;
                         }
-                        CHECK_ERROR_RET(adapter, COMSETTER(Enabled)(TRUE), RTEXITCODE_FAILURE);
                         CHECK_ERROR_RET(adapter, COMSETTER(GenericDriver)(Bstr(a->argv[3]).raw()), RTEXITCODE_FAILURE);
                         CHECK_ERROR_RET(adapter, COMSETTER(AttachmentType)(NetworkAttachmentType_Generic), RTEXITCODE_FAILURE);
                     }
@@ -784,7 +778,6 @@ RTEXITCODE handleControlVM(HandlerArg *a)
                             rc = E_FAIL;
                             break;
                         }
-                        CHECK_ERROR_RET(adapter, COMSETTER(Enabled)(TRUE), RTEXITCODE_FAILURE);
                         CHECK_ERROR_RET(adapter, COMSETTER(NATNetwork)(Bstr(a->argv[3]).raw()), RTEXITCODE_FAILURE);
                         CHECK_ERROR_RET(adapter, COMSETTER(AttachmentType)(NetworkAttachmentType_NATNetwork), RTEXITCODE_FAILURE);
                     }
@@ -797,7 +790,6 @@ RTEXITCODE handleControlVM(HandlerArg *a)
                             rc = E_FAIL;
                             break;
                         }
-                        CHECK_ERROR_RET(adapter, COMSETTER(Enabled)(TRUE), RTEXITCODE_FAILURE);
                         CHECK_ERROR_RET(adapter, COMSETTER(AttachmentType)(NetworkAttachmentType_Generic), RTEXITCODE_FAILURE);
                         CHECK_ERROR_RET(adapter, SetProperty(Bstr("name").raw(), Bstr(a->argv[3]).raw()), RTEXITCODE_FAILURE);
                     }

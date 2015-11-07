@@ -15,14 +15,18 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-/*******************************************************************************
-*   Header Files                                                               *
-*******************************************************************************/
+
+/*********************************************************************************************************************************
+*   Header Files                                                                                                                 *
+*********************************************************************************************************************************/
 #define LOG_GROUP LOG_GROUP_NET_FLT_DRV
 #define VBOXNETFLT_LINUX_NO_XMIT_QUEUE
 #include "the-linux-kernel.h"
 #include "version-generated.h"
 #include "product-generated.h"
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 24)
+#include <linux/nsproxy.h>
+#endif
 #include <linux/netdevice.h>
 #include <linux/etherdevice.h>
 #include <linux/rtnetlink.h>
@@ -69,9 +73,9 @@ typedef struct VBOXNETFLTNOTIFIER *PVBOXNETFLTNOTIFIER;
 #endif
 
 
-/*******************************************************************************
-*   Defined Constants And Macros                                               *
-*******************************************************************************/
+/*********************************************************************************************************************************
+*   Defined Constants And Macros                                                                                                 *
+*********************************************************************************************************************************/
 #define VBOX_FLT_NB_TO_INST(pNB)    RT_FROM_MEMBER(pNB, VBOXNETFLTINS, u.s.Notifier)
 #define VBOX_FLT_PT_TO_INST(pPT)    RT_FROM_MEMBER(pPT, VBOXNETFLTINS, u.s.PacketType)
 #ifndef VBOXNETFLT_LINUX_NO_XMIT_QUEUE
@@ -167,17 +171,18 @@ typedef struct VBOXNETFLTNOTIFIER *PVBOXNETFLTNOTIFIER;
 # endif
 #endif
 
-/*******************************************************************************
-*   Internal Functions                                                         *
-*******************************************************************************/
+
+/*********************************************************************************************************************************
+*   Internal Functions                                                                                                           *
+*********************************************************************************************************************************/
 static int      VBoxNetFltLinuxInit(void);
 static void     VBoxNetFltLinuxUnload(void);
 static void     vboxNetFltLinuxForwardToIntNet(PVBOXNETFLTINS pThis, struct sk_buff *pBuf);
 
 
-/*******************************************************************************
-*   Global Variables                                                           *
-*******************************************************************************/
+/*********************************************************************************************************************************
+*   Global Variables                                                                                                             *
+*********************************************************************************************************************************/
 /**
  * The (common) global data.
  */
@@ -1548,11 +1553,11 @@ static bool vboxNetFltLinuxPromiscuous(PVBOXNETFLTINS pThis)
     return fRc;
 }
 
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 36)
 /**
- * Helper for detecting TAP devices.
+ * Does this device needs link state change signaled?
+ * Currently we need it for our own VBoxNetAdp and TAP.
  */
-static bool vboxNetFltIsTapDevice(PVBOXNETFLTINS pThis, struct net_device *pDev)
+static bool vboxNetFltNeedsLinkState(PVBOXNETFLTINS pThis, struct net_device *pDev)
 {
     if (pDev->ethtool_ops && pDev->ethtool_ops->get_drvinfo)
     {
@@ -1561,26 +1566,34 @@ static bool vboxNetFltIsTapDevice(PVBOXNETFLTINS pThis, struct net_device *pDev)
         memset(&Info, 0, sizeof(Info));
         Info.cmd = ETHTOOL_GDRVINFO;
         pDev->ethtool_ops->get_drvinfo(pDev, &Info);
-        Log3(("vboxNetFltIsTapDevice: driver=%s version=%s bus_info=%s\n",
-              Info.driver, Info.version, Info.bus_info));
+        Log3(("%s: driver=%.*s version=%.*s bus_info=%.*s\n",
+              __FUNCTION__,
+              sizeof(Info.driver),   Info.driver,
+              sizeof(Info.version),  Info.version,
+              sizeof(Info.bus_info), Info.bus_info));
 
+        if (!strncmp(Info.driver, "vboxnet", sizeof(Info.driver)))
+            return true;
+
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 36) /* TAP started doing carrier */
         return !strncmp(Info.driver,   "tun", 4)
             && !strncmp(Info.bus_info, "tap", 4);
+#endif
     }
 
     return false;
 }
 
 /**
- * Helper for updating the link state of TAP devices.
- * Only TAP devices are affected.
+ * Some devices need link state change when filter attaches/detaches
+ * since the filter is their link in a sense.
  */
-static void vboxNetFltSetTapLinkState(PVBOXNETFLTINS pThis, struct net_device *pDev, bool fLinkUp)
+static void vboxNetFltSetLinkState(PVBOXNETFLTINS pThis, struct net_device *pDev, bool fLinkUp)
 {
-    if (vboxNetFltIsTapDevice(pThis, pDev))
+    if (vboxNetFltNeedsLinkState(pThis, pDev))
     {
-        Log3(("vboxNetFltSetTapLinkState: bringing %s tap device link state\n",
-              fLinkUp ? "up" : "down"));
+        Log3(("%s: bringing device link %s\n",
+              __FUNCTION__, fLinkUp ? "up" : "down"));
         netif_tx_lock_bh(pDev);
         if (fLinkUp)
             netif_carrier_on(pDev);
@@ -1589,12 +1602,6 @@ static void vboxNetFltSetTapLinkState(PVBOXNETFLTINS pThis, struct net_device *p
         netif_tx_unlock_bh(pDev);
     }
 }
-#else /* LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 36) */
-DECLINLINE(void) vboxNetFltSetTapLinkState(PVBOXNETFLTINS pThis, struct net_device *pDev, bool fLinkUp)
-{
-    /* Nothing to do for pre-2.6.36 kernels. */
-}
-#endif /* LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 36) */
 
 /**
  * Internal worker for vboxNetFltLinuxNotifierCallback.
@@ -1648,10 +1655,9 @@ static int vboxNetFltLinuxAttachToInterface(PVBOXNETFLTINS pThis, struct net_dev
 #endif
 
     /*
-     * If attaching to TAP interface we need to bring the link state up
-     * starting from 2.6.36 kernel.
+     * Are we the "carrier" for this device (e.g. vboxnet or tap)?
      */
-    vboxNetFltSetTapLinkState(pThis, pDev, true);
+    vboxNetFltSetLinkState(pThis, pDev, true);
 
     /*
      * Set indicators that require the spinlock. Be abit paranoid about racing
@@ -1804,7 +1810,7 @@ static int vboxNetFltLinuxDeviceMtuChange(PVBOXNETFLTINS pThis, struct net_devic
 /** Stringify the NETDEV_XXX constants. */
 static const char *vboxNetFltLinuxGetNetDevEventName(unsigned long ulEventType)
 {
-    const char *pszEvent = "NETDRV_<unknown>";
+    const char *pszEvent = "NETDEV_<unknown>";
     switch (ulEventType)
     {
         case NETDEV_REGISTER: pszEvent = "NETDEV_REGISTER"; break;
@@ -1848,10 +1854,27 @@ static int vboxNetFltLinuxNotifierCallback(struct notifier_block *self, unsigned
     Log(("VBoxNetFlt: got event %s(0x%lx) on %s, pDev=%p pThis=%p pThis->u.s.pDev=%p\n",
          vboxNetFltLinuxGetNetDevEventName(ulEventType), ulEventType, pDev->name, pDev, pThis, pMyDev));
 
-    if (    ulEventType == NETDEV_REGISTER
-        && !strcmp(pDev->name, pThis->szName))
+    if (ulEventType == NETDEV_REGISTER)
     {
-        vboxNetFltLinuxAttachToInterface(pThis, pDev);
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 24) /* cgroups/namespaces introduced */
+# if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 26)
+#  define VBOX_DEV_NET(dev)             dev_net(dev)
+#  define VBOX_NET_EQ(n1, n2)           net_eq((n1), (n2))
+# else
+#  define VBOX_DEV_NET(dev)             ((dev)->nd_net)
+#  define VBOX_NET_EQ(n1, n2)           ((n1) == (n2))
+# endif
+        struct net *pMyNet = current->nsproxy->net_ns;
+        struct net *pDevNet = VBOX_DEV_NET(pDev);
+
+        if (VBOX_NET_EQ(pDevNet, pMyNet))
+#endif  /* namespaces */
+        {
+            if (strcmp(pDev->name, pThis->szName) == 0)
+            {
+                vboxNetFltLinuxAttachToInterface(pThis, pDev);
+            }
+        }
     }
     else
     {
@@ -2059,6 +2082,7 @@ int  vboxNetFltPortOsXmit(PVBOXNETFLTINS pThis, void *pvIfData, PINTNETSG pSG, u
     struct net_device * pDev;
     int err;
     int rc = VINF_SUCCESS;
+    IPRT_LINUX_SAVE_EFL_AC();
     NOREF(pvIfData);
 
     LogFlow(("vboxNetFltPortOsXmit: pThis=%p (%s)\n", pThis, pThis->szName));
@@ -2107,17 +2131,18 @@ int  vboxNetFltPortOsXmit(PVBOXNETFLTINS pThis, void *pvIfData, PINTNETSG pSG, u
         vboxNetFltLinuxReleaseNetDev(pThis, pDev);
     }
 
+    IPRT_LINUX_RESTORE_EFL_AC();
     return rc;
 }
 
 
 void vboxNetFltPortOsSetActive(PVBOXNETFLTINS pThis, bool fActive)
 {
-    struct net_device * pDev;
+    struct net_device *pDev;
+    IPRT_LINUX_SAVE_EFL_AC();
 
-    LogFlow(("vboxNetFltPortOsSetActive: pThis=%p (%s), fActive=%s, fDisablePromiscuous=%s\n",
-             pThis, pThis->szName, fActive?"true":"false",
-             pThis->fDisablePromiscuous?"true":"false"));
+    LogFlow(("vboxNetFltPortOsSetActive: pThis=%p (%s), fActive=%RTbool, fDisablePromiscuous=%RTbool\n",
+             pThis, pThis->szName, fActive, pThis->fDisablePromiscuous));
 
     if (pThis->fDisablePromiscuous)
         return;
@@ -2164,6 +2189,7 @@ void vboxNetFltPortOsSetActive(PVBOXNETFLTINS pThis, bool fActive)
 
         vboxNetFltLinuxReleaseNetDev(pThis, pDev);
     }
+    IPRT_LINUX_RESTORE_EFL_AC();
 }
 
 
@@ -2175,8 +2201,10 @@ int vboxNetFltOsDisconnectIt(PVBOXNETFLTINS pThis)
      */
     if (ASMAtomicCmpXchgBool(&pThis->u.s.fPacketHandler, false, true))
     {
+        IPRT_LINUX_SAVE_EFL_AC();
         dev_remove_pack(&pThis->u.s.PacketType);
         Log(("vboxNetFltOsDisconnectIt: this=%p: Packet handler removed.\n", pThis));
+        IPRT_LINUX_RESTORE_EFL_AC();
     }
     return VINF_SUCCESS;
 }
@@ -2184,6 +2212,8 @@ int vboxNetFltOsDisconnectIt(PVBOXNETFLTINS pThis)
 
 int  vboxNetFltOsConnectIt(PVBOXNETFLTINS pThis)
 {
+    IPRT_LINUX_SAVE_EFL_AC();
+
     /*
      * Report the GSO capabilities of the host and device (if connected).
      * Note! No need to mark ourselves busy here.
@@ -2204,6 +2234,7 @@ int  vboxNetFltOsConnectIt(PVBOXNETFLTINS pThis)
 #endif
     vboxNetFltLinuxReportNicGsoCapabilities(pThis);
 
+    IPRT_LINUX_RESTORE_EFL_AC();
     return VINF_SUCCESS;
 }
 
@@ -2212,6 +2243,7 @@ void vboxNetFltOsDeleteInstance(PVBOXNETFLTINS pThis)
 {
     struct net_device  *pDev;
     bool                fRegistered;
+    IPRT_LINUX_SAVE_EFL_AC();
 
 #ifdef VBOXNETFLT_WITH_HOST2WIRE_FILTER
     vboxNetFltLinuxUnhookDev(pThis, NULL);
@@ -2229,7 +2261,7 @@ void vboxNetFltOsDeleteInstance(PVBOXNETFLTINS pThis)
 
     if (fRegistered)
     {
-        vboxNetFltSetTapLinkState(pThis, pDev, false);
+        vboxNetFltSetLinkState(pThis, pDev, false);
 
 #ifndef VBOXNETFLT_LINUX_NO_XMIT_QUEUE
         skb_queue_purge(&pThis->u.s.XmitQueue);
@@ -2252,29 +2284,39 @@ void vboxNetFltOsDeleteInstance(PVBOXNETFLTINS pThis)
     Log(("vboxNetFltOsDeleteInstance: this=%p: Notifier removed.\n", pThis));
     unregister_netdevice_notifier(&pThis->u.s.Notifier);
     module_put(THIS_MODULE);
+
+    IPRT_LINUX_RESTORE_EFL_AC();
 }
 
 
 int  vboxNetFltOsInitInstance(PVBOXNETFLTINS pThis, void *pvContext)
 {
     int err;
+    IPRT_LINUX_SAVE_EFL_AC();
     NOREF(pvContext);
 
     pThis->u.s.Notifier.notifier_call = vboxNetFltLinuxNotifierCallback;
     err = register_netdevice_notifier(&pThis->u.s.Notifier);
     if (err)
+    {
+        IPRT_LINUX_RESTORE_EFL_AC();
         return VERR_INTNET_FLT_IF_FAILED;
+    }
     if (!pThis->u.s.fRegistered)
     {
         unregister_netdevice_notifier(&pThis->u.s.Notifier);
         LogRel(("VBoxNetFlt: failed to find %s.\n", pThis->szName));
+        IPRT_LINUX_RESTORE_EFL_AC();
         return VERR_INTNET_FLT_IF_NOT_FOUND;
     }
 
     Log(("vboxNetFltOsInitInstance: this=%p: Notifier installed.\n", pThis));
     if (   pThis->fDisconnectedFromHost
         || !try_module_get(THIS_MODULE))
+    {
+        IPRT_LINUX_RESTORE_EFL_AC();
         return VERR_INTNET_FLT_IF_FAILED;
+    }
 
     if (pThis->pSwitchPort->pfnNotifyHostAddress)
     {
@@ -2293,8 +2335,8 @@ int  vboxNetFltOsInitInstance(PVBOXNETFLTINS pThis, void *pvContext)
         err = register_netdevice_notifier(&Enumerator.Notifier);
         if (err)
         {
-            LogRel(("%s: failed to enumerate network devices: error %d\n",
-                    __FUNCTION__, err));
+            LogRel(("%s: failed to enumerate network devices: error %d\n", __FUNCTION__, err));
+            IPRT_LINUX_RESTORE_EFL_AC();
             return VINF_SUCCESS;
         }
 
@@ -2303,21 +2345,22 @@ int  vboxNetFltOsInitInstance(PVBOXNETFLTINS pThis, void *pvContext)
         pThis->u.s.NotifierIPv4.notifier_call = vboxNetFltLinuxNotifierIPv4Callback;
         err = register_inetaddr_notifier(&pThis->u.s.NotifierIPv4);
         if (err)
-            LogRel(("%s: failed to register IPv4 notifier: error %d\n",
-                    __FUNCTION__, err));
+            LogRel(("%s: failed to register IPv4 notifier: error %d\n", __FUNCTION__, err));
 
         pThis->u.s.NotifierIPv6.notifier_call = vboxNetFltLinuxNotifierIPv6Callback;
         err = register_inet6addr_notifier(&pThis->u.s.NotifierIPv6);
         if (err)
-            LogRel(("%s: failed to register IPv6 notifier: error %d\n",
-                    __FUNCTION__, err));
+            LogRel(("%s: failed to register IPv6 notifier: error %d\n", __FUNCTION__, err));
     }
 
+    IPRT_LINUX_RESTORE_EFL_AC();
     return VINF_SUCCESS;
 }
 
 int  vboxNetFltOsPreInitInstance(PVBOXNETFLTINS pThis)
 {
+    IPRT_LINUX_SAVE_EFL_AC();
+
     /*
      * Init the linux specific members.
      */
@@ -2335,6 +2378,7 @@ int  vboxNetFltOsPreInitInstance(PVBOXNETFLTINS pThis)
 # endif
 #endif
 
+    IPRT_LINUX_RESTORE_EFL_AC();
     return VINF_SUCCESS;
 }
 

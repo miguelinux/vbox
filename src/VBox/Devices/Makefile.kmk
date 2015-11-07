@@ -69,9 +69,6 @@ if !defined(VBOX_ONLY_EXTPACKS)         # Goes on almost to the end of the file.
   if defined(VBOX_WITH_XHCI_IMPL) && !defined(VBOX_WITH_EXTPACK_PUEL)
    VBoxDDU_DEFS          += VBOX_WITH_XHCI_IMPL
   endif
-  ifdef VBOX_WITH_NEW_USB_CODE_ON_DARWIN
-   VBoxDDU_DEFS.darwin   += VBOX_WITH_NEW_USB_CODE_ON_DARWIN
-  endif
  else
   VBoxDDU_SDKS.win        = ReorderCompilerIncs $(VBOX_WINPSDK)
  endif
@@ -100,9 +97,7 @@ if !defined(VBOX_ONLY_EXTPACKS)         # Goes on almost to the end of the file.
  endif
  VBoxDDU_LDFLAGS.darwin   = -install_name $(VBOX_DYLD_EXECUTABLE_PATH)/VBoxDDU.dylib
  ifdef VBOX_WITH_USB
-  ifdef VBOX_WITH_NEW_USB_CODE_ON_DARWIN
   VBoxDDU_LDFLAGS.darwin += -framework IOKit
-  endif
  endif
 
  VBoxDDU_LDFLAGS.linux    = -Wl,--no-undefined
@@ -194,6 +189,13 @@ if !defined(VBOX_ONLY_EXTPACKS)         # Goes on almost to the end of the file.
   VBoxDD_SOURCES += Storage/DrvHostFloppy.cpp
  endif
 
+ ifn1of ($(KBUILD_TARGET), darwin)
+  VBoxDD_SOURCES += Storage/HBDMgmt-generic.cpp
+ endif
+
+ VBoxDD_SOURCES.darwin += Storage/HBDMgmt-darwin.cpp
+ #VBoxDD_SOURCES.win += Storage/HBDMgmt-win.cpp Disabled until remaining issues are sorted out
+
  VBoxDD_LIBS             = # more later.
  VBoxDD_LDFLAGS.darwin   = -install_name $(VBOX_DYLD_EXECUTABLE_PATH)/VBoxDD.dylib \
  	-framework CoreAudio \
@@ -249,12 +251,18 @@ if !defined(VBOX_ONLY_EXTPACKS)         # Goes on almost to the end of the file.
  endif
  ifdef VBOX_WITH_VMSVGA3D
   VBoxDD_DEFS           += VBOX_WITH_VMSVGA3D
-  VBoxDD_SOURCES        += Graphics/DevVGA-SVGA3d-shared.cpp
-  ifeq ($(KBUILD_TARGET),win) # (Disable this to work with OpenGL on Windows.)
+  VBoxDD_SOURCES        += \
+  	Graphics/DevVGA-SVGA3d.cpp \
+  	Graphics/DevVGA-SVGA3d-info.cpp \
+  	Graphics/DevVGA-SVGA3d-shared.cpp \
+  	Graphics/DevVGA-SVGA3d-savedstate.cpp
+  if  "$(KBUILD_TARGET)" == "win" && !defined(VBOX_WITH_VMSVGA3D_USE_OPENGL)
+   VBoxDD_DEFS          += VMSVGA3D_DIRECT3D
    VBoxDD_SOURCES       += Graphics/DevVGA-SVGA3d-win.cpp
    VBoxDD_LIBS.win      += d3d9.lib $(PATH_TOOL_$(VBOX_VCC_TOOL)_LIB)/delayimp.lib
    VBoxDD_LDFLAGS.win   += /DELAYLOAD:d3d9.dll
   else
+   VBoxDD_DEFS          += VMSVGA3D_OPENGL
    VBoxDD_SOURCES       += \
    	Graphics/DevVGA-SVGA3d-ogl.cpp \
    	$(VBoxDD_0_OUTDIR)/VBoxSVGA3DLazyLoad.asm
@@ -280,7 +288,11 @@ if !defined(VBOX_ONLY_EXTPACKS)         # Goes on almost to the end of the file.
     VBoxDD_DEFS.darwin   += VBOX_VMSVGA3D_DEFAULT_OGL_PROFILE=2.1 VBOX_VMSVGA3D_OTHER_OGL_PROFILE=3.2
    endif
   endif
-  Graphics/DevVGA-SVGA3d-ogl.cpp_CXXFLAGS.darwin = -F$(VBOX_PATH_MACOSX_SDK_10_7)/System/Library/Frameworks/
+  Graphics/DevVGA-SVGA3d.cpp_CXXFLAGS.darwin            = -F$(VBOX_PATH_MACOSX_SDK_10_7)/System/Library/Frameworks/
+  Graphics/DevVGA-SVGA3d-info.cpp_CXXFLAGS.darwin       = -F$(VBOX_PATH_MACOSX_SDK_10_7)/System/Library/Frameworks/
+  Graphics/DevVGA-SVGA3d-shared.cpp_CXXFLAGS.darwin     = -F$(VBOX_PATH_MACOSX_SDK_10_7)/System/Library/Frameworks/
+  Graphics/DevVGA-SVGA3d-savedstate.cpp_CXXFLAGS.darwin = -F$(VBOX_PATH_MACOSX_SDK_10_7)/System/Library/Frameworks/
+  Graphics/DevVGA-SVGA3d-ogl.cpp_CXXFLAGS.darwin        = -F$(VBOX_PATH_MACOSX_SDK_10_7)/System/Library/Frameworks/
  endif
 
  ifdef VBOX_WITH_VDMA
@@ -305,9 +317,6 @@ if !defined(VBOX_ONLY_EXTPACKS)         # Goes on almost to the end of the file.
   	USB/vrdp/USBProxyDevice-vrdp.cpp
 
   VBoxDD_DEFS.darwin    += VUSB_HAVE_USBPROXY_DEVICE
-  ifdef VBOX_WITH_NEW_USB_CODE_ON_DARWIN
-   VBoxDD_DEFS.darwin   += VBOX_WITH_NEW_USB_CODE_ON_DARWIN
-  endif
   VBoxDD_SOURCES.darwin += \
  	USB/USBProxyDevice.cpp \
  	USB/darwin/USBProxyDevice-darwin.cpp
@@ -534,8 +543,6 @@ if !defined(VBOX_ONLY_EXTPACKS)         # Goes on almost to the end of the file.
  ifeq ($(KBUILD_TARGET),win)
   VBoxDD_SOURCES += \
    Audio/DrvHostDSound.cpp
-  VBoxDD_LIBS    += \
-   $(PATH_SDK_$(VBOX_WINDDK)_LIB)/dsound.lib
  endif
 
  ifeq ($(KBUILD_TARGET),linux)
@@ -1000,7 +1007,6 @@ if !defined(VBOX_ONLY_EXTPACKS)         # Goes on almost to the end of the file.
  # VBoxDDR0 (sysmod)
  #
  VBoxDDR0_TEMPLATE       = VBoxR0
- VBoxDDR0_DEFS.darwin.x86= VBOX_WITH_2X_4GB_ADDR_SPACE_IN_R0 VBOX_WITH_2X_4GB_ADDR_SPACE
  VBoxDDR0_DEFS           = IN_RT_R0 $(if $(VBOX_WITH_HGCM),VBOX_WITH_HGCM,) # - WTF is IN_RT_R0 doing here?
  VBoxDDR0_DEFS.win      += VBOX_WITH_WIN_PARPORT_SUP
  VBoxDDR0_INCS           = build

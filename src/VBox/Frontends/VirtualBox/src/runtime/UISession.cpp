@@ -257,12 +257,7 @@ bool UISession::initialize()
 bool UISession::powerUp()
 {
     /* Power UP machine: */
-#ifdef VBOX_WITH_DEBUGGER_GUI
-    CProgress progress = vboxGlobal().isStartPausedEnabled() || vboxGlobal().isDebuggerAutoShowEnabled() ?
-                         console().PowerUpPaused() : console().PowerUp();
-#else /* !VBOX_WITH_DEBUGGER_GUI */
-    CProgress progress = console().PowerUp();
-#endif /* !VBOX_WITH_DEBUGGER_GUI */
+    CProgress progress = vboxGlobal().shouldStartPaused() ? console().PowerUpPaused() : console().PowerUp();
 
     /* Check for immediate failure: */
     if (!console().isOk() || progress.isNull())
@@ -460,12 +455,6 @@ bool UISession::restoreCurrentSnapshot()
     return fResult;
 }
 
-void UISession::closeRuntimeUI()
-{
-    /* Start corresponding slot asynchronously: */
-    emit sigCloseRuntimeUI();
-}
-
 UIMachineLogic* UISession::machineLogic() const
 {
     return uimachine() ? uimachine()->machineLogic() : 0;
@@ -622,28 +611,8 @@ void UISession::sltInstallGuestAdditionsFrom(const QString &strSource)
 
 void UISession::sltCloseRuntimeUI()
 {
-    /* First, we have to hide any opened modal/popup widgets.
-     * They then should unlock their event-loops synchronously.
-     * If all such loops are unlocked, we can close Runtime UI: */
-    if (QWidget *pWidget = QApplication::activeModalWidget() ?
-                           QApplication::activeModalWidget() :
-                           QApplication::activePopupWidget() ?
-                           QApplication::activePopupWidget() : 0)
-    {
-        /* First we should try to close this widget: */
-        pWidget->close();
-        /* If widget rejected the 'close-event' we can
-         * still hide it and hope it will behave correctly
-         * and unlock his event-loop if any: */
-        if (!pWidget->isHidden())
-            pWidget->hide();
-        /* Restart this slot: */
-        emit sigCloseRuntimeUI();
-        return;
-    }
-
-    /* Finally close the Runtime UI: */
-    UIMachine::destroy();
+    /* Ask UIMachine to close Runtime UI: */
+    uimachine()->closeRuntimeUI();
 }
 
 #ifdef RT_OS_DARWIN
@@ -804,6 +773,15 @@ void UISession::sltGuestMonitorChange(KGuestMonitorChangedEventType changeType, 
     emit sigGuestMonitorChange(changeType, uScreenId, screenGeo);
 }
 
+void UISession::sltHandleStorageDeviceChange(const CMediumAttachment &attachment, bool fRemoved, bool fSilent)
+{
+    /* Update action restrictions: */
+    updateActionRestrictions();
+
+    /* Notify listeners about storage device change: */
+    emit sigStorageDeviceChange(attachment, fRemoved, fSilent);
+}
+
 #ifdef RT_OS_DARWIN
 /**
  * MacOS X: Restarts display-reconfiguration watchdog timer from the beginning.
@@ -829,11 +807,8 @@ void UISession::sltCheckIfHostDisplayChanged()
 {
     LogRelFlow(("GUI: UISession::sltCheckIfHostDisplayChanged()\n"));
 
-    /* Acquire desktop wrapper: */
-    QDesktopWidget *pDesktop = QApplication::desktop();
-
     /* Check if display count changed: */
-    if (pDesktop->screenCount() != m_hostScreens.size())
+    if (vboxGlobal().screenCount() != m_hostScreens.size())
     {
         /* Reset watchdog: */
         m_pWatchdogDisplayChange->setProperty("tryNumber", 0);
@@ -843,9 +818,9 @@ void UISession::sltCheckIfHostDisplayChanged()
     else
     {
         /* Check if at least one display geometry changed: */
-        for (int iScreenIndex = 0; iScreenIndex < pDesktop->screenCount(); ++iScreenIndex)
+        for (int iScreenIndex = 0; iScreenIndex < vboxGlobal().screenCount(); ++iScreenIndex)
         {
-            if (pDesktop->screenGeometry(iScreenIndex) != m_hostScreens.at(iScreenIndex))
+            if (vboxGlobal().screenGeometry(iScreenIndex) != m_hostScreens.at(iScreenIndex))
             {
                 /* Reset watchdog: */
                 m_pWatchdogDisplayChange->setProperty("tryNumber", 0);
@@ -920,11 +895,13 @@ void UISession::sltAdditionsChange()
         m_fIsGuestSupportsGraphics = fIsGuestSupportsGraphics;
         m_fIsGuestSupportsSeamless = fIsGuestSupportsSeamless;
 
-        /* Notify listeners about guest additions state really changed: */
+        /* Notify listeners about GA state really changed: */
+        LogRel(("GUI: UISession::sltAdditionsChange: GA state really changed, notifying listeners.\n"));
         emit sigAdditionsStateActualChange();
     }
 
-    /* Notify listeners about guest additions state event came: */
+    /* Notify listeners about GA state change event came: */
+    LogRel(("GUI: UISession::sltAdditionsChange: GA state change event came, notifying listeners.\n"));
     emit sigAdditionsStateChange();
 }
 
@@ -1082,83 +1059,8 @@ void UISession::prepareActions()
         /* Configure action-pool: */
         actionPool()->toRuntime()->setSession(this);
 
-        /* Get host: */
-        const CHost host = vboxGlobal().host();
-        UIExtraDataMetaDefs::RuntimeMenuViewActionType restrictionForView = UIExtraDataMetaDefs::RuntimeMenuViewActionType_Invalid;
-        UIExtraDataMetaDefs::RuntimeMenuDevicesActionType restrictionForDevices = UIExtraDataMetaDefs::RuntimeMenuDevicesActionType_Invalid;
-
-        /* VRDE server stuff: */
-        {
-            /* Initialize 'View' menu: */
-            const CVRDEServer server = machine().GetVRDEServer();
-            if (server.isNull())
-                restrictionForView = (UIExtraDataMetaDefs::RuntimeMenuViewActionType)(restrictionForView | UIExtraDataMetaDefs::RuntimeMenuViewActionType_VRDEServer);
-        }
-
-        /* Storage stuff: */
-        {
-            /* Initialize CD/FD menus: */
-            int iDevicesCountCD = 0;
-            int iDevicesCountFD = 0;
-            foreach (const CMediumAttachment &attachment, machine().GetMediumAttachments())
-            {
-                if (attachment.GetType() == KDeviceType_DVD)
-                    ++iDevicesCountCD;
-                if (attachment.GetType() == KDeviceType_Floppy)
-                    ++iDevicesCountFD;
-            }
-            QAction *pOpticalDevicesMenu = actionPool()->action(UIActionIndexRT_M_Devices_M_OpticalDevices);
-            QAction *pFloppyDevicesMenu = actionPool()->action(UIActionIndexRT_M_Devices_M_FloppyDevices);
-            pOpticalDevicesMenu->setData(iDevicesCountCD);
-            pFloppyDevicesMenu->setData(iDevicesCountFD);
-            if (!iDevicesCountCD)
-                restrictionForDevices = (UIExtraDataMetaDefs::RuntimeMenuDevicesActionType)(restrictionForDevices | UIExtraDataMetaDefs::RuntimeMenuDevicesActionType_OpticalDevices);
-            if (!iDevicesCountFD)
-                restrictionForDevices = (UIExtraDataMetaDefs::RuntimeMenuDevicesActionType)(restrictionForDevices | UIExtraDataMetaDefs::RuntimeMenuDevicesActionType_FloppyDevices);
-        }
-
-        /* Network stuff: */
-        {
-            /* Initialize Network menu: */
-            bool fAtLeastOneAdapterActive = false;
-            const KChipsetType chipsetType = machine().GetChipsetType();
-            ULONG uSlots = vboxGlobal().virtualBox().GetSystemProperties().GetMaxNetworkAdapters(chipsetType);
-            for (ULONG uSlot = 0; uSlot < uSlots; ++uSlot)
-            {
-                const CNetworkAdapter &adapter = machine().GetNetworkAdapter(uSlot);
-                if (adapter.GetEnabled())
-                {
-                    fAtLeastOneAdapterActive = true;
-                    break;
-                }
-            }
-            if (!fAtLeastOneAdapterActive)
-                restrictionForDevices = (UIExtraDataMetaDefs::RuntimeMenuDevicesActionType)(restrictionForDevices | UIExtraDataMetaDefs::RuntimeMenuDevicesActionType_Network);
-        }
-
-        /* USB stuff: */
-        {
-            /* Check whether there is at least one USB controller with an available proxy. */
-            const bool fUSBEnabled =    !machine().GetUSBDeviceFilters().isNull()
-                                     && !machine().GetUSBControllers().isEmpty()
-                                     && machine().GetUSBProxyAvailable();
-            if (!fUSBEnabled)
-                restrictionForDevices = (UIExtraDataMetaDefs::RuntimeMenuDevicesActionType)(restrictionForDevices | UIExtraDataMetaDefs::RuntimeMenuDevicesActionType_USBDevices);
-        }
-
-        /* WebCams stuff: */
-        {
-            /* Check whether there is an accessible video input devices pool: */
-            host.GetVideoInputDevices();
-            const bool fWebCamsEnabled = host.isOk() && !machine().GetUSBControllers().isEmpty();
-            if (!fWebCamsEnabled)
-                restrictionForDevices = (UIExtraDataMetaDefs::RuntimeMenuDevicesActionType)(restrictionForDevices | UIExtraDataMetaDefs::RuntimeMenuDevicesActionType_WebCams);
-        }
-
-        /* Apply cumulative restriction for 'View' menu: */
-        actionPool()->toRuntime()->setRestrictionForMenuView(UIActionRestrictionLevel_Session, restrictionForView);
-        /* Apply cumulative restriction for 'Devices' menu: */
-        actionPool()->toRuntime()->setRestrictionForMenuDevices(UIActionRestrictionLevel_Session, restrictionForDevices);
+        /* Update action restrictions: */
+        updateActionRestrictions();
 
 #ifdef Q_WS_MAC
         /* Create Mac OS X menu-bar: */
@@ -1178,7 +1080,6 @@ void UISession::prepareActions()
 void UISession::prepareConnections()
 {
     connect(this, SIGNAL(sigInitialized()), this, SLOT(sltMarkInitialized()));
-    connect(this, SIGNAL(sigCloseRuntimeUI()), this, SLOT(sltCloseRuntimeUI()));
 
 #ifdef Q_WS_MAC
     /* Install native display reconfiguration callback: */
@@ -1223,6 +1124,9 @@ void UISession::prepareConsoleEventHandlers()
 
     connect(gConsoleEvents, SIGNAL(sigNetworkAdapterChange(CNetworkAdapter)),
             this, SIGNAL(sigNetworkAdapterChange(CNetworkAdapter)));
+
+    connect(gConsoleEvents, SIGNAL(sigStorageDeviceChange(CMediumAttachment, bool, bool)),
+            this, SLOT(sltHandleStorageDeviceChange(CMediumAttachment, bool, bool)));
 
     connect(gConsoleEvents, SIGNAL(sigMediumChange(CMediumAttachment)),
             this, SIGNAL(sigMediumChange(CMediumAttachment)));
@@ -1271,6 +1175,10 @@ void UISession::prepareScreens()
     m_monitorVisibilityVector.resize(machine().GetMonitorCount());
     m_monitorVisibilityVector.fill(false);
     m_monitorVisibilityVector[0] = true;
+
+    /* Prepare empty last full-screen size vector: */
+    m_monitorLastFullScreenSizeVector.resize(machine().GetMonitorCount());
+    m_monitorLastFullScreenSizeVector.fill(QSize(-1, -1));
 
     /* If machine is in 'saved' state: */
     if (isSaved())
@@ -1954,6 +1862,24 @@ void UISession::setScreenVisible(ulong uScreenId, bool fIsMonitorVisible)
     gEDataManager->setLastGuestScreenVisibilityStatus(uScreenId, fIsMonitorVisible, vboxGlobal().managedVMUuid());
 }
 
+QSize UISession::lastFullScreenSize(ulong uScreenId) const
+{
+    /* Make sure index fits the bounds: */
+    AssertReturn(uScreenId < (ulong)m_monitorLastFullScreenSizeVector.size(), QSize(-1, -1));
+
+    /* Return last full-screen size: */
+    return m_monitorLastFullScreenSizeVector.value((int)uScreenId);
+}
+
+void UISession::setLastFullScreenSize(ulong uScreenId, QSize size)
+{
+    /* Make sure index fits the bounds: */
+    AssertReturnVoid(uScreenId < (ulong)m_monitorLastFullScreenSizeVector.size());
+
+    /* Remember last full-screen size: */
+    m_monitorLastFullScreenSizeVector[(int)uScreenId] = size;
+}
+
 int UISession::countOfVisibleWindows()
 {
     int cCountOfVisibleWindows = 0;
@@ -1979,9 +1905,89 @@ void UISession::setFrameBuffer(ulong uScreenId, UIFrameBuffer* pFrameBuffer)
 void UISession::updateHostScreenData()
 {
     m_hostScreens.clear();
-    QDesktopWidget *pDesktop = QApplication::desktop();
-    for (int iScreenIndex = 0; iScreenIndex < pDesktop->screenCount(); ++iScreenIndex)
-        m_hostScreens << pDesktop->screenGeometry(iScreenIndex);
+    for (int iScreenIndex = 0; iScreenIndex < vboxGlobal().screenCount(); ++iScreenIndex)
+        m_hostScreens << vboxGlobal().screenGeometry(iScreenIndex);
+}
+
+void UISession::updateActionRestrictions()
+{
+    /* Get host and prepare restrictions: */
+    const CHost host = vboxGlobal().host();
+    UIExtraDataMetaDefs::RuntimeMenuViewActionType restrictionForView = UIExtraDataMetaDefs::RuntimeMenuViewActionType_Invalid;
+    UIExtraDataMetaDefs::RuntimeMenuDevicesActionType restrictionForDevices = UIExtraDataMetaDefs::RuntimeMenuDevicesActionType_Invalid;
+
+    /* VRDE server stuff: */
+    {
+        /* Initialize 'View' menu: */
+        const CVRDEServer server = machine().GetVRDEServer();
+        if (server.isNull())
+            restrictionForView = (UIExtraDataMetaDefs::RuntimeMenuViewActionType)(restrictionForView | UIExtraDataMetaDefs::RuntimeMenuViewActionType_VRDEServer);
+    }
+
+    /* Storage stuff: */
+    {
+        /* Initialize CD/FD menus: */
+        int iDevicesCountCD = 0;
+        int iDevicesCountFD = 0;
+        foreach (const CMediumAttachment &attachment, machine().GetMediumAttachments())
+        {
+            if (attachment.GetType() == KDeviceType_DVD)
+                ++iDevicesCountCD;
+            if (attachment.GetType() == KDeviceType_Floppy)
+                ++iDevicesCountFD;
+        }
+        QAction *pOpticalDevicesMenu = actionPool()->action(UIActionIndexRT_M_Devices_M_OpticalDevices);
+        QAction *pFloppyDevicesMenu = actionPool()->action(UIActionIndexRT_M_Devices_M_FloppyDevices);
+        pOpticalDevicesMenu->setData(iDevicesCountCD);
+        pFloppyDevicesMenu->setData(iDevicesCountFD);
+        if (!iDevicesCountCD)
+            restrictionForDevices = (UIExtraDataMetaDefs::RuntimeMenuDevicesActionType)(restrictionForDevices | UIExtraDataMetaDefs::RuntimeMenuDevicesActionType_OpticalDevices);
+        if (!iDevicesCountFD)
+            restrictionForDevices = (UIExtraDataMetaDefs::RuntimeMenuDevicesActionType)(restrictionForDevices | UIExtraDataMetaDefs::RuntimeMenuDevicesActionType_FloppyDevices);
+    }
+
+    /* Network stuff: */
+    {
+        /* Initialize Network menu: */
+        bool fAtLeastOneAdapterActive = false;
+        const KChipsetType chipsetType = machine().GetChipsetType();
+        ULONG uSlots = vboxGlobal().virtualBox().GetSystemProperties().GetMaxNetworkAdapters(chipsetType);
+        for (ULONG uSlot = 0; uSlot < uSlots; ++uSlot)
+        {
+            const CNetworkAdapter &adapter = machine().GetNetworkAdapter(uSlot);
+            if (adapter.GetEnabled())
+            {
+                fAtLeastOneAdapterActive = true;
+                break;
+            }
+        }
+        if (!fAtLeastOneAdapterActive)
+            restrictionForDevices = (UIExtraDataMetaDefs::RuntimeMenuDevicesActionType)(restrictionForDevices | UIExtraDataMetaDefs::RuntimeMenuDevicesActionType_Network);
+    }
+
+    /* USB stuff: */
+    {
+        /* Check whether there is at least one USB controller with an available proxy. */
+        const bool fUSBEnabled =    !machine().GetUSBDeviceFilters().isNull()
+                                 && !machine().GetUSBControllers().isEmpty()
+                                 && machine().GetUSBProxyAvailable();
+        if (!fUSBEnabled)
+            restrictionForDevices = (UIExtraDataMetaDefs::RuntimeMenuDevicesActionType)(restrictionForDevices | UIExtraDataMetaDefs::RuntimeMenuDevicesActionType_USBDevices);
+    }
+
+    /* WebCams stuff: */
+    {
+        /* Check whether there is an accessible video input devices pool: */
+        host.GetVideoInputDevices();
+        const bool fWebCamsEnabled = host.isOk() && !machine().GetUSBControllers().isEmpty();
+        if (!fWebCamsEnabled)
+            restrictionForDevices = (UIExtraDataMetaDefs::RuntimeMenuDevicesActionType)(restrictionForDevices | UIExtraDataMetaDefs::RuntimeMenuDevicesActionType_WebCams);
+    }
+
+    /* Apply cumulative restriction for 'View' menu: */
+    actionPool()->toRuntime()->setRestrictionForMenuView(UIActionRestrictionLevel_Session, restrictionForView);
+    /* Apply cumulative restriction for 'Devices' menu: */
+    actionPool()->toRuntime()->setRestrictionForMenuDevices(UIActionRestrictionLevel_Session, restrictionForDevices);
 }
 
 #ifdef VBOX_GUI_WITH_KEYS_RESET_HANDLER
@@ -1994,10 +2000,10 @@ void UISession::updateHostScreenData()
 /* static */
 static void signalHandlerSIGUSR1(int sig, siginfo_t * /* pInfo */, void * /*pSecret */)
 {
-    /* only SIGUSR1 is interesting */
+    /* Only SIGUSR1 is interesting: */
     if (sig == SIGUSR1)
-        if (UIMachine *pMachine = vboxGlobal().virtualMachine())
-            pMachine->uisession()->machineLogic()->keyboardHandler()->releaseAllPressedKeys();
+        if (gpMachine)
+            gpMachine->uisession()->machineLogic()->keyboardHandler()->releaseAllPressedKeys();
 }
 #endif /* VBOX_GUI_WITH_KEYS_RESET_HANDLER */
 

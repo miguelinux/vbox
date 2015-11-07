@@ -25,9 +25,9 @@
  */
 
 
-/*******************************************************************************
-*   Header Files                                                               *
-*******************************************************************************/
+/*********************************************************************************************************************************
+*   Header Files                                                                                                                 *
+*********************************************************************************************************************************/
 #include <VBox/sup.h>
 
 #include <VBox/param.h>
@@ -43,9 +43,9 @@
 #include <iprt/time.h>
 
 
-/*******************************************************************************
-*   Structures and Typedefs                                                    *
-*******************************************************************************/
+/*********************************************************************************************************************************
+*   Structures and Typedefs                                                                                                      *
+*********************************************************************************************************************************/
 static PSUPDRVSESSION   g_pSession;
 static RTTEST           g_hTest;
 static uint32_t         g_cMillies; /* Used by the interruptible tests. */
@@ -341,7 +341,7 @@ int main(int argc, char **argv)
             }
 
             RTTESTI_CHECK_RC(SUPSemEventClose(pSession, hEvent), VINF_OBJECT_DESTROYED);
-            RTTestValueF(hTest, cInterrupted, RTTESTUNIT_OCCURRENCES, "VERR_INTERRUPTED returned", cInterrupted);
+            RTTestValueF(hTest, cInterrupted, RTTESTUNIT_OCCURRENCES, "VERR_INTERRUPTED returned");
         }
 
         if (RTTestErrorCount(hTest) == 0)
@@ -395,7 +395,7 @@ int main(int argc, char **argv)
             }
 
             RTTESTI_CHECK_RC(SUPSemEventMultiClose(pSession, hEvent), VINF_OBJECT_DESTROYED);
-            RTTestValueF(hTest, cInterrupted, RTTESTUNIT_OCCURRENCES, "VERR_INTERRUPTED returned", cInterrupted);
+            RTTestValueF(hTest, cInterrupted, RTTESTUNIT_OCCURRENCES, "VERR_INTERRUPTED returned");
         }
     }
 
@@ -457,7 +457,7 @@ int main(int argc, char **argv)
             }
 
             RTTESTI_CHECK_RC(SUPSemEventClose(pSession, hEvent), VINF_OBJECT_DESTROYED);
-            RTTestValueF(hTest, cInterrupted, RTTESTUNIT_OCCURRENCES, "VERR_INTERRUPTED returned", cInterrupted);
+            RTTestValueF(hTest, cInterrupted, RTTESTUNIT_OCCURRENCES, "VERR_INTERRUPTED returned");
         }
 
         if (RTTestErrorCount(hTest) == 0)
@@ -512,7 +512,7 @@ int main(int argc, char **argv)
             }
 
             RTTESTI_CHECK_RC(SUPSemEventMultiClose(pSession, hEvent), VINF_OBJECT_DESTROYED);
-            RTTestValueF(hTest, cInterrupted, RTTESTUNIT_OCCURRENCES, "VERR_INTERRUPTED returned", cInterrupted);
+            RTTestValueF(hTest, cInterrupted, RTTESTUNIT_OCCURRENCES, "VERR_INTERRUPTED returned");
         }
 
         if (RTTestErrorCount(hTest) == 0)
@@ -568,7 +568,7 @@ int main(int argc, char **argv)
             }
 
             RTTESTI_CHECK_RC(SUPSemEventClose(pSession, hEvent), VINF_OBJECT_DESTROYED);
-            RTTestValueF(hTest, cInterrupted, RTTESTUNIT_OCCURRENCES, "VERR_INTERRUPTED returned", cInterrupted);
+            RTTestValueF(hTest, cInterrupted, RTTESTUNIT_OCCURRENCES, "VERR_INTERRUPTED returned");
         }
 
 
@@ -625,7 +625,7 @@ int main(int argc, char **argv)
             }
 
             RTTESTI_CHECK_RC(SUPSemEventMultiClose(pSession, hEvent), VINF_OBJECT_DESTROYED);
-            RTTestValueF(hTest, cInterrupted, RTTESTUNIT_OCCURRENCES, "VERR_INTERRUPTED returned", cInterrupted);
+            RTTestValueF(hTest, cInterrupted, RTTESTUNIT_OCCURRENCES, "VERR_INTERRUPTED returned");
         }
 
     }

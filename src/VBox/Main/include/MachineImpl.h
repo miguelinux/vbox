@@ -536,8 +536,8 @@ public:
     void i_copyPathRelativeToMachine(const Utf8Str &strSource, Utf8Str &strTarget);
 
     void i_getLogFolder(Utf8Str &aLogFolder);
-    Utf8Str i_queryLogFilename(ULONG idx);
-    Utf8Str i_getStartupLogFilename(void);
+    Utf8Str i_getLogFilename(ULONG idx);
+    Utf8Str i_getHardeningLogFilename(void);
 
     void i_composeSavedStateFilename(Utf8Str &strStateFilePath);
 
@@ -565,12 +565,17 @@ public:
 
     bool i_isSessionOpen(ComObjPtr<SessionMachine> &aMachine,
                          ComPtr<IInternalSessionControl> *aControl = NULL,
+                         bool aRequireVM = false,
                          bool aAllowClosing = false);
     bool i_isSessionSpawning();
 
     bool i_isSessionOpenOrClosing(ComObjPtr<SessionMachine> &aMachine,
                                   ComPtr<IInternalSessionControl> *aControl = NULL)
-    { return i_isSessionOpen(aMachine, aControl, true /* aAllowClosing */); }
+    { return i_isSessionOpen(aMachine, aControl, false /* aRequireVM */, true /* aAllowClosing */); }
+
+    bool i_isSessionOpenVM(ComObjPtr<SessionMachine> &aMachine,
+                           ComPtr<IInternalSessionControl> *aControl = NULL)
+    { return i_isSessionOpen(aMachine, aControl, true /* aRequireVM */, false /* aAllowClosing */); }
 
     bool i_checkForSpawnFailure();
 
