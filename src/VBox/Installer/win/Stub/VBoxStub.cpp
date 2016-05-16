@@ -801,8 +801,19 @@ int WINAPI WinMain(HINSTANCE  hInstance,
     char **argv = __argv;
     int argc    = __argc;
 
-    /* Check if we're already running and jump out if so. */
-    /* Do not use a global namespace ("Global\\") for mutex name here, will blow up NT4 compatibility! */
+    /*
+     * Init IPRT. This is _always_ the very first thing we do.
+     */
+    int vrc = RTR3InitExe(argc, &argv, RTR3INIT_FLAGS_STANDALONE_APP);
+    if (RT_FAILURE(vrc))
+        return RTMsgInitFailure(vrc);
+
+    /*
+     * Check if we're already running and jump out if so.
+     *
+     * Note! Do not use a global namespace ("Global\\") for mutex name here,
+     *       will blow up NT4 compatibility!
+     */
     HANDLE hMutexAppRunning = CreateMutex(NULL, FALSE, "VBoxStubInstaller");
     if (   hMutexAppRunning != NULL
         && GetLastError() == ERROR_ALREADY_EXISTS)
@@ -811,16 +822,6 @@ int WINAPI WinMain(HINSTANCE  hInstance,
         CloseHandle(hMutexAppRunning);
         hMutexAppRunning = NULL;
         return RTEXITCODE_FAILURE;
-    }
-
-    /* Init IPRT. */
-    int vrc = RTR3InitExe(argc, &argv, 0);
-    if (RT_FAILURE(vrc))
-    {
-        /* Close the mutex for this application instance. */
-        CloseHandle(hMutexAppRunning);
-        hMutexAppRunning = NULL;
-        return RTMsgInitFailure(vrc);
     }
 
     /*
@@ -880,13 +881,13 @@ int WINAPI WinMain(HINSTANCE  hInstance,
 
     /* Parse the parameters. */
     int ch;
-    bool fParsingDone = false;
+    bool fExitEarly = false;
     RTGETOPTUNION ValueUnion;
     RTGETOPTSTATE GetState;
     RTGetOptInit(&GetState, argc, argv, s_aOptions, RT_ELEMENTS(s_aOptions), 1, 0);
     while (   (ch = RTGetOpt(&GetState, &ValueUnion))
            && rcExit == RTEXITCODE_SUCCESS
-           && !fParsingDone)
+           && !fExitEarly)
     {
         switch (ch)
         {
@@ -936,7 +937,7 @@ int WINAPI WinMain(HINSTANCE  hInstance,
                 ShowInfo("Version: %d.%d.%d.%d",
                          VBOX_VERSION_MAJOR, VBOX_VERSION_MINOR, VBOX_VERSION_BUILD,
                          VBOX_SVN_REV);
-                fParsingDone = true;
+                fExitEarly = true;
                 break;
 
             case 'v':
@@ -961,7 +962,7 @@ int WINAPI WinMain(HINSTANCE  hInstance,
                          "%s --extract -path C:\\VBox",
                          VBOX_STUB_TITLE, VBOX_VERSION_MAJOR, VBOX_VERSION_MINOR, VBOX_VERSION_BUILD, VBOX_SVN_REV,
                          argv[0], argv[0]);
-                fParsingDone = true;
+                fExitEarly = true;
                 break;
 
             case VINF_GETOPT_NOT_OPTION:
@@ -992,6 +993,10 @@ int WINAPI WinMain(HINSTANCE  hInstance,
                 break;
         }
     }
+
+    /* Check if we can bail out early. */
+    if (fExitEarly)
+        return rcExit;
 
     if (rcExit != RTEXITCODE_SUCCESS)
         vrc = VERR_PARSE_ERROR;

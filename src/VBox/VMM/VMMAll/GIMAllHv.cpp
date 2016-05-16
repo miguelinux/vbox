@@ -38,7 +38,7 @@
  * Handles the Hyper-V hypercall.
  *
  * @returns VBox status code.
- * @param   pVCpu           Pointer to the VMCPU.
+ * @param   pVCpu           The cross context virtual CPU structure.
  * @param   pCtx            Pointer to the guest-CPU context.
  */
 VMM_INT_DECL(int) gimHvHypercall(PVMCPU pVCpu, PCPUMCTX pCtx)
@@ -57,7 +57,7 @@ VMM_INT_DECL(int) gimHvHypercall(PVMCPU pVCpu, PCPUMCTX pCtx)
  * hypercall interface.
  *
  * @returns true if hypercalls are enabled, false otherwise.
- * @param   pVCpu       Pointer to the VMCPU.
+ * @param   pVCpu       The cross context virtual CPU structure.
  */
 VMM_INT_DECL(bool) gimHvAreHypercallsEnabled(PVMCPU pVCpu)
 {
@@ -70,7 +70,7 @@ VMM_INT_DECL(bool) gimHvAreHypercallsEnabled(PVMCPU pVCpu)
  * paravirtualized TSC.
  *
  * @returns true if paravirt. TSC is enabled, false otherwise.
- * @param   pVM     Pointer to the VM.
+ * @param   pVM     The cross context VM structure.
  */
 VMM_INT_DECL(bool) gimHvIsParavirtTscEnabled(PVM pVM)
 {
@@ -114,7 +114,7 @@ static const char *gimHvGetGuestOsIdVariantName(uint64_t uGuestOsIdMsr)
  * @retval  VINF_CPUM_R3_MSR_READ
  * @retval  VERR_CPUM_RAISE_GP_0
  *
- * @param   pVCpu       Pointer to the VMCPU.
+ * @param   pVCpu       The cross context virtual CPU structure.
  * @param   idMsr       The MSR being read.
  * @param   pRange      The range this MSR belongs to.
  * @param   puValue     Where to store the MSR value read.
@@ -142,16 +142,10 @@ VMM_INT_DECL(VBOXSTRICTRC) gimHvReadMsr(PVMCPU pVCpu, uint32_t idMsr, PCCPUMMSRR
             return VINF_SUCCESS;
 
         case MSR_GIM_HV_TPR:
-            PDMApicReadMSR(pVM, pVCpu->idCpu, 0x80, puValue);
-            return VINF_SUCCESS;
-
-        case MSR_GIM_HV_EOI:
-            PDMApicReadMSR(pVM, pVCpu->idCpu, 0x0B, puValue);
-            return VINF_SUCCESS;
+            return PDMApicReadMSR(pVM, pVCpu->idCpu, MSR_IA32_X2APIC_TPR, puValue);
 
         case MSR_GIM_HV_ICR:
-            PDMApicReadMSR(pVM, pVCpu->idCpu, 0x30, puValue);
-            return VINF_SUCCESS;
+            return PDMApicReadMSR(pVM, pVCpu->idCpu, MSR_IA32_X2APIC_ICR, puValue);
 
         case MSR_GIM_HV_GUEST_OS_ID:
             *puValue = pHv->u64GuestOsIdMsr;
@@ -191,6 +185,9 @@ VMM_INT_DECL(VBOXSTRICTRC) gimHvReadMsr(PVMCPU pVCpu, uint32_t idMsr, PCCPUMMSRR
         case MSR_GIM_HV_CRASH_P3: *puValue = pHv->uCrashP3;   return VINF_SUCCESS;
         case MSR_GIM_HV_CRASH_P4: *puValue = pHv->uCrashP4;   return VINF_SUCCESS;
 
+        /* Write-only MSRs: */
+        case MSR_GIM_HV_EOI:
+        /* Reserved/unknown MSRs: */
         default:
         {
 #ifdef IN_RING3
@@ -214,7 +211,7 @@ VMM_INT_DECL(VBOXSTRICTRC) gimHvReadMsr(PVMCPU pVCpu, uint32_t idMsr, PCCPUMMSRR
  * @retval  VINF_CPUM_R3_MSR_WRITE
  * @retval  VERR_CPUM_RAISE_GP_0
  *
- * @param   pVCpu       Pointer to the VMCPU.
+ * @param   pVCpu       The cross context virtual CPU structure.
  * @param   idMsr       The MSR being written.
  * @param   pRange      The range this MSR belongs to.
  * @param   uRawValue   The raw value with the ignored bits not masked.
@@ -228,16 +225,13 @@ VMM_INT_DECL(VBOXSTRICTRC) gimHvWriteMsr(PVMCPU pVCpu, uint32_t idMsr, PCCPUMMSR
     switch (idMsr)
     {
         case MSR_GIM_HV_TPR:
-            PDMApicWriteMSR(pVM, pVCpu->idCpu, 0x80, uRawValue);
-            return VINF_SUCCESS;
+            return PDMApicWriteMSR(pVM, pVCpu->idCpu, MSR_IA32_X2APIC_TPR, uRawValue);
 
         case MSR_GIM_HV_EOI:
-            PDMApicWriteMSR(pVM, pVCpu->idCpu, 0x0B, uRawValue);
-            return VINF_SUCCESS;
+            return PDMApicWriteMSR(pVM, pVCpu->idCpu, MSR_IA32_X2APIC_EOI, uRawValue);
 
         case MSR_GIM_HV_ICR:
-            PDMApicWriteMSR(pVM, pVCpu->idCpu, 0x30, uRawValue);
-            return VINF_SUCCESS;
+            return PDMApicWriteMSR(pVM, pVCpu->idCpu, MSR_IA32_X2APIC_ICR, uRawValue);
 
         case MSR_GIM_HV_GUEST_OS_ID:
         {

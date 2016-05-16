@@ -536,7 +536,7 @@ static const char *vmsvgaFIFOCmdToString(uint32_t u32Cmd)
 
 #ifdef IN_RING3
 /**
- * @interface_method_impl{PDMIDISPLAYPORT::pfnSetViewport}
+ * @interface_method_impl{PDMIDISPLAYPORT,pfnSetViewport}
  */
 DECLCALLBACK(void) vmsvgaPortSetViewport(PPDMIDISPLAYPORT pInterface, uint32_t uScreenId, uint32_t x, uint32_t y, uint32_t cx, uint32_t cy)
 {
@@ -1376,7 +1376,7 @@ PDMBOTHCBDECL(int) vmsvgaWritePort(PVGASTATE pThis, uint32_t u32)
                 &&  desc.numPages == 0)
             {
                 /* Pointer to the next physical page of descriptors. */
-                GCPhys = GCPhysBase = desc.ppn << PAGE_SHIFT;
+                GCPhys = GCPhysBase = (RTGCPHYS)desc.ppn << PAGE_SHIFT;
             }
             else
             {
@@ -1387,7 +1387,7 @@ PDMBOTHCBDECL(int) vmsvgaWritePort(PVGASTATE pThis, uint32_t u32)
                     AssertReturn(pSVGAState->aGMR[idGMR].paDesc, VERR_NO_MEMORY);
                 }
 
-                pSVGAState->aGMR[idGMR].paDesc[iDescriptor].GCPhys     = desc.ppn << PAGE_SHIFT;
+                pSVGAState->aGMR[idGMR].paDesc[iDescriptor].GCPhys     = (RTGCPHYS)desc.ppn << PAGE_SHIFT;
                 pSVGAState->aGMR[idGMR].paDesc[iDescriptor++].numPages = desc.numPages;
                 pSVGAState->aGMR[idGMR].cbTotal += desc.numPages * PAGE_SIZE;
 
@@ -2363,6 +2363,7 @@ static void *vmsvgaFIFOGetCmdPayload(uint32_t cbPayloadReq, uint32_t volatile *p
         /*
          * Insufficient, must wait for it to arrive.
          */
+/** @todo Should clear the busy flag here to maybe encourage the guest to wake us up. */
         STAM_REL_PROFILE_START(&pSVGAState->StatFifoStalls, Stall);
         for (uint32_t i = 0;; i++)
         {
@@ -2447,7 +2448,7 @@ static DECLCALLBACK(int) vmsvgaFIFOLoop(PPDMDEVINS pDevIns, PPDMTHREAD pThread)
 
 
     /*
-     * Signal the semaphore to make sure we don't wait for 250 after a
+     * Signal the semaphore to make sure we don't wait for 250ms after a
      * suspend & resume scenario (see vmsvgaFIFOGetCmdPayload).
      */
     SUPSemEventSignal(pThis->svga.pSupDrvSession, pThis->svga.FIFORequestSem);
@@ -2459,7 +2460,25 @@ static DECLCALLBACK(int) vmsvgaFIFOLoop(PPDMDEVINS pDevIns, PPDMTHREAD pThread)
     uint8_t *pbBounceBuf = (uint8_t *)RTMemAllocZ(VMSVGA_FIFO_SIZE);
     AssertReturn(pbBounceBuf, VERR_NO_MEMORY);
 
+    /*
+     * Polling/sleep interval config.
+     *
+     * We wait for an a short interval if the guest has recently given us work
+     * to do, but the interval increases the longer we're kept idle.  With the
+     * current parameters we'll be at a 64ms poll interval after 1 idle second,
+     * at 90ms after 2 seconds, and reach the max 250ms interval after about
+     * 16 seconds.
+     */
+    RTMSINTERVAL const  cMsMinSleep = 16;
+    RTMSINTERVAL const  cMsIncSleep = 2;
+    RTMSINTERVAL const  cMsMaxSleep = 250;
+    RTMSINTERVAL        cMsSleep    = cMsMaxSleep;
+
+    /*
+     * The FIFO loop.
+     */
     LogFlow(("vmsvgaFIFOLoop: started loop\n"));
+    bool fBadOrDisabledFifo = false;
     uint32_t volatile * const pFIFO = pThis->svga.pFIFOR3;
     while (pThread->enmState == PDMTHREADSTATE_RUNNING)
     {
@@ -2472,25 +2491,37 @@ static DECLCALLBACK(int) vmsvgaFIFOLoop(PPDMDEVINS pDevIns, PPDMTHREAD pThread)
 # endif
 
         /*
-         * Wait for at most 250 ms to start polling.
+         * Unless there's already work pending, go to sleep for a short while.
+         * (See polling/sleep interval config above.)
          */
-        rc = SUPSemEventWaitNoResume(pThis->svga.pSupDrvSession, pThis->svga.FIFORequestSem, 250);
-        AssertBreak(RT_SUCCESS(rc) || rc == VERR_TIMEOUT || rc == VERR_INTERRUPTED);
-        if (pThread->enmState != PDMTHREADSTATE_RUNNING)
+        if (   fBadOrDisabledFifo
+            || pFIFO[SVGA_FIFO_NEXT_CMD] == pFIFO[SVGA_FIFO_STOP])
         {
-            LogFlow(("vmsvgaFIFOLoop: thread state %x\n", pThread->enmState));
-            break;
+            rc = SUPSemEventWaitNoResume(pThis->svga.pSupDrvSession, pThis->svga.FIFORequestSem, cMsSleep);
+            AssertBreak(RT_SUCCESS(rc) || rc == VERR_TIMEOUT || rc == VERR_INTERRUPTED);
+            if (pThread->enmState != PDMTHREADSTATE_RUNNING)
+            {
+                LogFlow(("vmsvgaFIFOLoop: thread state %x\n", pThread->enmState));
+                break;
+            }
         }
+        else
+            rc = VINF_SUCCESS;
+        fBadOrDisabledFifo = false;
         if (rc == VERR_TIMEOUT)
         {
             if (pFIFO[SVGA_FIFO_NEXT_CMD] == pFIFO[SVGA_FIFO_STOP])
+            {
+                cMsSleep = RT_MIN(cMsSleep + cMsIncSleep, cMsMaxSleep);
                 continue;
+            }
             STAM_REL_COUNTER_INC(&pSVGAState->StatFifoTodoTimeout);
 
             Log(("vmsvgaFIFOLoop: timeout\n"));
         }
         else if (pFIFO[SVGA_FIFO_NEXT_CMD] != pFIFO[SVGA_FIFO_STOP])
             STAM_REL_COUNTER_INC(&pSVGAState->StatFifoTodoWoken);
+        cMsSleep = cMsMinSleep;
 
         Log(("vmsvgaFIFOLoop: enabled=%d configured=%d busy=%d\n", pThis->svga.fEnabled, pThis->svga.fConfigured, pThis->svga.pFIFOR3[SVGA_FIFO_BUSY]));
         Log(("vmsvgaFIFOLoop: min  %x max  %x\n", pFIFO[SVGA_FIFO_MIN], pFIFO[SVGA_FIFO_MAX]));
@@ -2512,6 +2543,7 @@ static DECLCALLBACK(int) vmsvgaFIFOLoop(PPDMDEVINS pDevIns, PPDMTHREAD pThread)
             || !pThis->svga.fConfigured)
         {
             vmsvgaFifoSetNotBusy(pThis, pSVGAState, pFIFO[SVGA_FIFO_MIN]);
+            fBadOrDisabledFifo = true;
             continue;
         }
 
@@ -2535,6 +2567,7 @@ static DECLCALLBACK(int) vmsvgaFIFOLoop(PPDMDEVINS pDevIns, PPDMTHREAD pThread)
             STAM_REL_COUNTER_INC(&pSVGAState->StatFifoErrors);
             LogRelMax(8, ("vmsvgaFIFOLoop: Bad fifo: min=%#x stop=%#x max=%#x\n", offFifoMin, offCurrentCmd, offFifoMax));
             vmsvgaFifoSetNotBusy(pThis, pSVGAState, offFifoMin);
+            fBadOrDisabledFifo = true;
             continue;
         }
         if (RT_UNLIKELY(offCurrentCmd & 3))
@@ -2544,14 +2577,16 @@ static DECLCALLBACK(int) vmsvgaFIFOLoop(PPDMDEVINS pDevIns, PPDMTHREAD pThread)
             offCurrentCmd = ~UINT32_C(3);
         }
 
-/**
+/** @def VMSVGAFIFO_GET_CMD_BUFFER_BREAK
  * Macro for shortening calls to vmsvgaFIFOGetCmdPayload.
  *
  * Will break out of the switch on failure.
  * Will restart and quit the loop if the thread was requested to stop.
  *
+ * @param   a_PtrVar        Request variable pointer.
+ * @param   a_Type          Request typedef (not pointer) for casting.
  * @param   a_cbPayloadReq  How much payload to fetch.
- * @remarks Access a bunch of variables in the current scope!
+ * @remarks Accesses a bunch of variables in the current scope!
  */
 # define VMSVGAFIFO_GET_CMD_BUFFER_BREAK(a_PtrVar, a_Type, a_cbPayloadReq) \
             if (1) { \
@@ -2559,12 +2594,16 @@ static DECLCALLBACK(int) vmsvgaFIFOLoop(PPDMDEVINS pDevIns, PPDMTHREAD pThread)
                                                                pbBounceBuf, &cbPayload, pThread, pThis, pSVGAState); \
                 if (RT_UNLIKELY((uintptr_t)(a_PtrVar) < 2)) { if ((uintptr_t)(a_PtrVar) == 1) continue; break; } \
             } else do {} while (0)
-/**
+/** @def VMSVGAFIFO_GET_MORE_CMD_BUFFER_BREAK
  * Macro for shortening calls to vmsvgaFIFOGetCmdPayload for refetching the
  * buffer after figuring out the actual command size.
+ *
  * Will break out of the switch on failure.
+ *
+ * @param   a_PtrVar        Request variable pointer.
+ * @param   a_Type          Request typedef (not pointer) for casting.
  * @param   a_cbPayloadReq  How much payload to fetch.
- * @remarks Access a bunch of variables in the current scope!
+ * @remarks Accesses a bunch of variables in the current scope!
  */
 # define VMSVGAFIFO_GET_MORE_CMD_BUFFER_BREAK(a_PtrVar, a_Type, a_cbPayloadReq) \
             if (1) { \
@@ -2881,7 +2920,7 @@ static DECLCALLBACK(int) vmsvgaFIFOLoop(PPDMDEVINS pDevIns, PPDMTHREAD pThread)
                     if (fGCPhys64)
                         GCPhys = (pPage64[0] << PAGE_SHIFT) & 0x00000FFFFFFFFFFFULL;    /* seeing rubbish in the top bits with certain linux guests*/
                     else
-                        GCPhys = pPage32[0] << PAGE_SHIFT;
+                        GCPhys = (RTGCPHYS)pPage32[0] << PAGE_SHIFT;
 
                     pGMR->paDesc[0].GCPhys    = GCPhys;
                     pGMR->paDesc[0].numPages  = 1;
@@ -2892,7 +2931,7 @@ static DECLCALLBACK(int) vmsvgaFIFOLoop(PPDMDEVINS pDevIns, PPDMTHREAD pThread)
                         if (pCmd->flags & SVGA_REMAP_GMR2_PPN64)
                             GCPhys = (pPage64[i] << PAGE_SHIFT) & 0x00000FFFFFFFFFFFULL;    /* seeing rubbish in the top bits with certain linux guests*/
                         else
-                            GCPhys = pPage32[i] << PAGE_SHIFT;
+                            GCPhys = (RTGCPHYS)pPage32[i] << PAGE_SHIFT;
 
                         /* Continuous physical memory? */
                         if (GCPhys == pGMR->paDesc[iDescriptor].GCPhys + pGMR->paDesc[iDescriptor].numPages * PAGE_SIZE)
@@ -4438,7 +4477,7 @@ static const char * const g_apszVmSvgaDevCapNames[] =
 /**
  * Power On notification.
  *
- * @returns VBox status.
+ * @returns VBox status code.
  * @param   pDevIns     The device instance data.
  *
  * @remarks Caller enters the device critical section.

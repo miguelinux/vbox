@@ -170,8 +170,7 @@ static int drvHostALSAAudioClose(snd_pcm_t **pphPCM)
     int rc2 = snd_pcm_close(*pphPCM);
     if (rc2)
     {
-        LogRel(("ALSA: Closing PCM descriptor failed: %s\n",
-                 snd_strerror(rc2)));
+        LogRel(("ALSA: Closing PCM descriptor failed: %s\n", snd_strerror(rc2)));
         rc = VERR_GENERAL_FAILURE; /** @todo */
     }
     else
@@ -385,8 +384,7 @@ static int drvHostALSAAudioOpen(bool fIn,
         const char *pszDev = fIn ? s_ALSAConf.pcm_name_in : s_ALSAConf.pcm_name_out;
         if (!pszDev)
         {
-            LogRel(("ALSA: Invalid or no %s device name set\n",
-                    fIn ? "input" : "output"));
+            LogRel(("ALSA: Invalid or no %s device name set\n", fIn ? "input" : "output"));
             rc = VERR_INVALID_PARAMETER;
             break;
         }
@@ -396,20 +394,20 @@ static int drvHostALSAAudioOpen(bool fIn,
                                SND_PCM_NONBLOCK);
         if (err < 0)
         {
-            LogRel(("ALSA: Failed to open \"%s\" as %s: %s\n", pszDev,
-                    fIn ? "ADC" : "DAC", snd_strerror(err)));
-            rc = VERR_GENERAL_FAILURE; /** @todo Find a better rc. */
+            LogRel(("ALSA: Failed to open \"%s\" as %s device: %s\n", pszDev, fIn ? "input" : "output", snd_strerror(err)));
+            rc = VERR_AUDIO_BACKEND_INIT_FAILED;
             break;
         }
+
+        LogRel(("ALSA: Using %s device \"%s\"\n", fIn ? "input" : "output", pszDev));
 
         snd_pcm_hw_params_t *pHWParms;
         snd_pcm_hw_params_alloca(&pHWParms); /** @todo Check for successful allocation? */
         err = snd_pcm_hw_params_any(phPCM, pHWParms);
         if (err < 0)
         {
-            LogRel(("ALSA: Failed to initialize hardware parameters: %s\n",
-                    snd_strerror(err)));
-            rc = VERR_GENERAL_FAILURE; /** @todo Find a better rc. */
+            LogRel(("ALSA: Failed to initialize hardware parameters: %s\n", snd_strerror(err)));
+            rc = VERR_AUDIO_BACKEND_INIT_FAILED;
             break;
         }
 
@@ -418,25 +416,23 @@ static int drvHostALSAAudioOpen(bool fIn,
         if (err < 0)
         {
             LogRel(("ALSA: Failed to set access type: %s\n", snd_strerror(err)));
-            rc = VERR_GENERAL_FAILURE; /** @todo Find a better rc. */
+            rc = VERR_AUDIO_BACKEND_INIT_FAILED;
             break;
         }
 
         err = snd_pcm_hw_params_set_format(phPCM, pHWParms, pCfgReq->fmt);
         if (err < 0)
         {
-            LogRel(("ALSA: Failed to set audio format to %d: %s\n",
-                    pCfgReq->fmt, snd_strerror(err)));
-            rc = VERR_GENERAL_FAILURE; /** @todo Find a better rc. */
+            LogRel(("ALSA: Failed to set audio format to %d: %s\n", pCfgReq->fmt, snd_strerror(err)));
+            rc = VERR_AUDIO_BACKEND_INIT_FAILED;
             break;
         }
 
         err = snd_pcm_hw_params_set_rate_near(phPCM, pHWParms, &uFreq, 0);
         if (err < 0)
         {
-            LogRel(("ALSA: Failed to set frequency to %dHz: %s\n",
-                    pCfgReq->freq, snd_strerror(err)));
-            rc = VERR_GENERAL_FAILURE; /** @todo Find a better rc. */
+            LogRel(("ALSA: Failed to set frequency to %uHz: %s\n", pCfgReq->freq, snd_strerror(err)));
+            rc = VERR_AUDIO_BACKEND_INIT_FAILED;
             break;
         }
 
@@ -444,7 +440,7 @@ static int drvHostALSAAudioOpen(bool fIn,
         if (err < 0)
         {
             LogRel(("ALSA: Failed to set number of channels to %d\n", pCfgReq->nchannels));
-            rc = VERR_GENERAL_FAILURE; /** @todo Find a better rc. */
+            rc = VERR_AUDIO_BACKEND_INIT_FAILED;
             break;
         }
 
@@ -452,7 +448,7 @@ static int drvHostALSAAudioOpen(bool fIn,
             && cChannels != 2)
         {
             LogRel(("ALSA: Number of audio channels (%u) not supported\n", cChannels));
-            rc = VERR_GENERAL_FAILURE; /** @todo Find a better rc. */
+            rc = VERR_AUDIO_BACKEND_INIT_FAILED;
             break;
         }
 
@@ -481,7 +477,7 @@ static int drvHostALSAAudioOpen(bool fIn,
                     if (err < 0)
                     {
                         LogRel(("ALSA: Failed to set period time %d\n", pCfgReq->period_size));
-                        rc = VERR_GENERAL_FAILURE; /** @todo Find a better rc. */
+                        rc = VERR_AUDIO_BACKEND_INIT_FAILED;
                         break;
                     }
                 }
@@ -491,7 +487,7 @@ static int drvHostALSAAudioOpen(bool fIn,
                 if (err < 0)
                 {
                     LogRel(("ALSA: Failed to set buffer time %d\n", pCfgReq->buffer_size));
-                    rc = VERR_GENERAL_FAILURE; /** @todo Find a better rc. */
+                    rc = VERR_AUDIO_BACKEND_INIT_FAILED;
                     break;
                 }
             }
@@ -512,7 +508,7 @@ static int drvHostALSAAudioOpen(bool fIn,
                     if (err < 0)
                     {
                         LogRel(("ALSA: Could not determine minimal period size\n"));
-                        rc = VERR_GENERAL_FAILURE; /** @todo Find a better rc. */
+                        rc = VERR_AUDIO_BACKEND_INIT_FAILED;
                         break;
                     }
                     else
@@ -538,7 +534,7 @@ static int drvHostALSAAudioOpen(bool fIn,
                     {
                         LogRel(("ALSA: Failed to set period size %d (%s)\n",
                                 period_size_f, snd_strerror(err)));
-                        rc = VERR_GENERAL_FAILURE; /** @todo Find a better rc. */
+                        rc = VERR_AUDIO_BACKEND_INIT_FAILED;
                         break;
                     }
                 }
@@ -552,7 +548,7 @@ static int drvHostALSAAudioOpen(bool fIn,
                 if (err < 0)
                 {
                     LogRel(("ALSA: Could not retrieve minimal buffer size\n"));
-                    rc = VERR_GENERAL_FAILURE; /** @todo Find a better rc. */
+                    rc = VERR_AUDIO_BACKEND_INIT_FAILED;
                     break;
                 }
                 else
@@ -578,7 +574,7 @@ static int drvHostALSAAudioOpen(bool fIn,
                 {
                     LogRel(("ALSA: Failed to set buffer size %d: %s\n",
                             buffer_size_f, snd_strerror(err)));
-                    rc = VERR_GENERAL_FAILURE; /** @todo Find a better rc. */
+                    rc = VERR_AUDIO_BACKEND_INIT_FAILED;
                     break;
                 }
             }
@@ -590,7 +586,7 @@ static int drvHostALSAAudioOpen(bool fIn,
         if (err < 0)
         {
             LogRel(("ALSA: Failed to apply audio parameters\n"));
-            rc = VERR_GENERAL_FAILURE; /** @todo Find a better rc. */
+            rc = VERR_AUDIO_BACKEND_INIT_FAILED;
             break;
         }
 
@@ -598,7 +594,7 @@ static int drvHostALSAAudioOpen(bool fIn,
         if (err < 0)
         {
             LogRel(("ALSA: Failed to get buffer size\n"));
-            rc = VERR_GENERAL_FAILURE; /** @todo Find a better rc. */
+            rc = VERR_AUDIO_BACKEND_INIT_FAILED;
             break;
         }
 
@@ -608,7 +604,7 @@ static int drvHostALSAAudioOpen(bool fIn,
         if (err < 0)
         {
             LogRel(("ALSA: Failed to get period size\n"));
-            rc = VERR_GENERAL_FAILURE; /** @todo Find a better rc. */
+            rc = VERR_AUDIO_BACKEND_INIT_FAILED;
             break;
         }
 
@@ -619,7 +615,7 @@ static int drvHostALSAAudioOpen(bool fIn,
         if (err < 0)
         {
             LogRel(("ALSA: Could not prepare hPCM %p\n", (void *)phPCM));
-            rc = VERR_GENERAL_FAILURE; /** @todo Find a better rc. */
+            rc = VERR_AUDIO_BACKEND_INIT_FAILED;
             break;
         }
 
@@ -705,8 +701,7 @@ static int drvHostALSAAudioRecover(snd_pcm_t *phPCM)
     int err = snd_pcm_prepare(phPCM);
     if (err < 0)
     {
-        LogFunc(("Failed to recover stream %p: %s\n",
-                 phPCM, snd_strerror(err)));
+        LogFunc(("Failed to recover stream %p: %s\n", phPCM, snd_strerror(err)));
         return VERR_ACCESS_DENIED; /** @todo Find a better rc. */
     }
 
@@ -720,8 +715,7 @@ static int drvHostALSAAudioResume(snd_pcm_t *phPCM)
     int err = snd_pcm_resume(phPCM);
     if (err < 0)
     {
-        LogFunc(("Failed to resume stream %p: %s\n",
-                 phPCM, snd_strerror(err)));
+        LogFunc(("Failed to resume stream %p: %s\n", phPCM, snd_strerror(err)));
         return VERR_ACCESS_DENIED; /** @todo Find a better rc. */
     }
 
@@ -736,18 +730,16 @@ static int drvHostALSAAudioStreamCtl(snd_pcm_t *phPCM, bool fPause)
         err = snd_pcm_drop(phPCM);
         if (err < 0)
         {
-            LogFlow(("Error stopping stream %p: %s\n",
-                     phPCM, snd_strerror(err)));
+            LogRel(("ALSA: Error stopping stream %p: %s\n", phPCM, snd_strerror(err)));
             return VERR_ACCESS_DENIED;
         }
     }
     else
     {
-        err = snd_pcm_prepare (phPCM);
+        err = snd_pcm_prepare(phPCM);
         if (err < 0)
         {
-            LogFlow(("Error preparing stream %p: %s\n",
-                     phPCM, snd_strerror(err)));
+            LogRel(("ALSA: Error preparing stream %p: %s\n", phPCM, snd_strerror(err)));
             return VERR_ACCESS_DENIED;
         }
     }
@@ -855,6 +847,7 @@ static DECLCALLBACK(int) drvHostALSAAudioCaptureIn(PPDMIHOSTAUDIO pInterface, PP
                 }
 
                 case -EAGAIN:
+                {
                     /*
                      * Don't set error here because EAGAIN means there are no further frames
                      * available at the moment, try later. As we might have read some frames
@@ -862,6 +855,7 @@ static DECLCALLBACK(int) drvHostALSAAudioCaptureIn(PPDMIHOSTAUDIO pInterface, PP
                      */
                     cbToRead = 0;
                     break;
+                }
 
                 case -EPIPE:
                 {
@@ -874,9 +868,11 @@ static DECLCALLBACK(int) drvHostALSAAudioCaptureIn(PPDMIHOSTAUDIO pInterface, PP
                 }
 
                 default:
+                {
                     LogFunc(("Failed to read input frames: %s\n", snd_strerror(cRead)));
                     rc = VERR_GENERAL_FAILURE; /** @todo Fudge! */
                     break;
+                }
             }
         }
         else
@@ -945,7 +941,7 @@ static DECLCALLBACK(int) drvHostALSAAudioPlayOut(PPDMIHOSTAUDIO pInterface, PPDM
         size_t cbToRead = RT_MIN(AUDIOMIXBUF_S2B(&pHstStrmOut->MixBuf,
                                                  (uint32_t)cAvail), /* cAvail is always >= 0 */
                                  AUDIOMIXBUF_S2B(&pHstStrmOut->MixBuf,
-                                                 drvAudioHstOutSamplesLive(pHstStrmOut)));
+                                                 AudioMixBufAvail(&pHstStrmOut->MixBuf)));
         LogFlowFunc(("cbToRead=%zu, cbAvail=%zu\n",
                      cbToRead, AUDIOMIXBUF_S2B(&pHstStrmOut->MixBuf, cAvail)));
 
@@ -1117,7 +1113,7 @@ static DECLCALLBACK(int) drvHostALSAAudioInitOut(PPDMIHOSTAUDIO pInterface,
         streamCfg.enmFormat     = enmFormat;
         streamCfg.enmEndianness = enmEnd;
 
-        rc = drvAudioStreamCfgToProps(&streamCfg, &pHstStrmOut->Props);
+        rc = DrvAudioStreamCfgToProps(&streamCfg, &pHstStrmOut->Props);
         if (RT_FAILURE(rc))
             break;
 
@@ -1188,7 +1184,7 @@ static DECLCALLBACK(int) drvHostALSAAudioInitIn(PPDMIHOSTAUDIO pInterface,
         streamCfg.enmFormat     = enmFormat;
         streamCfg.enmEndianness = enmEnd;
 
-        rc = drvAudioStreamCfgToProps(&streamCfg, &pHstStrmIn->Props);
+        rc = DrvAudioStreamCfgToProps(&streamCfg, &pHstStrmIn->Props);
         if (RT_FAILURE(rc))
             break;
 
@@ -1239,10 +1235,12 @@ static DECLCALLBACK(int) drvHostALSAAudioControlIn(PPDMIHOSTAUDIO pInterface, PP
     switch (enmStreamCmd)
     {
         case PDMAUDIOSTREAMCMD_ENABLE:
+        case PDMAUDIOSTREAMCMD_RESUME:
             rc = drvHostALSAAudioStreamCtl(pThisStrmIn->phPCM, false /* fStop */);
             break;
 
         case PDMAUDIOSTREAMCMD_DISABLE:
+        case PDMAUDIOSTREAMCMD_PAUSE:
             rc = drvHostALSAAudioStreamCtl(pThisStrmIn->phPCM, true /* fStop */);
             break;
 
@@ -1268,10 +1266,12 @@ static DECLCALLBACK(int) drvHostALSAAudioControlOut(PPDMIHOSTAUDIO pInterface, P
     switch (enmStreamCmd)
     {
         case PDMAUDIOSTREAMCMD_ENABLE:
+        case PDMAUDIOSTREAMCMD_RESUME:
             rc = drvHostALSAAudioStreamCtl(pThisStrmOut->phPCM, false /* fStop */);
             break;
 
         case PDMAUDIOSTREAMCMD_DISABLE:
+        case PDMAUDIOSTREAMCMD_PAUSE:
             rc = drvHostALSAAudioStreamCtl(pThisStrmOut->phPCM, true /* fStop */);
             break;
 
@@ -1289,10 +1289,13 @@ static DECLCALLBACK(int) drvHostALSAAudioGetConf(PPDMIHOSTAUDIO pInterface, PPDM
     NOREF(pInterface);
     AssertPtrReturn(pCfg, VERR_INVALID_POINTER);
 
-    pCfg->cbStreamOut = sizeof(ALSAAUDIOSTREAMOUT);
-    pCfg->cbStreamIn = sizeof(ALSAAUDIOSTREAMIN);
-    pCfg->cMaxHstStrmsOut = INT_MAX;
-    pCfg->cMaxHstStrmsIn = INT_MAX;
+    pCfg->cbStreamIn      = sizeof(ALSAAUDIOSTREAMIN);
+    pCfg->cbStreamOut     = sizeof(ALSAAUDIOSTREAMOUT);
+
+    /* ALSA only allows one input and one output used at a time for
+     * the selected device. */
+    pCfg->cMaxHstStrmsIn  = 1;
+    pCfg->cMaxHstStrmsOut = 1;
 
     return VINF_SUCCESS;
 }

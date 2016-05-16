@@ -21,6 +21,7 @@
 *********************************************************************************************************************************/
 #include "the-linux-kernel.h"
 #include "version-generated.h"
+#include "revision-generated.h"
 #include "product-generated.h"
 #include <linux/ethtool.h>
 #include <linux/netdevice.h>
@@ -87,7 +88,7 @@ MODULE_AUTHOR(VBOX_VENDOR);
 MODULE_DESCRIPTION(VBOX_PRODUCT " Network Adapter Driver");
 MODULE_LICENSE("GPL");
 #ifdef MODULE_VERSION
-MODULE_VERSION(VBOX_VERSION_STRING " (" RT_XSTR(INTNETTRUNKIFPORT_VERSION) ")");
+MODULE_VERSION(VBOX_VERSION_STRING " r" RT_XSTR(VBOX_SVN_REV) " (" RT_XSTR(INTNETTRUNKIFPORT_VERSION) ")");
 #endif
 
 /**
@@ -169,6 +170,7 @@ struct net_device_stats *vboxNetAdpLinuxGetStats(struct net_device *pNetDev)
 static void vboxNetAdpEthGetDrvinfo(struct net_device *pNetDev, struct ethtool_drvinfo *info)
 {
     PVBOXNETADPPRIV pPriv = netdev_priv(pNetDev);
+    NOREF(pPriv);
 
     RTStrPrintf(info->driver, sizeof(info->driver),
                 "%s", VBOXNETADP_NAME);

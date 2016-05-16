@@ -1147,7 +1147,7 @@ static int vbe_ioport_write_data(PVGASTATE pThis, uint32_t addr, uint32_t val)
              */
             pThis->pDrv->pfnLFBModeChange(pThis->pDrv, (val & VBE_DISPI_ENABLED) != 0);
 #ifdef VBOX_WITH_HGSMI
-            VBVAPause(pThis, (val & VBE_DISPI_ENABLED) == 0);
+            VBVAOnVBEChanged(pThis);
 #endif /* VBOX_WITH_HGSMI */
 
             /* The VGA region is (could be) affected by this change; reset all aliases we've created. */
@@ -1967,7 +1967,7 @@ static int vga_draw_text(PVGASTATE pThis, bool full_update, bool fFailOnResize, 
         /* Flush any remaining changes to display. */
         pDrv->pfnUpdateRect(pDrv, cx_min_upd * cw, cy_start * cheight,
                                    (cx_max_upd - cx_min_upd + 1) * cw, (cy - cy_start) * cheight);
-        return VINF_SUCCESS;
+    return VINF_SUCCESS;
 }
 
 enum {
@@ -3056,6 +3056,8 @@ static DECLCALLBACK(int) vgaR3IOPortHGSMIWrite(PPDMDEVINS pDevIns, void *pvUser,
                                              | HGSMIHOSTFLAGS_WATCHDOG
 #  endif
                                              | HGSMIHOSTFLAGS_VSYNC
+                                             | HGSMIHOSTFLAGS_HOTPLUG
+                                             | HGSMIHOSTFLAGS_CURSOR_CAPABILITIES
                                              );
                 }
                 else
@@ -3347,7 +3349,7 @@ static int vgaInternalMMIOFill(PVGASTATE pThis, void *pvUser, RTGCPHYS GCPhysAdd
 
 /**
  * @callback_method_impl{FNIOMMMIOFILL,
- * Legacy VGA memory (0xa0000 - 0xbffff) write hook, to be called from IOM and
+ * Legacy VGA memory (0xa0000 - 0xbffff) write hook\, to be called from IOM and
  * from the inside of VGADeviceGC.cpp. This is the advanced version of
  * vga_mem_writeb function.}
  */
@@ -3363,7 +3365,7 @@ PDMBOTHCBDECL(int) vgaMMIOFill(PPDMDEVINS pDevIns, void *pvUser, RTGCPHYS GCPhys
 
 /**
  * @callback_method_impl{FNIOMMMIOREAD, Legacy VGA memory (0xa0000 - 0xbffff)
- *                      read hook, to be called from IOM.}
+ *                      read hook\, to be called from IOM.}
  */
 PDMBOTHCBDECL(int) vgaMMIORead(PPDMDEVINS pDevIns, void *pvUser, RTGCPHYS GCPhysAddr, void *pv, unsigned cb)
 {
@@ -3418,7 +3420,7 @@ PDMBOTHCBDECL(int) vgaMMIORead(PPDMDEVINS pDevIns, void *pvUser, RTGCPHYS GCPhys
 
 /**
  * @callback_method_impl{FNIOMMMIOWRITE, Legacy VGA memory (0xa0000 - 0xbffff)
- *                      write hook, to be called from IOM.}
+ *                      write hook\, to be called from IOM.}
  */
 PDMBOTHCBDECL(int) vgaMMIOWrite(PPDMDEVINS pDevIns, void *pvUser, RTGCPHYS GCPhysAddr, void const *pv, unsigned cb)
 {
@@ -4286,8 +4288,8 @@ static void vgaInfoTextWorker(PVGASTATE pThis, PCDBGFINFOHLP pHlp,
 
 /**
  * @callback_method_impl{FNDBGFHANDLERDEV,
- *      Dumps VGA memory formatted as ASCII text, no attributes. Only looks at the
- *      first page.}
+ *      Dumps VGA memory formatted as ASCII text\, no attributes. Only looks at
+ *      the first page.}
  */
 static DECLCALLBACK(void) vgaInfoText(PPDMDEVINS pDevIns, PCDBGFINFOHLP pHlp, const char *pszArgs)
 {
@@ -5228,12 +5230,34 @@ vgaPortCopyRect(PPDMIDISPLAYPORT pInterface,
         return VERR_INVALID_PARAMETER;
     }
 
+    int rc = PDMCritSectEnter(&pThis->CritSect, VERR_SEM_BUSY);
+    AssertRC(rc);
+
+    /* This method only works if the VGA device is in a VBE mode or not paused VBVA mode.
+     * VGA modes are reported to the caller by returning VERR_INVALID_STATE.
+     *
+     * If VBE_DISPI_ENABLED is set, then it is a VBE or VBE compatible VBVA mode. Both of them can be handled.
+     *
+     * If VBE_DISPI_ENABLED is clear, then it is either a VGA mode or a VBVA mode set by guest additions
+     * which have VBVACAPS_USE_VBVA_ONLY capability.
+     * When VBE_DISPI_ENABLED is being cleared and VBVACAPS_USE_VBVA_ONLY is not set (i.e. guest wants a VGA mode),
+     * then VBVAOnVBEChanged makes sure that VBVA is paused.
+     * That is a not paused VBVA means that the video mode can be handled even if VBE_DISPI_ENABLED is clear.
+     */
+    if (   (pThis->vbe_regs[VBE_DISPI_INDEX_ENABLE] & VBE_DISPI_ENABLED) == 0
+        && VBVAIsPaused(pThis))
+    {
+        PDMCritSectLeave(&pThis->CritSect);
+        return VERR_INVALID_STATE;
+    }
+
     /* Choose the rendering function. */
     switch (cSrcBitsPerPixel)
     {
         default:
         case 0:
             /* Nothing to do, just return. */
+            PDMCritSectLeave(&pThis->CritSect);
             return VINF_SUCCESS;
         case 8:
             v = VGA_DRAW_LINE8;
@@ -5250,16 +5274,6 @@ vgaPortCopyRect(PPDMIDISPLAYPORT pInterface,
         case 32:
             v = VGA_DRAW_LINE32;
             break;
-    }
-
-    int rc = PDMCritSectEnter(&pThis->CritSect, VERR_SEM_BUSY);
-    AssertRC(rc);
-
-    /* This method only works if the VGA device is in a VBE mode. */
-    if ((pThis->vbe_regs[VBE_DISPI_INDEX_ENABLE] & VBE_DISPI_ENABLED) == 0)
-    {
-        PDMCritSectLeave(&pThis->CritSect);
-        return VERR_INVALID_STATE;
     }
 
     vga_draw_line = vga_draw_line_table[v * 4 + get_depth_index(cDstBitsPerPixel)];
@@ -5635,13 +5649,14 @@ static DECLCALLBACK(int) vgaR3LoadDone(PPDMDEVINS pDevIns, PSSMHANDLE pSSM)
 
 #ifdef VBOX_WITH_HGSMI
     PVGASTATE pThis = PDMINS_2_DATA(pDevIns, PVGASTATE);
-    VBVAPause(pThis, (pThis->vbe_regs[VBE_DISPI_INDEX_ENABLE] & VBE_DISPI_ENABLED) == 0);
     rc = vboxVBVALoadStateDone(pDevIns, pSSM);
     AssertRCReturn(rc, rc);
 # ifdef VBOX_WITH_VDMA
     rc = vboxVDMASaveLoadDone(pThis->pVdma);
     AssertRCReturn(rc, rc);
 # endif
+    /* Now update the current VBVA state which depends on VBE registers. vboxVBVALoadStateDone cleared the state. */
+    VBVAOnVBEChanged(pThis);
 #endif
 #ifdef VBOX_WITH_VMSVGA
     if (pThis->fVMSVGAEnabled)
@@ -6949,6 +6964,20 @@ static DECLCALLBACK(int)   vgaR3Construct(PPDMDEVINS pDevIns, int iInstance, PCF
     return rc;
 }
 
+static DECLCALLBACK(void) vgaR3PowerOn(PPDMDEVINS pDevIns)
+{
+    PVGASTATE pThis = PDMINS_2_DATA(pDevIns, PVGASTATE);
+#ifdef VBOX_WITH_VMSVGA
+    vmsvgaR3PowerOn(pDevIns);
+#endif
+    VBVAOnResume(pThis);
+}
+
+static DECLCALLBACK(void) vgaR3Resume(PPDMDEVINS pDevIns)
+{
+    PVGASTATE pThis = PDMINS_2_DATA(pDevIns, PVGASTATE);
+    VBVAOnResume(pThis);
+}
 
 /**
  * The device registration structure.
@@ -6982,17 +7011,13 @@ const PDMDEVREG g_DeviceVga =
     /* pfnMemSetup */
     NULL,
     /* pfnPowerOn */
-#ifdef VBOX_WITH_VMSVGA
-    vmsvgaR3PowerOn,
-#else
-    NULL,
-#endif
+    vgaR3PowerOn,
     /* pfnReset */
     vgaR3Reset,
     /* pfnSuspend */
     NULL,
     /* pfnResume */
-    NULL,
+    vgaR3Resume,
     /* pfnAttach */
     vgaAttach,
     /* pfnDetach */

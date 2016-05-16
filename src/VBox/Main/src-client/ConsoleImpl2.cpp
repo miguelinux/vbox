@@ -491,20 +491,7 @@ static int SetBiosDiskInfo(ComPtr<IMachine> pMachine, PCFGMNODE pCfg, PCFGMNODE 
                 lPortUsed[u32HDCount++] = lPortNum;
                 LogFlowFunc(("HD port Count=%d\n", u32HDCount));
             }
-
-            /* Configure the hotpluggable flag for the port. */
-            BOOL fHotPluggable = FALSE;
-            hrc = pMediumAtt->COMGETTER(HotPluggable)(&fHotPluggable); H();
-            if (SUCCEEDED(hrc))
-            {
-                PCFGMNODE pPortCfg;
-                char szName[24];
-                RTStrPrintf(szName, sizeof(szName), "Port%d", lPortNum);
-
-                InsertConfigNode(pCfg, szName, &pPortCfg);
-                InsertConfigInteger(pPortCfg, "Hotpluggable", fHotPluggable ? 1 : 0);
-            }
-         }
+        }
     }
 
 
@@ -572,7 +559,7 @@ HRESULT Console::i_attachRawPCIDevices(PUVM pUVM, BusAssignmentManager *pBusMgr,
         LONG guest = 0;
         PCIBusAddress GuestPCIAddress;
 
-        assignment->COMGETTER(GuestAddress)(&guest);
+        hrc = assignment->COMGETTER(GuestAddress)(&guest);   H();
         GuestPCIAddress.fromLong(guest);
         Assert(GuestPCIAddress.valid());
 
@@ -625,9 +612,9 @@ HRESULT Console::i_attachRawPCIDevices(PUVM pUVM, BusAssignmentManager *pBusMgr,
         LONG host, guest;
         Bstr aDevName;
 
-        assignment->COMGETTER(HostAddress)(&host);
-        assignment->COMGETTER(GuestAddress)(&guest);
-        assignment->COMGETTER(Name)(aDevName.asOutParam());
+        hrc = assignment->COMGETTER(HostAddress)(&host);            H();
+        hrc = assignment->COMGETTER(GuestAddress)(&guest);          H();
+        hrc = assignment->COMGETTER(Name)(aDevName.asOutParam());   H();
 
         InsertConfigNode(pPCIDevs, Utf8StrFmt("%d", iDev).c_str(), &pInst);
         InsertConfigInteger(pInst, "Trusted", 1);
@@ -744,151 +731,6 @@ DECLCALLBACK(int) Console::i_configConstructor(PUVM pUVM, PVM pVM, void *pvConso
 }
 
 
-#ifdef RT_OS_WINDOWS
-#include <psapi.h>
-
-/**
- * Report versions of installed drivers to release log.
- */
-void Console::i_reportDriverVersions()
-{
-    DWORD   err;
-    HRESULT hrc;
-    LPVOID  aDrivers[1024];
-    LPVOID *pDrivers      = aDrivers;
-    UINT    cNeeded       = 0;
-    TCHAR   szSystemRoot[MAX_PATH];
-    TCHAR  *pszSystemRoot = szSystemRoot;
-    LPVOID  pVerInfo      = NULL;
-    DWORD   cbVerInfo     = 0;
-
-    do
-    {
-        cNeeded = GetWindowsDirectory(szSystemRoot, RT_ELEMENTS(szSystemRoot));
-        if (cNeeded == 0)
-        {
-            err = GetLastError();
-            hrc = HRESULT_FROM_WIN32(err);
-            AssertLogRelMsgFailed(("GetWindowsDirectory failed, hr=%Rhrc (0x%x) err=%u\n",
-                                                   hrc, hrc, err));
-            break;
-        }
-        else if (cNeeded > RT_ELEMENTS(szSystemRoot))
-        {
-            /* The buffer is too small, allocate big one. */
-            pszSystemRoot = (TCHAR *)RTMemTmpAlloc(cNeeded * sizeof(_TCHAR));
-            if (!pszSystemRoot)
-            {
-                AssertLogRelMsgFailed(("RTMemTmpAlloc failed to allocate %d bytes\n", cNeeded));
-                break;
-            }
-            if (GetWindowsDirectory(pszSystemRoot, cNeeded) == 0)
-            {
-                err = GetLastError();
-                hrc = HRESULT_FROM_WIN32(err);
-                AssertLogRelMsgFailed(("GetWindowsDirectory failed, hr=%Rhrc (0x%x) err=%u\n",
-                                                   hrc, hrc, err));
-                break;
-            }
-        }
-
-        DWORD  cbNeeded = 0;
-        if (!EnumDeviceDrivers(aDrivers, sizeof(aDrivers), &cbNeeded) || cbNeeded > sizeof(aDrivers))
-        {
-            pDrivers = (LPVOID *)RTMemTmpAlloc(cbNeeded);
-            if (!EnumDeviceDrivers(pDrivers, cbNeeded, &cbNeeded))
-            {
-                err = GetLastError();
-                hrc = HRESULT_FROM_WIN32(err);
-                AssertLogRelMsgFailed(("EnumDeviceDrivers failed, hr=%Rhrc (0x%x) err=%u\n",
-                                                   hrc, hrc, err));
-                break;
-            }
-        }
-
-        LogRel(("Installed Drivers:\n"));
-
-        TCHAR szDriver[1024];
-        int cDrivers = cbNeeded / sizeof(pDrivers[0]);
-        for (int i = 0; i < cDrivers; i++)
-        {
-            if (GetDeviceDriverBaseName(pDrivers[i], szDriver, sizeof(szDriver) / sizeof(szDriver[0])))
-            {
-                if (_tcsnicmp(TEXT("vbox"), szDriver, 4))
-                    continue;
-            }
-            else
-                continue;
-            if (GetDeviceDriverFileName(pDrivers[i], szDriver, sizeof(szDriver) / sizeof(szDriver[0])))
-            {
-                _TCHAR szTmpDrv[1024];
-                _TCHAR *pszDrv = szDriver;
-                if (!_tcsncmp(TEXT("\\SystemRoot"), szDriver, 11))
-                {
-                    _tcscpy_s(szTmpDrv, pszSystemRoot);
-                    _tcsncat_s(szTmpDrv, szDriver + 11, sizeof(szTmpDrv) / sizeof(szTmpDrv[0]) - _tclen(pszSystemRoot));
-                    pszDrv = szTmpDrv;
-                }
-                else if (!_tcsncmp(TEXT("\\??\\"), szDriver, 4))
-                    pszDrv = szDriver + 4;
-
-                /* Allocate a buffer for version info. Reuse if large enough. */
-                DWORD cbNewVerInfo = GetFileVersionInfoSize(pszDrv, NULL);
-                if (cbNewVerInfo > cbVerInfo)
-                {
-                    if (pVerInfo)
-                        RTMemTmpFree(pVerInfo);
-                    cbVerInfo = cbNewVerInfo;
-                    pVerInfo = RTMemTmpAlloc(cbVerInfo);
-                    if (!pVerInfo)
-                    {
-                        AssertLogRelMsgFailed(("RTMemTmpAlloc failed to allocate %d bytes\n", cbVerInfo));
-                        break;
-                    }
-                }
-
-                if (GetFileVersionInfo(pszDrv, NULL, cbVerInfo, pVerInfo))
-                {
-                    UINT   cbSize = 0;
-                    LPBYTE lpBuffer = NULL;
-                    if (VerQueryValue(pVerInfo, TEXT("\\"), (VOID FAR* FAR*)&lpBuffer, &cbSize))
-                    {
-                        if (cbSize)
-                        {
-                            VS_FIXEDFILEINFO *pFileInfo = (VS_FIXEDFILEINFO *)lpBuffer;
-                            if (pFileInfo->dwSignature == 0xfeef04bd)
-                            {
-                                LogRel(("  %ls (Version: %d.%d.%d.%d)\n", pszDrv,
-                                        (pFileInfo->dwFileVersionMS >> 16) & 0xffff,
-                                        (pFileInfo->dwFileVersionMS >> 0) & 0xffff,
-                                        (pFileInfo->dwFileVersionLS >> 16) & 0xffff,
-                                        (pFileInfo->dwFileVersionLS >> 0) & 0xffff));
-                            }
-                        }
-                    }
-                }
-            }
-        }
-
-    }
-    while (0);
-
-    if (pVerInfo)
-        RTMemTmpFree(pVerInfo);
-
-    if (pDrivers != aDrivers)
-        RTMemTmpFree(pDrivers);
-
-    if (pszSystemRoot != szSystemRoot)
-        RTMemTmpFree(pszSystemRoot);
-}
-#else /* !RT_OS_WINDOWS */
-void Console::i_reportDriverVersions(void)
-{
-}
-#endif /* !RT_OS_WINDOWS */
-
-
 /**
  * Worker for configConstructor.
  *
@@ -981,7 +823,6 @@ int Console::i_configConstructorInner(PUVM pUVM, PVM pVM, AutoWriteLock *pAlock)
     ULONG maxNetworkAdapters;
     hrc = systemProperties->GetMaxNetworkAdapters(chipsetType, &maxNetworkAdapters);        H();
 
-    i_reportDriverVersions();
     /*
      * Get root node first.
      * This is the only node in the tree.
@@ -1806,24 +1647,31 @@ int Console::i_configConstructorInner(PUVM pUVM, PVM pVM, AutoWriteLock *pAlock)
          * The USB Controllers.
          */
         com::SafeIfaceArray<IUSBController> usbCtrls;
-        hrc = pMachine->COMGETTER(USBControllers)(ComSafeArrayAsOutParam(usbCtrls));        H();
+        hrc = pMachine->COMGETTER(USBControllers)(ComSafeArrayAsOutParam(usbCtrls));
         bool fOhciPresent = false; /**< Flag whether at least one OHCI controller is present. */
         bool fXhciPresent = false; /**< Flag whether at least one XHCI controller is present. */
 
-        for (size_t i = 0; i < usbCtrls.size(); ++i)
+        if (SUCCEEDED(hrc))
         {
-            USBControllerType_T enmCtrlType;
-            rc = usbCtrls[i]->COMGETTER(Type)(&enmCtrlType);                                   H();
-            if (enmCtrlType == USBControllerType_OHCI)
+            for (size_t i = 0; i < usbCtrls.size(); ++i)
             {
-                fOhciPresent = true;
-                break;
+                USBControllerType_T enmCtrlType;
+                rc = usbCtrls[i]->COMGETTER(Type)(&enmCtrlType);                                   H();
+                if (enmCtrlType == USBControllerType_OHCI)
+                {
+                    fOhciPresent = true;
+                    break;
+                }
+                else if (enmCtrlType == USBControllerType_XHCI)
+                {
+                    fXhciPresent = true;
+                    break;
+                }
             }
-            else if (enmCtrlType == USBControllerType_XHCI)
-            {
-                fXhciPresent = true;
-                break;
-            }
+        }
+        else if (hrc != E_NOTIMPL)
+        {
+            H();
         }
 
         /*
@@ -1897,8 +1745,10 @@ int Console::i_configConstructorInner(PUVM pUVM, PVM pVM, AutoWriteLock *pAlock)
                                    "Because the USB 2.0 controller state is part of the saved "
                                    "VM state, the VM cannot be started. To fix "
                                    "this problem, either install the '%s' or disable USB 2.0 "
-                                   "support in the VM settings"),
-                                s_pszUsbExtPackName);
+                                   "support in the VM settings.\n"
+                                   "Note! This error could also mean that an incompatible version of "
+                                   "the '%s' is installed"),
+                                s_pszUsbExtPackName, s_pszUsbExtPackName);
                     }
 # endif
                 }
@@ -2175,6 +2025,31 @@ int Console::i_configConstructorInner(PUVM pUVM, PVM pVM, AutoWriteLock *pAlock)
                     hrc = ctrls[i]->COMGETTER(PortCount)(&cPorts);                          H();
                     InsertConfigInteger(pCfg, "PortCount", cPorts);
                     InsertConfigInteger(pCfg, "Bootable",  fBootable);
+
+                    com::SafeIfaceArray<IMediumAttachment> atts;
+                    hrc = pMachine->GetMediumAttachmentsOfController(controllerName.raw(),
+                                                                     ComSafeArrayAsOutParam(atts));  H();
+
+                    /* Configure the hotpluggable flag for the port. */
+                    for (unsigned idxAtt = 0; idxAtt < atts.size(); ++idxAtt)
+                    {
+                        IMediumAttachment *pMediumAtt = atts[idxAtt];
+
+                        LONG lPortNum = 0;
+                        hrc = pMediumAtt->COMGETTER(Port)(&lPortNum);                       H();
+
+                        BOOL fHotPluggable = FALSE;
+                        hrc = pMediumAtt->COMGETTER(HotPluggable)(&fHotPluggable);          H();
+                        if (SUCCEEDED(hrc))
+                        {
+                            PCFGMNODE pPortCfg;
+                            char szName[24];
+                            RTStrPrintf(szName, sizeof(szName), "Port%d", lPortNum);
+
+                            InsertConfigNode(pCfg, szName, &pPortCfg);
+                            InsertConfigInteger(pPortCfg, "Hotpluggable", fHotPluggable ? 1 : 0);
+                        }
+                    }
 
                     /* BIOS configuration values, first AHCI controller only. */
                     if (   !pBusMgr->hasPCIDevice("ahci", 1)
@@ -2561,7 +2436,9 @@ int Console::i_configConstructorInner(PUVM pUVM, PVM pVM, AutoWriteLock *pAlock)
             hrc = pMachine->GetSerialPort(ulInstance, serialPort.asOutParam());             H();
             BOOL fEnabledSerPort = FALSE;
             if (serialPort)
+            {
                 hrc = serialPort->COMGETTER(Enabled)(&fEnabledSerPort);                     H();
+            }
             if (!fEnabledSerPort)
                 continue;
 
@@ -2698,7 +2575,9 @@ int Console::i_configConstructorInner(PUVM pUVM, PVM pVM, AutoWriteLock *pAlock)
         ComPtr<IAudioAdapter> audioAdapter;
         hrc = pMachine->COMGETTER(AudioAdapter)(audioAdapter.asOutParam());                 H();
         if (audioAdapter)
+        {
             hrc = audioAdapter->COMGETTER(Enabled)(&fAudioEnabled);                         H();
+        }
 
         if (fAudioEnabled)
         {
@@ -3083,6 +2962,18 @@ int Console::i_configConstructorInner(PUVM pUVM, PVM pVM, AutoWriteLock *pAlock)
 
             InsertConfigInteger(pCfg,  "Serial1IoPortBase", auSerialIoPortBase[1]);
             InsertConfigInteger(pCfg,  "Serial1Irq", auSerialIrq[1]);
+
+            if (auSerialIoPortBase[2])
+            {
+                InsertConfigInteger(pCfg,  "Serial2IoPortBase", auSerialIoPortBase[2]);
+                InsertConfigInteger(pCfg,  "Serial2Irq", auSerialIrq[2]);
+            }
+
+            if (auSerialIoPortBase[3])
+            {
+                InsertConfigInteger(pCfg,  "Serial3IoPortBase", auSerialIoPortBase[3]);
+                InsertConfigInteger(pCfg,  "Serial3Irq", auSerialIrq[3]);
+            }
 
             InsertConfigInteger(pCfg,  "Parallel0IoPortBase", auParallelIoPortBase[0]);
             InsertConfigInteger(pCfg,  "Parallel0Irq", auParallelIrq[0]);
@@ -3508,6 +3399,8 @@ int Console::i_configGraphicsController(PCFGMNODE pDevices,
             BOOL f3DEnabled;
             hrc = ptrMachine->COMGETTER(Accelerate3DEnabled)(&f3DEnabled);                  H();
             InsertConfigInteger(pCfg, "VMSVGA3dEnabled", f3DEnabled);
+#else  
+            LogRel(("VMSVGA3d not available in this build!\n"));
 #endif
         }
 #endif
@@ -4701,7 +4594,7 @@ int Console::i_configNetwork(const char *pszDevice,
                     size_t pos, ppos;
                     pos = ppos = 0;
 #define ITERATE_TO_NEXT_TERM(res, str, pos, ppos) \
-    do { \
+    { \
         pos = str.find(",", ppos); \
         if (pos == Utf8Str::npos) \
         { \
@@ -4711,7 +4604,7 @@ int Console::i_configNetwork(const char *pszDevice,
         res = str.substr(ppos, pos - ppos); \
         Log2((#res " %s pos:%d, ppos:%d\n", res.c_str(), pos, ppos)); \
         ppos = pos + 1; \
-    } while (0)
+    } /* no do { ... } while because of 'continue' */
                     ITERATE_TO_NEXT_TERM(strName, utf, pos, ppos);
                     ITERATE_TO_NEXT_TERM(strProto, utf, pos, ppos);
                     ITERATE_TO_NEXT_TERM(strHostIP, utf, pos, ppos);

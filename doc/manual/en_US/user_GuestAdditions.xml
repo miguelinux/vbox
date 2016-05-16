@@ -1112,8 +1112,8 @@
             <para>In a Windows guest, shared folders are browseable and
             therefore visible in Windows Explorer. So, to attach the host's
             shared folder to your Windows guest, open Windows Explorer and
-            look for it under "My Networking Places" -&gt; "Entire Network"
-            -&gt; "VirtualBox Shared Folders". By right-clicking on a shared
+            look for it under "My Networking Places" &rarr; "Entire Network"
+            &rarr; "VirtualBox Shared Folders". By right-clicking on a shared
             folder and selecting "Map network drive" from the menu that pops
             up, you can assign a drive letter to that shared folder.</para>
 
@@ -1756,6 +1756,13 @@ Name: /VirtualBox/GuestInfo/OS/Version, value: #59-Ubuntu SMP Thu Jan 28 01:23:0
       <note>
         <para>VirtualBox supports memory ballooning only on 64-bit hosts, and
         it is not supported on Mac OS X hosts.</para>
+      </note>
+
+      <note>
+        <para>Memory ballooning does not work with large pages enabled. To
+        turn off large pages support for a VM, run
+        <computeroutput>VBoxManage modifyvm &lt;VM name&gt; --largepages off</computeroutput>
+        </para>
       </note>
 
       <para>Normally, to change the amount of memory allocated to a virtual

@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2015 Oracle Corporation
+ * Copyright (C) 2006-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -46,6 +46,7 @@
 #include <limits.h>
 
 #include <iprt/circbuf.h>
+#include <iprt/critsect.h>
 
 #include <VBox/vmm/pdmdev.h>
 #include <VBox/vmm/pdm.h>
@@ -78,29 +79,36 @@ typedef struct DRVAUDIO
 {
     /** Input/output processing thread. */
     RTTHREAD                hThread;
-    /** Event for input/ouput processing. */
-    RTSEMEVENT              hEvent;
+    /** Critical section for serializing access. */
+    RTCRITSECT              CritSect;
     /** Shutdown indicator. */
     bool                    fTerminate;
-    /** The audio interface presented to the device/driver above us. */
+    /** Our audio connector interface. */
     PDMIAUDIOCONNECTOR      IAudioConnector;
     /** Pointer to the driver instance. */
     PPDMDRVINS              pDrvIns;
     /** Pointer to audio driver below us. */
     PPDMIHOSTAUDIO          pHostDrvAudio;
+    /** List of host input streams. */
     RTLISTANCHOR            lstHstStrmIn;
+    /** List of host output streams. */
     RTLISTANCHOR            lstHstStrmOut;
-    /** Max. number of free input streams. */
-    uint8_t                 cFreeInputStreams;
-    /** Max. number of free output streams. */
-    uint8_t                 cFreeOutputStreams;
-    /** Audio configuration settings retrieved
-     *  from the backend. */
+    /** Max. number of free input streams.
+     *  UINT32_MAX for unlimited streams. */
+    uint32_t                cFreeInputStreams;
+    /** Max. number of free output streams.
+     *  UINT32_MAX for unlimited streams. */
+    uint32_t                cFreeOutputStreams;
+    /** Audio configuration settings retrieved from the backend. */
     PDMAUDIOBACKENDCFG      BackendCfg;
-
+#ifdef VBOX_WITH_AUDIO_CALLBACKS
+    /** @todo Use a map with primary key set to the callback type? */
+    RTLISTANCHOR            lstCBIn;
+    RTLISTANCHOR            lstCBOut;
+#endif
 } DRVAUDIO, *PDRVAUDIO;
 
-/** Makes a PDRVBLOCK out of a PPDMIBLOCK. */
+/** Makes a PDRVAUDIO out of a PPDMIAUDIOCONNECTOR. */
 #define PDMIAUDIOCONNECTOR_2_DRVAUDIO(pInterface) \
     ( (PDRVAUDIO)((uintptr_t)pInterface - RT_OFFSETOF(DRVAUDIO, IAudioConnector)) )
 
@@ -109,7 +117,6 @@ const char *drvAudioRecSourceToString(PDMAUDIORECSOURCE enmRecSource);
 PDMAUDIOFMT drvAudioHlpStringToFormat(const char *pszFormat);
 
 bool drvAudioPCMPropsAreEqual(PPDMPCMPROPS info, PPDMAUDIOSTREAMCFG pCfg);
-int drvAudioStreamCfgToProps(PPDMAUDIOSTREAMCFG pCfg, PPDMPCMPROPS pProps);
 void drvAudioStreamCfgPrint(PPDMAUDIOSTREAMCFG pCfg);
 
 /* AUDIO IN function declarations. */
@@ -143,11 +150,8 @@ int drvAudioHlpPcmHwAddOut(PDRVAUDIO pDrvAudio, PPDMAUDIOSTREAMCFG pCfg, PPDMAUD
 int drvAudioHlpPcmCreateVoicePairOut(PDRVAUDIO pDrvAudio, const char *pszName, PPDMAUDIOSTREAMCFG pCfg, PPDMAUDIOGSTSTRMOUT *ppGstStrmOut);
 
 /* Common functions between DrvAudio and backends (host audio drivers). */
-int  drvAudioAttachCapture(PDRVAUDIO pDrvAudio, PPDMAUDIOHSTSTRMOUT pHstStrmOut);
-void drvAudioClearBuf(PPDMPCMPROPS pPCMInfo, void *pvBuf, size_t cbBuf);
-void drvAudioDetachCapture(PPDMAUDIOHSTSTRMOUT pHstStrmOut);
-uint32_t drvAudioHstOutSamplesLive(PPDMAUDIOHSTSTRMOUT pHstStrmOut);
-
+void DrvAudioClearBuf(PPDMPCMPROPS pPCMInfo, void *pvBuf, size_t cbBuf, uint32_t cSamples);
+int DrvAudioStreamCfgToProps(PPDMAUDIOSTREAMCFG pCfg, PPDMPCMPROPS pProps);
 
 typedef struct fixed_settings
 {

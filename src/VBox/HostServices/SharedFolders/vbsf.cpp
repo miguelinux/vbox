@@ -199,8 +199,12 @@ static int vbsfConvertFileOpenFlags(unsigned fShflFlags, RTFMODE fMode, SHFLHAND
         default:
         case SHFL_CF_ACCESS_NONE:
         {
-            /** @todo treat this as read access, but theoretically this could be a no access request. */
-            fOpen |= RTFILE_O_READ;
+#ifdef RT_OS_WINDOWS
+            if (BIT_FLAG(fShflFlags, SHFL_CF_ACCESS_MASK_ATTR) != SHFL_CF_ACCESS_ATTR_NONE)
+                fOpen |= RTFILE_O_ATTR_ONLY;
+            else
+#endif
+                fOpen |= RTFILE_O_READ;
             Log(("FLAG: SHFL_CF_ACCESS_NONE\n"));
             break;
         }
@@ -955,6 +959,13 @@ int vbsfRead  (SHFLCLIENTDATA *pClient, SHFLROOT root, SHFLHANDLE Handle, uint64
 
     Log(("vbsfRead %RX64 offset %RX64 bytes %x\n", Handle, offset, *pcbBuffer));
 
+    /* Is the guest allowed to access this share?
+     * Checked here because the shared folder can be removed from the VM settings. */
+    bool fWritable;
+    rc = vbsfMappingsQueryWritable(pClient, root, &fWritable);
+    if (RT_FAILURE(rc))
+        return VERR_ACCESS_DENIED;
+
     if (*pcbBuffer == 0)
         return VINF_SUCCESS; /* @todo correct? */
 
@@ -999,7 +1010,7 @@ int vbsfWrite(SHFLCLIENTDATA *pClient, SHFLROOT root, SHFLHANDLE Handle, uint64_
     Log(("vbsfWrite %RX64 offset %RX64 bytes %x\n", Handle, offset, *pcbBuffer));
 
     /* Is the guest allowed to write to this share?
-     * XXX Actually this check was still done in vbsfCreate() -- RTFILE_O_WRITE cannot be set if vbsfMappingsQueryWritable() failed. */
+     * Checked here because the shared folder can be removed from the VM settings. */
     bool fWritable;
     rc = vbsfMappingsQueryWritable(pClient, root, &fWritable);
     if (RT_FAILURE(rc) || !fWritable)
@@ -1082,6 +1093,14 @@ int vbsfDirList(SHFLCLIENTDATA *pClient, SHFLROOT root, SHFLHANDLE Handle, SHFLS
         AssertFailed();
         return VERR_INVALID_PARAMETER;
     }
+
+    /* Is the guest allowed to access this share?
+     * Checked here because the shared folder can be removed from the VM settings. */
+    bool fWritable;
+    rc = vbsfMappingsQueryWritable(pClient, root, &fWritable);
+    if (RT_FAILURE(rc))
+        return VERR_ACCESS_DENIED;
+
     Assert(pIndex && *pIndex == 0);
     DirHandle = pHandle->dir.Handle;
 

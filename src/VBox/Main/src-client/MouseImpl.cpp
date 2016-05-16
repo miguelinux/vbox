@@ -1184,7 +1184,7 @@ DECLCALLBACK(void *)  Mouse::i_drvQueryInterface(PPDMIBASE pInterface, const cha
 /**
  * Destruct a mouse driver instance.
  *
- * @returns VBox status.
+ * @returns VBox status code.
  * @param   pDrvIns     The driver instance data.
  */
 DECLCALLBACK(void) Mouse::i_drvDestruct(PPDMDRVINS pDrvIns)
@@ -1256,7 +1256,7 @@ DECLCALLBACK(int) Mouse::i_drvConstruct(PPDMDRVINS pDrvIns, PCFGMNODE pCfg, uint
     pThis->pMouse = (Mouse *)pv;        /** @todo Check this cast! */
     unsigned cDev;
     {
-        AutoReadLock mouseLock(pThis->pMouse COMMA_LOCKVAL_SRC_POS);
+        AutoWriteLock mouseLock(pThis->pMouse COMMA_LOCKVAL_SRC_POS);
 
         for (cDev = 0; cDev < MOUSE_MAX_DEVICES; ++cDev)
             if (!pThis->pMouse->mpDrv[cDev])

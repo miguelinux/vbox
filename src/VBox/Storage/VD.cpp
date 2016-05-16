@@ -3502,8 +3502,9 @@ static DECLCALLBACK(int) vdDiscardHelperAsync(PVDIOCTX pIoCtx)
 }
 
 #ifndef VBOX_HDD_NO_DYNAMIC_BACKENDS
+
 /**
- * @copydoc VDPLUGIN::pfnRegisterImage
+ * @interface_method_impl{VDBACKENDREGISTER,pfnRegisterImage}
  */
 static DECLCALLBACK(int) vdPluginRegisterImage(void *pvUser, PCVBOXHDDBACKEND pBackend)
 {
@@ -3521,7 +3522,7 @@ static DECLCALLBACK(int) vdPluginRegisterImage(void *pvUser, PCVBOXHDDBACKEND pB
 }
 
 /**
- * @copydoc VDPLUGIN::pfnRegisterCache
+ * @interface_method_impl{VDBACKENDREGISTER,pfnRegisterCache}
  */
 static DECLCALLBACK(int) vdPluginRegisterCache(void *pvUser, PCVDCACHEBACKEND pBackend)
 {
@@ -3539,7 +3540,7 @@ static DECLCALLBACK(int) vdPluginRegisterCache(void *pvUser, PCVDCACHEBACKEND pB
 }
 
 /**
- * @copydoc VDPLUGIN::pfnRegisterFilter
+ * @interface_method_impl{VDBACKENDREGISTER,pfnRegisterFilter}
  */
 static DECLCALLBACK(int) vdPluginRegisterFilter(void *pvUser, PCVDFILTERBACKEND pBackend)
 {
@@ -3659,7 +3660,8 @@ static int vdRemovePlugin(const char *pszFilename)
 
     return VINF_SUCCESS;
 }
-#endif
+
+#endif /* !VBOX_HDD_NO_DYNAMIC_BACKENDS */
 
 /**
  * Worker for VDPluginLoadFromFilename() and vdPluginLoadFromPath().
@@ -7329,13 +7331,13 @@ VBOXDDU_DECL(int) VDCreateDiff(PVBOXHDD pDisk, const char *pszBackend,
             if (RT_SUCCESS(rc2))
                 pImage->Backend->pfnSetParentModificationUuid(pImage->pBackendData,
                                                               &Uuid);
-            if (pDisk->pLast->Backend->pfnGetTimeStamp)
-                rc2 = pDisk->pLast->Backend->pfnGetTimeStamp(pDisk->pLast->pBackendData,
+            if (pDisk->pLast->Backend->pfnGetTimestamp)
+                rc2 = pDisk->pLast->Backend->pfnGetTimestamp(pDisk->pLast->pBackendData,
                                                              &ts);
             else
                 rc2 = VERR_NOT_IMPLEMENTED;
-            if (RT_SUCCESS(rc2) && pImage->Backend->pfnSetParentTimeStamp)
-                pImage->Backend->pfnSetParentTimeStamp(pImage->pBackendData, &ts);
+            if (RT_SUCCESS(rc2) && pImage->Backend->pfnSetParentTimestamp)
+                pImage->Backend->pfnSetParentTimestamp(pImage->pBackendData, &ts);
 
             if (pImage->Backend->pfnSetParentFilename)
                 rc2 = pImage->Backend->pfnSetParentFilename(pImage->pBackendData, pDisk->pLast->pszFilename);
@@ -10797,8 +10799,7 @@ VBOXDDU_DECL(int) VDAsyncRead(PVBOXHDD pDisk, uint64_t uOffset, size_t cbRead,
 
     } while (0);
 
-    if (RT_UNLIKELY(fLockRead) && (   rc == VINF_VD_ASYNC_IO_FINISHED
-                                   || rc != VERR_VD_ASYNC_IO_IN_PROGRESS))
+    if (RT_UNLIKELY(fLockRead) && (rc != VERR_VD_ASYNC_IO_IN_PROGRESS))
     {
         rc2 = vdThreadFinishRead(pDisk);
         AssertRC(rc2);
@@ -10868,8 +10869,7 @@ VBOXDDU_DECL(int) VDAsyncWrite(PVBOXHDD pDisk, uint64_t uOffset, size_t cbWrite,
             vdIoCtxFree(pDisk, pIoCtx);
     } while (0);
 
-    if (RT_UNLIKELY(fLockWrite) && (   rc == VINF_VD_ASYNC_IO_FINISHED
-                                    || rc != VERR_VD_ASYNC_IO_IN_PROGRESS))
+    if (RT_UNLIKELY(fLockWrite) && (rc != VERR_VD_ASYNC_IO_IN_PROGRESS))
     {
         rc2 = vdThreadFinishWrite(pDisk);
         AssertRC(rc2);
@@ -10925,8 +10925,7 @@ VBOXDDU_DECL(int) VDAsyncFlush(PVBOXHDD pDisk, PFNVDASYNCTRANSFERCOMPLETE pfnCom
             vdIoCtxFree(pDisk, pIoCtx);
     } while (0);
 
-    if (RT_UNLIKELY(fLockWrite) && (   rc == VINF_VD_ASYNC_IO_FINISHED
-                                    || rc != VERR_VD_ASYNC_IO_IN_PROGRESS))
+    if (RT_UNLIKELY(fLockWrite) && (rc != VERR_VD_ASYNC_IO_IN_PROGRESS))
     {
         rc2 = vdThreadFinishWrite(pDisk);
         AssertRC(rc2);
@@ -10981,8 +10980,7 @@ VBOXDDU_DECL(int) VDAsyncDiscardRanges(PVBOXHDD pDisk, PCRTRANGE paRanges, unsig
             vdIoCtxFree(pDisk, pIoCtx);
     } while (0);
 
-    if (RT_UNLIKELY(fLockWrite) && (   rc == VINF_VD_ASYNC_IO_FINISHED
-                                    || rc != VERR_VD_ASYNC_IO_IN_PROGRESS))
+    if (RT_UNLIKELY(fLockWrite) && (rc != VERR_VD_ASYNC_IO_IN_PROGRESS))
     {
         rc2 = vdThreadFinishWrite(pDisk);
         AssertRC(rc2);
@@ -11057,19 +11055,26 @@ VBOXDDU_DECL(int) VDRepair(PVDINTERFACE pVDIfsDisk, PVDINTERFACE pVDIfsImage,
     return rc;
 }
 
-/**
+
+/*
  * generic plugin functions
  */
 
-/** @copydoc VBOXHDDBACKEND::pfnComposeLocation */
+/**
+ * @interface_method_impl{VBOXHDDBACKEND,pfnComposeLocation}
+ */
 DECLCALLBACK(int) genericFileComposeLocation(PVDINTERFACE pConfig, char **pszLocation)
 {
     *pszLocation = NULL;
     return VINF_SUCCESS;
 }
-/** @copydoc VBOXHDDBACKEND::pfnComposeName */
+
+/**
+ * @interface_method_impl{VBOXHDDBACKEND,pfnComposeName}
+ */
 DECLCALLBACK(int) genericFileComposeName(PVDINTERFACE pConfig, char **pszName)
 {
     *pszName = NULL;
     return VINF_SUCCESS;
 }
+

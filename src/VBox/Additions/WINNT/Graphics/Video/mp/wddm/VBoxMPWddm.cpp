@@ -1083,7 +1083,7 @@ NTSTATUS DxgkDdiStartDevice(
     if ( ARGUMENT_PRESENT(MiniportDeviceContext) &&
         ARGUMENT_PRESENT(DxgkInterface) &&
         ARGUMENT_PRESENT(DxgkStartInfo) &&
-        ARGUMENT_PRESENT(NumberOfVideoPresentSources),
+        ARGUMENT_PRESENT(NumberOfVideoPresentSources) &&
         ARGUMENT_PRESENT(NumberOfChildren)
         )
     {
@@ -7300,17 +7300,22 @@ static NTSTATUS vboxWddmInitDisplayOnlyDriver(IN PDRIVER_OBJECT pDriverObject, I
     DriverInitializationData.DxgkDdiCommitVidPn = DxgkDdiCommitVidPn;
     DriverInitializationData.DxgkDdiUpdateActiveVidPnPresentPath = DxgkDdiUpdateActiveVidPnPresentPath;
     DriverInitializationData.DxgkDdiRecommendMonitorModes = DxgkDdiRecommendMonitorModes;
-    DriverInitializationData.DxgkDdiGetScanLine = DxgkDdiGetScanLine;
     DriverInitializationData.DxgkDdiQueryVidPnHWCapability = DxgkDdiQueryVidPnHWCapability;
     DriverInitializationData.DxgkDdiPresentDisplayOnly = DxgkDdiPresentDisplayOnly;
     DriverInitializationData.DxgkDdiStopDeviceAndReleasePostDisplayOwnership = DxgkDdiStopDeviceAndReleasePostDisplayOwnership;
     DriverInitializationData.DxgkDdiSystemDisplayEnable = DxgkDdiSystemDisplayEnable;
     DriverInitializationData.DxgkDdiSystemDisplayWrite = DxgkDdiSystemDisplayWrite;
 //    DriverInitializationData.DxgkDdiGetChildContainerId = DxgkDdiGetChildContainerId;
-    DriverInitializationData.DxgkDdiControlInterrupt = DxgkDdiControlInterrupt;
 //    DriverInitializationData.DxgkDdiSetPowerComponentFState = DxgkDdiSetPowerComponentFState;
 //    DriverInitializationData.DxgkDdiPowerRuntimeControlRequest = DxgkDdiPowerRuntimeControlRequest;
 //    DriverInitializationData.DxgkDdiNotifySurpriseRemoval = DxgkDdiNotifySurpriseRemoval;
+
+    /* Display-only driver is not required to report VSYNC.
+     * The Microsoft KMDOD driver sample does not implement DxgkDdiControlInterrupt and DxgkDdiGetScanLine.
+     * The functions must be either both implemented or none implemented.
+     * Windows 10 10586 guests had problems with VSYNC in display-only driver (#8228).
+     * Therefore the driver does not implement DxgkDdiControlInterrupt and DxgkDdiGetScanLine.
+     */
 
     NTSTATUS Status = DxgkInitializeDisplayOnlyDriver(pDriverObject,
                           pRegistryPath,
@@ -7436,7 +7441,7 @@ DriverEntry(
 #endif
 
 #ifdef VBOX_WDDM_WIN8
-    LOGREL(("VBox WDDM Driver for Windows 8 version %d.%d.%dr%d, %d bit; Built %s %s",
+    LOGREL(("VBox WDDM Driver for Windows 8+ version %d.%d.%dr%d, %d bit; Built %s %s",
             VBOX_VERSION_MAJOR, VBOX_VERSION_MINOR, VBOX_VERSION_BUILD, VBOX_SVN_REV,
             (sizeof (void*) << 3), __DATE__, __TIME__));
 #else
@@ -7445,11 +7450,9 @@ DriverEntry(
             (sizeof (void*) << 3), __DATE__, __TIME__));
 #endif
 
-    if (! ARGUMENT_PRESENT(DriverObject) ||
-        ! ARGUMENT_PRESENT(RegistryPath))
-    {
+    if (   !ARGUMENT_PRESENT(DriverObject)
+        || !ARGUMENT_PRESENT(RegistryPath))
         return STATUS_INVALID_PARAMETER;
-    }
 
     vboxWddmDrvCfgInit(RegistryPath);
 
@@ -7457,11 +7460,11 @@ DriverEntry(
     BOOLEAN checkedBuild = PsGetVersion(&major, &minor, &build, NULL);
     BOOLEAN f3DRequired = FALSE;
 
-    LOGREL(("OsVersion( %d, %d, %d )", major, minor, build));
+    LOGREL(("OsVersion(%d, %d, %d)", major, minor, build));
 
     NTSTATUS Status = STATUS_SUCCESS;
     /* Initialize VBoxGuest library, which is used for requests which go through VMMDev. */
-    int rc = VbglInit();
+    int rc = VbglInitClient();
     if (RT_SUCCESS(rc))
     {
         if (major > 6)
@@ -7523,22 +7526,6 @@ DriverEntry(
                 LOGREL(("3D is NOT supported by the host, but is NOT required for the current guest version using this driver, continuing with Disabled 3D.."));
 #endif
         }
-        else
-        {
-            /* If host reports minimal OpenGL capabilities. */
-            if (VBoxMpCrGetHostCaps() & CR_VBOX_CAP_HOST_CAPS_NOT_SUFFICIENT)
-            {
-                LOGREL(("Host reported minimal OpenGL capabilities. Rolling back."));
-                /* The proper fix would be to switch driver to display-only mode, however, it is currently broken (at least for Win8.1 guests).
-                   'Status = STATUS_UNSUCCESSFUL;' prevents driver from loading and therefore forces Windows to use its default driver => 3D content is shown.
-                   The 'g_VBoxDisplayOnly = 1;' is commented out intentionally; please uncomment when display-only mode will be
-                   fixed and remove 'Status = STATUS_UNSUCCESSFUL;' one. */
-                Status = STATUS_UNSUCCESSFUL;
-#ifdef VBOX_WDDM_WIN8
-                //g_VBoxDisplayOnly = 1;
-#endif
-            }
-        }
 
 #if 0 //defined(DEBUG_misha) && defined(VBOX_WDDM_WIN8)
         /* force g_VBoxDisplayOnly for debugging purposes */
@@ -7591,7 +7578,7 @@ DriverEntry(
     }
     else
     {
-        WARN(("VbglInit failed, rc(%d)", rc));
+        WARN(("VbglInitClient failed, rc(%d)", rc));
         Status = STATUS_UNSUCCESSFUL;
     }
 

@@ -646,6 +646,7 @@ void Console::uninit()
     if (mpUVM)
     {
         i_powerDown();
+//        AssertReleaseMsgFailed(("THIS MUST NOT HAPPEN!"));
         Assert(mpUVM == NULL);
     }
 
@@ -2303,9 +2304,6 @@ HRESULT Console::i_doCPURemove(ULONG aCpu, PUVM pUVM)
         vrc = VMR3ReqCallU(pUVM, 0, &pReq, 0 /* no wait! */, VMREQFLAGS_VBOX_STATUS,
                            (PFNRT)i_unplugCpu, 3,
                            this, pUVM, (VMCPUID)aCpu);
-
-        /* release the lock before a VMR3* call (EMT might wait for it, @bugref{7648})! */
-        alock.release();
 
         if (vrc == VERR_TIMEOUT)
             vrc = VMR3ReqWait(pReq, RT_INDEFINITE_WAIT);
@@ -8550,8 +8548,10 @@ int Console::i_changeDnDMode(DnDMode_T aDnDMode)
     }
 
     int rc = pVMMDev->hgcmHostCall("VBoxDragAndDropSvc",
-                                   DragAndDropSvc::HOST_DND_SET_MODE, 1, &parm);
-    LogFlowFunc(("rc=%Rrc\n", rc));
+                                   DragAndDropSvc::HOST_DND_SET_MODE, 1 /* cParms */, &parm);
+    if (RT_FAILURE(rc))
+        LogRel(("Error changing drag and drop mode: %Rrc\n", rc));
+
     return rc;
 }
 
@@ -10175,7 +10175,7 @@ DECLCALLBACK(void) Console::i_drvStatus_UnitChanged(PPDMILEDCONNECTORS pInterfac
 /**
  * Notification about a medium eject.
  *
- * @returns VBox status.
+ * @returns VBox status code.
  * @param   pInterface      Pointer to the interface structure containing the called function pointer.
  * @param   uLUN            The unit number.
  */
@@ -10248,7 +10248,7 @@ DECLCALLBACK(void *)  Console::i_drvStatus_QueryInterface(PPDMIBASE pInterface, 
 /**
  * Destruct a status driver instance.
  *
- * @returns VBox status.
+ * @returns VBox status code.
  * @param   pDrvIns     The driver instance data.
  */
 DECLCALLBACK(void) Console::i_drvStatus_Destruct(PPDMDRVINS pDrvIns)

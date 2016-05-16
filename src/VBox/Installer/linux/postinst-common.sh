@@ -1,3 +1,6 @@
+#!/bin/sh
+# $Id: postinst-common.sh $
+## @file
 # Oracle VM VirtualBox
 # VirtualBox Linux post-installer common portions
 #

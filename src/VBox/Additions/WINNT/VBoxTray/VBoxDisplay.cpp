@@ -627,7 +627,7 @@ static BOOL ResizeDisplayDevice(UINT Id, DWORD Width, DWORD Height, DWORD BitsPe
 
         LogFlowFunc(("Request to resize the displa\n"));
         DWORD err = VBoxDispIfResizeModes(&pCtx->pEnv->dispIf, Id, fEnabled, fExtDispSup, paDisplayDevices, paDeviceModes, DevNum);
-        if (err == NO_ERROR || err != ERROR_RETRY)
+        if (err != ERROR_RETRY)
         {
             if (err == NO_ERROR)
                 LogFlowFunc(("VBoxDispIfResizeModes succeeded\n"));

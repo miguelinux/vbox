@@ -425,6 +425,22 @@ int tcp_fconnect(PNATState pData, struct socket *so)
             switch(RT_N2H_U32(so->so_faddr.s_addr) & ~pData->netmask)
             {
                 case CTL_DNS:
+                    /*
+                     * TCP DNS proxy.  We only support "forwarding" to
+                     * single server.  We don't have infrastructure in
+                     * place to re-try connections to other servers.
+                     */
+                    if (   pData->fUseDnsProxy
+                        && so->so_fport == RT_H2N_U16_C(53))
+                    {
+                        struct dns_entry *ns = TAILQ_LAST(&pData->pDnsList, dns_list_head);
+                        if (ns != NULL)
+                        {
+                            addr.sin_addr = ns->de_addr;
+                            break;
+                        }
+                    }
+                    /* FALLTHROUGH */
                 case CTL_ALIAS:
                 default:
                     addr.sin_addr = loopback_addr;
@@ -476,6 +492,16 @@ tcp_connect(PNATState pData, struct socket *inso)
 
     LogFlowFunc(("ENTER: inso = %R[natsock]\n", inso));
 
+    if (   inso->so_laddr.s_addr == INADDR_ANY /* delayed port-forwarding? */
+        && pData->guest_addr_guess.s_addr == INADDR_ANY)
+    {
+        LogRel2(("NAT: Port-forward: guest address unknown for %R[natsock]\n", inso));
+        closesocket(accept(inso->s, NULL, NULL));
+        if (inso->so_state & SS_FACCEPTONCE)
+            tcp_close(pData, sototcpcb(inso));
+        return;
+    }
+
     /*
      * If it's an SS_ACCEPTONCE socket, no need to socreate()
      * another socket, just use the accept() socket.
@@ -500,6 +526,13 @@ tcp_connect(PNATState pData, struct socket *inso)
         }
         so->so_laddr = inso->so_laddr;
         so->so_lport = inso->so_lport;
+    }
+
+    if (so->so_laddr.s_addr == INADDR_ANY)
+    {
+        LogRel2(("NAT: Port-forward: using %RTnaipv4 for %R[natsock]\n",
+                 pData->guest_addr_guess.s_addr, inso));
+        so->so_laddr = pData->guest_addr_guess;
     }
 
     (void) tcp_mss(pData, sototcpcb(so), 0);
@@ -528,7 +561,7 @@ tcp_connect(PNATState pData, struct socket *inso)
         goto no_sockopt;
     }
     if (cVerbose > 0)
-        LogRel(("NAT: old socket rcv size: %dKB\n", opt / 1024));
+        LogRel(("NAT: Old socket recv size: %dKB\n", opt / 1024));
     /* @todo (r-vvl) make it configurable (via extra data) */
     opt = pData->socket_rcv;
     status = setsockopt(s, SOL_SOCKET, SO_RCVBUF, (char *)&opt, sizeof(int));
@@ -545,7 +578,7 @@ tcp_connect(PNATState pData, struct socket *inso)
         goto no_sockopt;
     }
     if (cVerbose > 0)
-        LogRel(("NAT: old socket snd size: %dKB\n", opt / 1024));
+        LogRel(("NAT: Old socket send size: %dKB\n", opt / 1024));
     opt = pData->socket_rcv;
     status = setsockopt(s, SOL_SOCKET, SO_SNDBUF, (char *)&opt, sizeof(int));
     if (status < 0)

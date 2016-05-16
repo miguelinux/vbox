@@ -4165,7 +4165,7 @@ HRESULT Machine::attachDevice(const com::Utf8Str &aName,
                 alock.release();
 
                 rc = medium->i_createDiffStorage(diff,
-                                                 MediumVariant_Standard,
+                                                 medium->i_getPreferredDiffVariant(),
                                                  pMediumLockList,
                                                  NULL /* aProgress */,
                                                  true /* aWait */);
@@ -9586,7 +9586,7 @@ HRESULT Machine::i_getMediumAttachmentsOfController(const Utf8Str &aName,
     {
         const ComObjPtr<MediumAttachment> &pAtt = *it;
         // should never happen, but deal with NULL pointers in the list.
-        AssertStmt(!pAtt.isNull(), continue);
+        AssertContinue(!pAtt.isNull());
 
         // getControllerName() needs caller+read lock
         AutoCaller autoAttCaller(pAtt);
@@ -10276,6 +10276,9 @@ HRESULT Machine::i_saveHardware(settings::Hardware &data, settings::Debugging *p
         data.llSerialPorts.clear();
         for (ULONG slot = 0; slot < RT_ELEMENTS(mSerialPorts); ++slot)
         {
+            if (mSerialPorts[slot]->i_hasDefaults())
+                continue;
+
             settings::SerialPort s;
             s.ulSlot = slot;
             rc = mSerialPorts[slot]->i_saveSettings(s);
@@ -10288,6 +10291,9 @@ HRESULT Machine::i_saveHardware(settings::Hardware &data, settings::Debugging *p
         data.llParallelPorts.clear();
         for (ULONG slot = 0; slot < RT_ELEMENTS(mParallelPorts); ++slot)
         {
+            if (mParallelPorts[slot]->i_hasDefaults())
+                continue;
+
             settings::ParallelPort p;
             p.ulSlot = slot;
             rc = mParallelPorts[slot]->i_saveSettings(p);
@@ -10336,6 +10342,7 @@ HRESULT Machine::i_saveHardware(settings::Hardware &data, settings::Debugging *p
         if (FAILED(rc)) throw rc;
 
         /* Host PCI devices */
+        data.pciAttachments.clear();
         for (HWData::PCIDeviceAssignmentList::const_iterator it = mHWData->mPCIDeviceAssignments.begin();
              it != mHWData->mPCIDeviceAssignments.end();
              ++it)
@@ -10793,7 +10800,8 @@ HRESULT Machine::i_createImplicitDiffs(IProgress *aProgress,
 
             /* release the locks before the potentially lengthy operation */
             alock.release();
-            rc = pMedium->i_createDiffStorage(diff, MediumVariant_Standard,
+            rc = pMedium->i_createDiffStorage(diff,
+                                              pMedium->i_getPreferredDiffVariant(),
                                               pMediumLockList,
                                               NULL /* aProgress */,
                                               true /* aWait */);
@@ -10844,7 +10852,7 @@ HRESULT Machine::i_createImplicitDiffs(IProgress *aProgress,
 
 /**
  * Deletes implicit differencing hard disks created either by
- * #createImplicitDiffs() or by #AttachDevice() and rolls back mMediaData.
+ * #i_createImplicitDiffs() or by #AttachDevice() and rolls back mMediaData.
  *
  * Note that to delete hard disks created by #AttachDevice() this method is
  * called from #fixupMedia() when the changes are rolled back.
@@ -12061,7 +12069,15 @@ void Machine::i_copyFrom(Machine *aThat)
 
     mNetworkAdapters.resize(aThat->mNetworkAdapters.size());
     for (ULONG slot = 0; slot < mNetworkAdapters.size(); ++slot)
-        mNetworkAdapters[slot]->i_copyFrom(aThat->mNetworkAdapters[slot]);
+    {
+        if (mNetworkAdapters[slot].isNotNull())
+            mNetworkAdapters[slot]->i_copyFrom(aThat->mNetworkAdapters[slot]);
+        else
+        {
+            unconst(mNetworkAdapters[slot]).createObject();
+            mNetworkAdapters[slot]->initCopy(this, aThat->mNetworkAdapters[slot]);
+        }
+    }
     for (ULONG slot = 0; slot < RT_ELEMENTS(mSerialPorts); ++slot)
         mSerialPorts[slot]->i_copyFrom(aThat->mSerialPorts[slot]);
     for (ULONG slot = 0; slot < RT_ELEMENTS(mParallelPorts); ++slot)
@@ -12098,7 +12114,7 @@ void Machine::i_getDiskList(MediaList &list)
     {
         MediumAttachment* pAttach = *it;
         /* just in case */
-        AssertStmt(pAttach, continue);
+        AssertContinue(pAttach);
 
         AutoCaller localAutoCallerA(pAttach);
         if (FAILED(localAutoCallerA.rc())) continue;
@@ -12330,6 +12346,8 @@ HRESULT SessionMachine::init(Machine *aMachine)
     AssertReturn(autoInitSpan.isOk(), E_FAIL);
 
     HRESULT rc = S_OK;
+
+    RT_ZERO(mAuthLibCtx);
 
     /* create the machine client token */
     try
@@ -12589,26 +12607,30 @@ void SessionMachine::uninit(Uninit::Reason aReason)
     {
         for (ULONG slot = 0; slot < mNetworkAdapters.size(); ++slot)
         {
-            NetworkAttachmentType_T type;
-            HRESULT hrc;
+            BOOL enabled;
+            HRESULT hrc = mNetworkAdapters[slot]->COMGETTER(Enabled)(&enabled);
+            if (   FAILED(hrc)
+                || !enabled)
+                continue;
 
-             hrc = mNetworkAdapters[slot]->COMGETTER(AttachmentType)(&type);
-             if (   SUCCEEDED(hrc)
-                 && type == NetworkAttachmentType_NATNetwork)
-             {
-                 Bstr name;
-                 hrc = mNetworkAdapters[slot]->COMGETTER(NATNetwork)(name.asOutParam());
-                 if (SUCCEEDED(hrc))
-                 {
-                     multilock.release();
-                     LogRel(("VM '%s' stops using NAT network '%ls'\n",
-                             mUserData->s.strName.c_str(), name.raw()));
-                     mParent->i_natNetworkRefDec(name.raw());
-                     multilock.acquire();
+            NetworkAttachmentType_T type;
+            hrc = mNetworkAdapters[slot]->COMGETTER(AttachmentType)(&type);
+            if (   SUCCEEDED(hrc)
+                && type == NetworkAttachmentType_NATNetwork)
+            {
+                Bstr name;
+                hrc = mNetworkAdapters[slot]->COMGETTER(NATNetwork)(name.asOutParam());
+                if (SUCCEEDED(hrc))
+                {
+                    multilock.release();
+                    LogRel(("VM '%s' stops using NAT network '%ls'\n",
+                            mUserData->s.strName.c_str(), name.raw()));
+                    mParent->i_natNetworkRefDec(name.raw());
+                    multilock.acquire();
                 }
-             }
-         }
-     }
+            }
+        }
+    }
 
     /*
      *  An expected uninitialization can come only from #checkForDeath().
@@ -12648,6 +12670,16 @@ void SessionMachine::uninit(Uninit::Reason aReason)
         mData->mSession.mProgress.setNull();
     }
 
+    if (mConsoleTaskData.mProgress)
+    {
+        Assert(aReason == Uninit::Abnormal);
+        mConsoleTaskData.mProgress->i_notifyComplete(E_FAIL,
+                                                     COM_IIDOF(ISession),
+                                                     getComponentName(),
+                                                     tr("The VM session was aborted"));
+        mConsoleTaskData.mProgress.setNull();
+    }
+
     /* remove the association between the peer machine and this session machine */
     Assert(   (SessionMachine*)mData->mSession.mMachine == this
             || aReason == Uninit::Unexpected);
@@ -12678,6 +12710,8 @@ void SessionMachine::uninit(Uninit::Reason aReason)
 
     unconst(mParent) = NULL;
     unconst(mPeer) = NULL;
+
+    AuthLibUnload(&mAuthLibCtx);
 
     LogFlowThisFuncLeave();
 }
@@ -12987,8 +13021,13 @@ HRESULT SessionMachine::beginPowerUp(const ComPtr<IProgress> &aProgress)
     {
         for (ULONG slot = 0; slot < mNetworkAdapters.size(); ++slot)
         {
+            BOOL enabled;
+            HRESULT hrc = mNetworkAdapters[slot]->COMGETTER(Enabled)(&enabled);
+            if (   FAILED(hrc)
+                || !enabled)
+                continue;
+
             NetworkAttachmentType_T type;
-            HRESULT hrc;
             hrc = mNetworkAdapters[slot]->COMGETTER(AttachmentType)(&type);
             if (   SUCCEEDED(hrc)
                 && type == NetworkAttachmentType_NATNetwork)
@@ -13546,6 +13585,97 @@ HRESULT SessionMachine::ejectMedium(const ComPtr<IMediumAttachment> &aAttachment
     pAttach.queryInterfaceTo(aNewAttachment.asOutParam());
 
     return S_OK;
+}
+
+HRESULT SessionMachine::authenticateExternal(const std::vector<com::Utf8Str> &aAuthParams,
+                                             com::Utf8Str &aResult)
+{
+    AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
+
+    HRESULT hr = S_OK;
+
+    if (!mAuthLibCtx.hAuthLibrary)
+    {
+        /* Load the external authentication library. */
+        Bstr authLibrary;
+        mVRDEServer->COMGETTER(AuthLibrary)(authLibrary.asOutParam());
+
+        Utf8Str filename = authLibrary;
+
+        int rc = AuthLibLoad(&mAuthLibCtx, filename.c_str());
+        if (RT_FAILURE(rc))
+        {
+            hr = setError(E_FAIL,
+                          tr("Could not load the external authentication library '%s' (%Rrc)"),
+                          filename.c_str(), rc);
+        }
+    }
+
+    /* The auth library might need the machine lock. */
+    alock.release();
+
+    if (FAILED(hr))
+       return hr;
+
+    if (aAuthParams[0] == "VRDEAUTH" && aAuthParams.size() == 7)
+    {
+        enum VRDEAuthParams
+        {
+           parmUuid = 1,
+           parmGuestJudgement,
+           parmUser,
+           parmPassword,
+           parmDomain,
+           parmClientId
+        };
+
+        AuthResult result = AuthResultAccessDenied;
+
+        Guid uuid(aAuthParams[parmUuid]);
+        AuthGuestJudgement guestJudgement = (AuthGuestJudgement)aAuthParams[parmGuestJudgement].toUInt32();
+        uint32_t u32ClientId = aAuthParams[parmClientId].toUInt32();
+
+        result = AuthLibAuthenticate(&mAuthLibCtx,
+                                     uuid.raw(), guestJudgement,
+                                     aAuthParams[parmUser].c_str(),
+                                     aAuthParams[parmPassword].c_str(),
+                                     aAuthParams[parmDomain].c_str(),
+                                     u32ClientId);
+
+        /* Hack: aAuthParams[parmPassword] is const but the code believes in writable memory. */
+        size_t cbPassword = aAuthParams[parmPassword].length();
+        if (cbPassword)
+        {
+            RTMemWipeThoroughly((void *)aAuthParams[parmPassword].c_str(), cbPassword, 10 /* cPasses */);
+            memset((void *)aAuthParams[parmPassword].c_str(), 'x', cbPassword);
+        }
+
+        if (result == AuthResultAccessGranted)
+            aResult = "granted";
+        else
+            aResult = "denied";
+
+        LogRel(("AUTH: VRDE authentification for user '%s' result '%s'\n",
+                aAuthParams[parmUser].c_str(), aResult.c_str()));
+    }
+    else if (aAuthParams[0] == "VRDEAUTHDISCONNECT" && aAuthParams.size() == 3)
+    {
+        enum VRDEAuthDisconnectParams
+        {
+           parmUuid = 1,
+           parmClientId
+        };
+
+        Guid uuid(aAuthParams[parmUuid]);
+        uint32_t u32ClientId = 0;
+        AuthLibDisconnect(&mAuthLibCtx, uuid.raw(), u32ClientId);
+    }
+    else
+    {
+        hr = E_INVALIDARG;
+    }
+
+    return hr;
 }
 
 // public methods only for internal purposes
@@ -14775,6 +14905,14 @@ HRESULT Machine::reportVmStatistics(ULONG aValidStats,
     NOREF(aMemSharedTotal);
     NOREF(aVmNetRx);
     NOREF(aVmNetTx);
+    ReturnComNotImplemented();
+}
+
+HRESULT Machine::authenticateExternal(const std::vector<com::Utf8Str> &aAuthParams,
+                                             com::Utf8Str &aResult)
+{
+    NOREF(aAuthParams);
+    NOREF(aResult);
     ReturnComNotImplemented();
 }
 

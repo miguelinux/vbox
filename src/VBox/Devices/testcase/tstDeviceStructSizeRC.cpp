@@ -7,7 +7,7 @@
  */
 
 /*
- * Copyright (C) 2006-2015 Oracle Corporation
+ * Copyright (C) 2006-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -1665,12 +1665,12 @@ int main()
     GEN_CHECK_OFF(VMMDEV, TestingData.Value.u64Value);
     GEN_CHECK_OFF(VMMDEV, TestingData.Value.u32Unit);
     GEN_CHECK_OFF(VMMDEV, TestingData.Value.szName);
-    GEN_CHECK_OFF(VMMDEV, uLastHBTime);
-    GEN_CHECK_OFF(VMMDEV, fHasMissedHB);
-    GEN_CHECK_OFF(VMMDEV, fHBCheckEnabled);
-    GEN_CHECK_OFF(VMMDEV, u64HeartbeatInterval);
-    GEN_CHECK_OFF(VMMDEV, u64HeartbeatTimeout);
-    GEN_CHECK_OFF(VMMDEV, pHBCheckTimer);
+    GEN_CHECK_OFF(VMMDEV, nsLastHeartbeatTS);
+    GEN_CHECK_OFF(VMMDEV, fFlatlined);
+    GEN_CHECK_OFF(VMMDEV, fHeartbeatActive);
+    GEN_CHECK_OFF(VMMDEV, cNsHeartbeatInterval);
+    GEN_CHECK_OFF(VMMDEV, cNsHeartbeatTimeout);
+    GEN_CHECK_OFF(VMMDEV, pFlatlinedTimer);
 
 #ifdef VBOX_WITH_BUSLOGIC
     GEN_CHECK_SIZE(BUSLOGICDEVICE);
@@ -1713,7 +1713,7 @@ int main()
     GEN_CHECK_OFF(BUSLOGIC, GCPhysAddrMailboxOutgoingBase);
     GEN_CHECK_OFF(BUSLOGIC, uMailboxOutgoingPositionCurrent);
     GEN_CHECK_OFF(BUSLOGIC, cMailboxesReady);
-    GEN_CHECK_OFF(BUSLOGIC, fNotificationSend);
+    GEN_CHECK_OFF(BUSLOGIC, fNotificationSent);
     GEN_CHECK_OFF(BUSLOGIC, GCPhysAddrMailboxIncomingBase);
     GEN_CHECK_OFF(BUSLOGIC, uMailboxIncomingPositionCurrent);
     GEN_CHECK_OFF(BUSLOGIC, fStrictRoundRobinMode);
@@ -1731,7 +1731,14 @@ int main()
     GEN_CHECK_OFF(BUSLOGIC, pLedsConnector);
     GEN_CHECK_OFF(BUSLOGIC, fSignalIdle);
     GEN_CHECK_OFF(BUSLOGIC, fRedo);
+    GEN_CHECK_OFF(BUSLOGIC, fWrkThreadSleeping);
+    GEN_CHECK_OFF(BUSLOGIC, fBiosReqPending);
     GEN_CHECK_OFF(BUSLOGIC, pTasksRedoHead);
+    GEN_CHECK_OFF(BUSLOGIC, pSupDrvSession);
+    GEN_CHECK_OFF(BUSLOGIC, hEvtProcess);
+# ifdef LOG_ENABLED
+    GEN_CHECK_OFF(BUSLOGIC, cInMailboxesReady);
+# endif
 #endif /* VBOX_WITH_BUSLOGIC */
 
 #ifdef VBOX_WITH_LSILOGIC
@@ -1843,31 +1850,67 @@ int main()
     GEN_CHECK_OFF(AC97DRIVER, pAC97State);
     GEN_CHECK_OFF(AC97DRIVER, Flags);
     GEN_CHECK_OFF(AC97DRIVER, uLUN);
+    GEN_CHECK_OFF(AC97DRIVER, fAttached);
     GEN_CHECK_OFF(AC97DRIVER, pConnector);
     GEN_CHECK_OFF(AC97DRIVER, LineIn);
     GEN_CHECK_OFF(AC97DRIVER, MicIn);
     GEN_CHECK_OFF(AC97DRIVER, Out);
+
+    GEN_CHECK_SIZE(HDAINPUTSTREAM);
+    GEN_CHECK_OFF(HDAINPUTSTREAM, pStrmIn);
+    GEN_CHECK_OFF(HDAINPUTSTREAM, phStrmIn);
+
+    GEN_CHECK_SIZE(HDAOUTPUTSTREAM);
+    GEN_CHECK_OFF(HDAOUTPUTSTREAM, pStrmOut);
+    GEN_CHECK_OFF(HDAOUTPUTSTREAM, phStrmOut);
 
     GEN_CHECK_SIZE(HDADRIVER);
     GEN_CHECK_OFF(HDADRIVER, Node);
     GEN_CHECK_OFF(HDADRIVER, pHDAState);
     GEN_CHECK_OFF(HDADRIVER, Flags);
     GEN_CHECK_OFF(HDADRIVER, uLUN);
+    GEN_CHECK_OFF(HDADRIVER, fAttached);
     GEN_CHECK_OFF(HDADRIVER, pConnector);
     GEN_CHECK_OFF(HDADRIVER, LineIn);
     GEN_CHECK_OFF(HDADRIVER, MicIn);
     GEN_CHECK_OFF(HDADRIVER, Out);
+
+    GEN_CHECK_SIZE(HDABDLESTATE);
+    GEN_CHECK_OFF(HDABDLESTATE, u32BDLIndex);
+    GEN_CHECK_OFF(HDABDLESTATE, cbBelowFIFOW);
+    GEN_CHECK_OFF(HDABDLESTATE, au8FIFO);
+    GEN_CHECK_OFF(HDABDLESTATE, u32BufOff);
+
+    GEN_CHECK_SIZE(HDABDLE);
+    GEN_CHECK_OFF(HDABDLE, u64BufAdr);
+    GEN_CHECK_OFF(HDABDLE, u32BufSize);
+    GEN_CHECK_OFF(HDABDLE, fIntOnCompletion);
+    GEN_CHECK_OFF(HDABDLE, State);
+
+    GEN_CHECK_SIZE(HDASTREAMSTATE);
+    GEN_CHECK_OFF(HDASTREAMSTATE, uCurBDLE);
+    GEN_CHECK_OFF(HDASTREAMSTATE, BDLE);
+
+    GEN_CHECK_SIZE(HDASTREAM);
+    GEN_CHECK_OFF(HDASTREAM, u8Strm);
+    GEN_CHECK_OFF(HDASTREAM, u64BDLBase);
+    GEN_CHECK_OFF(HDASTREAM, u16FMT);
+    GEN_CHECK_OFF(HDASTREAM, u16FIFOS);
+    GEN_CHECK_OFF(HDASTREAM, u16LVI);
+    GEN_CHECK_OFF(HDASTREAM, State);
 
     GEN_CHECK_SIZE(HDASTATE);
     GEN_CHECK_OFF(HDASTATE, PciDev);
     GEN_CHECK_OFF(HDASTATE, pDevInsR3);
     GEN_CHECK_OFF(HDASTATE, pDevInsR0);
     GEN_CHECK_OFF(HDASTATE, pDevInsRC);
-    GEN_CHECK_OFF(HDASTATE, pDrvBase);
     GEN_CHECK_OFF(HDASTATE, IBase);
     GEN_CHECK_OFF(HDASTATE, MMIOBaseAddr);
     GEN_CHECK_OFF(HDASTATE, au32Regs[0]);
     GEN_CHECK_OFF(HDASTATE, au32Regs[HDA_NREGS]);
+    GEN_CHECK_OFF(HDASTATE, StrmStLineIn);
+    GEN_CHECK_OFF(HDASTATE, StrmStOut);
+    GEN_CHECK_OFF(HDASTATE, StrmStMicIn);
     GEN_CHECK_OFF(HDASTATE, u64CORBBase);
     GEN_CHECK_OFF(HDASTATE, u64RIRBBase);
     GEN_CHECK_OFF(HDASTATE, u64DPBase);
@@ -1876,13 +1919,19 @@ int main()
     GEN_CHECK_OFF(HDASTATE, pu64RirbBuf);
     GEN_CHECK_OFF(HDASTATE, cbRirbBuf);
     GEN_CHECK_OFF(HDASTATE, fInReset);
-    GEN_CHECK_OFF(HDASTATE, fCviIoc);
     GEN_CHECK_OFF(HDASTATE, fR0Enabled);
     GEN_CHECK_OFF(HDASTATE, fRCEnabled);
+#ifndef VBOX_WITH_AUDIO_CALLBACKS
     GEN_CHECK_OFF(HDASTATE, pTimer);
-    GEN_CHECK_OFF(HDASTATE, uTicks);
+    GEN_CHECK_OFF(HDASTATE, cTimerTicks);
+    GEN_CHECK_OFF(HDASTATE, uTimerTS);
+#endif
 #ifdef VBOX_WITH_STATISTICS
+# ifndef VBOX_WITH_AUDIO_CALLBACKS
     GEN_CHECK_OFF(HDASTATE, StatTimer);
+# endif
+    GEN_CHECK_OFF(HDASTATE, StatBytesRead);
+    GEN_CHECK_OFF(HDASTATE, StatBytesWritten);
 #endif
     GEN_CHECK_OFF(HDASTATE, pCodec);
     GEN_CHECK_OFF(HDASTATE, lstDrv);
@@ -1890,7 +1939,7 @@ int main()
     GEN_CHECK_OFF(HDASTATE, pSinkLineIn);
     GEN_CHECK_OFF(HDASTATE, pSinkMicIn);
     GEN_CHECK_OFF(HDASTATE, u64BaseTS);
-    GEN_CHECK_OFF(HDASTATE, u8Counter);
+    GEN_CHECK_OFF(HDASTATE, u8RespIntCnt);
 
     return (0);
 }

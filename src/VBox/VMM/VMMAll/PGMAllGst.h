@@ -69,7 +69,7 @@ DECLINLINE(int) PGM_GST_NAME(WalkReturnRsvdError)(PVMCPU pVCpu, PGSTPTWALK pWalk
  * @retval  VINF_SUCCESS on success.
  * @retval  VERR_PAGE_TABLE_NOT_PRESENT on failure.  Check pWalk for details.
  *
- * @param   pVCpu       The current CPU.
+ * @param   pVCpu       The cross context virtual CPU structure of the calling EMT.
  * @param   GCPtr       The guest virtual address to walk by.
  * @param   pWalk       Where to return the walk result. This is always set.
  */
@@ -169,7 +169,7 @@ static int PGM_GST_NAME(Walk)(PVMCPU pVCpu, RTGCPTR GCPtr, PGSTPTWALK pWalk)
             PGM_A20_APPLY_TO_VAR(pVCpu, pWalk->Core.GCPhys);
             uint8_t fEffectiveXX     = (uint8_t)pWalk->Pde.u
 #  if PGM_GST_TYPE == PGM_TYPE_AMD64
-                                     & (uint8_t)pWalk->Pde.u
+                                     & (uint8_t)pWalk->Pdpe.u
                                      & (uint8_t)pWalk->Pml4e.u
 #  endif
                                      ;
@@ -178,7 +178,7 @@ static int PGM_GST_NAME(Walk)(PVMCPU pVCpu, RTGCPTR GCPtr, PGSTPTWALK pWalk)
 # if PGM_GST_TYPE == PGM_TYPE_AMD64 || PGM_GST_TYPE == PGM_TYPE_PAE
             pWalk->Core.fEffectiveNX = (   pWalk->Pde.n.u1NoExecute
 #  if PGM_GST_TYPE == PGM_TYPE_AMD64
-                                        || pWalk->Pde.n.u1NoExecute
+                                        || pWalk->Pdpe.lm.u1NoExecute
                                         || pWalk->Pml4e.n.u1NoExecute
 #  endif
                                        ) && GST_IS_NX_ACTIVE(pVCpu);
@@ -220,7 +220,7 @@ static int PGM_GST_NAME(Walk)(PVMCPU pVCpu, RTGCPTR GCPtr, PGSTPTWALK pWalk)
         uint8_t fEffectiveXX     = (uint8_t)pWalk->Pte.u
                                  & (uint8_t)pWalk->Pde.u
 #  if PGM_GST_TYPE == PGM_TYPE_AMD64
-                                 & (uint8_t)pWalk->Pde.u
+                                 & (uint8_t)pWalk->Pdpe.u
                                  & (uint8_t)pWalk->Pml4e.u
 #  endif
                                  ;
@@ -230,7 +230,7 @@ static int PGM_GST_NAME(Walk)(PVMCPU pVCpu, RTGCPTR GCPtr, PGSTPTWALK pWalk)
         pWalk->Core.fEffectiveNX = (   pWalk->Pte.n.u1NoExecute
                                     || pWalk->Pde.n.u1NoExecute
 #  if PGM_GST_TYPE == PGM_TYPE_AMD64
-                                    || pWalk->Pde.n.u1NoExecute
+                                    || pWalk->Pdpe.lm.u1NoExecute
                                     || pWalk->Pml4e.n.u1NoExecute
 #  endif
                                    ) && GST_IS_NX_ACTIVE(pVCpu);
@@ -252,8 +252,8 @@ static int PGM_GST_NAME(Walk)(PVMCPU pVCpu, RTGCPTR GCPtr, PGSTPTWALK pWalk)
  * necessary at a later point, a PGMGstGetPage Ex() will be created for that
  * purpose.
  *
- * @returns VBox status.
- * @param   pVCpu       Pointer to the VMCPU.
+ * @returns VBox status code.
+ * @param   pVCpu       The cross context virtual CPU structure.
  * @param   GCPtr       Guest Context virtual address of the page.
  * @param   pfFlags     Where to store the flags. These are X86_PTE_*, even for big pages.
  * @param   pGCPhys     Where to store the GC physical address of the page.
@@ -324,7 +324,7 @@ PGM_GST_DECL(int, GetPage)(PVMCPU pVCpu, RTGCPTR GCPtr, uint64_t *pfFlags, PRTGC
  * The existing flags are ANDed with the fMask and ORed with the fFlags.
  *
  * @returns VBox status code.
- * @param   pVCpu       Pointer to the VMCPU.
+ * @param   pVCpu       The cross context virtual CPU structure.
  * @param   GCPtr       Virtual address of the first page in the range. Page aligned!
  * @param   cb          Size (in bytes) of the page range to apply the modification to. Page aligned!
  * @param   fFlags      The OR  mask - page flags X86_PTE_*, excluding the page mask of course.
@@ -403,7 +403,7 @@ PGM_GST_DECL(int, ModifyPage)(PVMCPU pVCpu, RTGCPTR GCPtr, size_t cb, uint64_t f
  * Retrieve guest PDE information.
  *
  * @returns VBox status code.
- * @param   pVCpu       Pointer to the VMCPU.
+ * @param   pVCpu       The cross context virtual CPU structure.
  * @param   GCPtr       Guest context pointer.
  * @param   pPDE        Pointer to guest PDE structure.
  */
@@ -616,8 +616,7 @@ static DECLCALLBACK(int) PGM_GST_NAME(VirtHandlerUpdateOne)(PAVLROGCPTRNODECORE 
  *
  * @returns true if bits were flushed.
  * @returns false if bits weren't flushed.
- * @param   pVM     Pointer to the VM.
- * @param   pPDSrc  The page directory.
+ * @param   pVM     The cross context VM structure.
  * @param   cr4     The cr4 register value.
  */
 PGM_GST_DECL(bool, HandlerVirtualUpdate)(PVM pVM, uint32_t cr4)

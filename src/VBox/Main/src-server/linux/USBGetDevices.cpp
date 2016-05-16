@@ -327,7 +327,7 @@ static int usbReadStr(const char *pszValue, const char **ppsz)
     psz = RTStrDup(pszValue);
     if (psz)
     {
-        RTStrPurgeEncoding(psz);
+        USBLibPurgeEncoding(psz);
         *ppsz = psz;
         return VINF_SUCCESS;
     }
@@ -1090,7 +1090,7 @@ static int USBSysfsEnumerateHostDevices(const char *pcszDevicesRoot,
  *   usb<hub number>
  * and usbfs always returns port number zero.
  *
- * @returns VBox status. pu8Port is set on success.
+ * @returns VBox status code. pu8Port is set on success.
  * @param   pszPath     The sysfs path to parse.
  * @param   pu8Port     Where to store the port number.
  */
@@ -1304,7 +1304,7 @@ static void fillInDeviceFromSysfs(USBDEVICE *Dev, USBDeviceInfo *pInfo)
                                       pszSysfsPath);
     if (cchRead > 0 && (size_t) cchRead < sizeof(szBuf))
     {
-        RTStrPurgeEncoding(szBuf);
+        USBLibPurgeEncoding(szBuf);
         Dev->pszProduct = RTStrDup(szBuf);
     }
 
@@ -1312,7 +1312,7 @@ static void fillInDeviceFromSysfs(USBDEVICE *Dev, USBDeviceInfo *pInfo)
                                       pszSysfsPath);
     if (cchRead > 0 && (size_t) cchRead < sizeof(szBuf))
     {
-        RTStrPurgeEncoding(szBuf);
+        USBLibPurgeEncoding(szBuf);
         Dev->pszSerialNumber = RTStrDup(szBuf);
         Dev->u64SerialHash = USBLibHashSerial(szBuf);
     }
@@ -1321,7 +1321,7 @@ static void fillInDeviceFromSysfs(USBDEVICE *Dev, USBDeviceInfo *pInfo)
                                       pszSysfsPath);
     if (cchRead > 0 && (size_t) cchRead < sizeof(szBuf))
     {
-        RTStrPurgeEncoding(szBuf);
+        USBLibPurgeEncoding(szBuf);
         Dev->pszManufacturer = RTStrDup(szBuf);
     }
 

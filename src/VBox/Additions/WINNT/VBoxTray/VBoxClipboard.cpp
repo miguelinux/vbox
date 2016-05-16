@@ -1,8 +1,6 @@
 /* $Id: VBoxClipboard.cpp $ */
 /** @file
- *
- * VBoxClipboard - Shared clipboard
- *
+ * VBoxClipboard - Shared clipboard, Windows Guest Implementation.
  */
 
 /*
@@ -20,6 +18,9 @@
 #include "VBoxTray.h"
 #include "VBoxHelpers.h"
 
+#include <iprt/asm.h>
+#include <iprt/ldr.h>
+
 #include <VBox/HostServices/VBoxClipboardSvc.h>
 #include <strsafe.h>
 
@@ -30,36 +31,67 @@
 #endif
 #include <VBox/log.h>
 
+ /* Dynamically load clipboard functions from User32.dll. */
+typedef BOOL WINAPI FNADDCLIPBOARDFORMATLISTENER(HWND);
+typedef FNADDCLIPBOARDFORMATLISTENER *PFNADDCLIPBOARDFORMATLISTENER;
 
+typedef BOOL WINAPI FNREMOVECLIPBOARDFORMATLISTENER(HWND);
+typedef FNREMOVECLIPBOARDFORMATLISTENER *PFNREMOVECLIPBOARDFORMATLISTENER;
+
+#ifndef WM_CLIPBOARDUPDATE
+#define WM_CLIPBOARDUPDATE 0x031D
+#endif
 
 typedef struct _VBOXCLIPBOARDCONTEXT
 {
     const VBOXSERVICEENV *pEnv;
-
-    uint32_t u32ClientID;
-
-    ATOM     atomWindowClass;
-
-    HWND     hwnd;
-
-    HWND     hwndNextInChain;
-
-    UINT     timerRefresh;
-
-    bool     fCBChainPingInProcess;
-
-//    bool     fOperational;
-
-//    uint32_t u32LastSentFormat;
-//    uint64_t u64LastSentCRC64;
-
-} VBOXCLIPBOARDCONTEXT;
+    uint32_t              u32ClientID;
+    ATOM                  wndClass;
+    HWND                  hwnd;
+    HWND                  hwndNextInChain;
+    UINT                  timerRefresh;
+    bool                  fCBChainPingInProcess;
+    PFNADDCLIPBOARDFORMATLISTENER pfnAddClipboardFormatListener;
+    PFNREMOVECLIPBOARDFORMATLISTENER pfnRemoveClipboardFormatListener;
+} VBOXCLIPBOARDCONTEXT, *PVBOXCLIPBOARDCONTEXT;
 
 static char gachWindowClassName[] = "VBoxSharedClipboardClass";
 
 enum { CBCHAIN_TIMEOUT = 5000 /* ms */ };
 
-static int vboxClipboardChanged(VBOXCLIPBOARDCONTEXT *pCtx)
+static void vboxClipboardInitNewAPI(VBOXCLIPBOARDCONTEXT *pCtx)
+{
+    RTLDRMOD hUser32 = NIL_RTLDRMOD;
+    int rc = RTLdrLoadSystem("User32.dll", /* fNoUnload = */ true, &hUser32);
+    if (RT_SUCCESS(rc))
+    {
+        rc = RTLdrGetSymbol(hUser32, "AddClipboardFormatListener", (void**)&pCtx->pfnAddClipboardFormatListener);
+        if (RT_SUCCESS(rc))
+        {
+            rc = RTLdrGetSymbol(hUser32, "RemoveClipboardFormatListener", (void**)&pCtx->pfnRemoveClipboardFormatListener);
+        }
+
+        RTLdrClose(hUser32);
+    }
+
+    if (RT_SUCCESS(rc))
+    {
+        Log(("New Clipboard API is enabled\n"));
+    }
+    else
+    {
+        pCtx->pfnAddClipboardFormatListener = NULL;
+        pCtx->pfnRemoveClipboardFormatListener = NULL;
+        Log(("New Clipboard API is not available. rc = %Rrc\n", rc));
+    }
+}
+
+static bool vboxClipboardIsNewAPI(VBOXCLIPBOARDCONTEXT *pCtx)
+{
+    return pCtx->pfnAddClipboardFormatListener != NULL;
+}
+
+static int vboxClipboardChanged(PVBOXCLIPBOARDCONTEXT pCtx)
 {
     AssertPtr(pCtx);
 
@@ -116,7 +148,12 @@ static int vboxClipboardChanged(VBOXCLIPBOARDCONTEXT *pCtx)
 /* Add ourselves into the chain of cliboard listeners */
 static void addToCBChain (VBOXCLIPBOARDCONTEXT *pCtx)
 {
-    pCtx->hwndNextInChain = SetClipboardViewer (pCtx->hwnd);
+    AssertPtrReturnVoid(pCtx);
+    if (vboxClipboardIsNewAPI(pCtx))
+        pCtx->pfnAddClipboardFormatListener(pCtx->hwnd);
+    else
+        pCtx->hwndNextInChain = SetClipboardViewer(pCtx->hwnd);
+    /** @todo r=andy Return code?? */
 }
 
 /* Remove ourselves from the chain of cliboard listeners */
@@ -124,13 +161,25 @@ static void removeFromCBChain (VBOXCLIPBOARDCONTEXT *pCtx)
 {
     ChangeClipboardChain (pCtx->hwnd, pCtx->hwndNextInChain);
     pCtx->hwndNextInChain = NULL;
+    AssertPtrReturnVoid(pCtx);
+
+    if (vboxClipboardIsNewAPI(pCtx))
+    {
+        pCtx->pfnRemoveClipboardFormatListener(pCtx->hwnd);
+    }
+    else
+    {
+        ChangeClipboardChain(pCtx->hwnd, pCtx->hwndNextInChain);
+        pCtx->hwndNextInChain = NULL;
+    }
+    /** @todo r=andy Return code?? */
 }
 
 /* Callback which is invoked when we have successfully pinged ourselves down the
  * clipboard chain.  We simply unset a boolean flag to say that we are responding.
  * There is a race if a ping returns after the next one is initiated, but nothing
  * very bad is likely to happen. */
-VOID CALLBACK CBChainPingProc(HWND hwnd, UINT uMsg, ULONG_PTR dwData, LRESULT lResult)
+VOID CALLBACK vboxClipboardChainPingProc(HWND hwnd, UINT uMsg, ULONG_PTR dwData, LRESULT lResult)
 {
     (void) hwnd;
     (void) uMsg;
@@ -145,8 +194,25 @@ static LRESULT vboxClipboardProcessMsg(VBOXCLIPBOARDCONTEXT *pCtx, HWND hwnd, UI
 
     switch (msg)
     {
+        case WM_CLIPBOARDUPDATE:
+        {
+            Log(("WM_CLIPBOARDUPDATE\n"));
+
+            if (GetClipboardOwner() != hwnd)
+            {
+                /* Clipboard was updated by another application. */
+                vboxClipboardChanged(pCtx);
+            }
+        } break;
+
         case WM_CHANGECBCHAIN:
         {
+            if (vboxClipboardIsNewAPI(pCtx))
+            {
+                rc = DefWindowProc(hwnd, msg, wParam, lParam);
+                break;
+            }
+
             HWND hwndRemoved = (HWND)wParam;
             HWND hwndNext    = (HWND)lParam;
 
@@ -175,7 +241,7 @@ static LRESULT vboxClipboardProcessMsg(VBOXCLIPBOARDCONTEXT *pCtx, HWND hwnd, UI
         {
             LogFlowFunc(("WM_DRAWCLIPBOARD, hwnd %p\n", pCtx->hwnd));
 
-            if (GetClipboardOwner () != hwnd)
+            if (GetClipboardOwner() != hwnd)
             {
                 /* Clipboard was updated by another application. */
                 /* WM_DRAWCLIPBOARD always expects a return code of 0, so don't change "rc" here. */
@@ -184,12 +250,18 @@ static LRESULT vboxClipboardProcessMsg(VBOXCLIPBOARDCONTEXT *pCtx, HWND hwnd, UI
                     LogFlowFunc(("vboxClipboardChanged failed, rc = %Rrc\n", vboxrc));
             }
 
-            /* Pass the message to next windows in the clipboard chain. */
-            SendMessageTimeout(pCtx->hwndNextInChain, msg, wParam, lParam, 0, CBCHAIN_TIMEOUT, NULL);
+            if (pCtx->hwndNextInChain)
+            {
+                /* Pass the message to next windows in the clipboard chain. */
+                SendMessageTimeout(pCtx->hwndNextInChain, msg, wParam, lParam, 0, CBCHAIN_TIMEOUT, NULL);
+            }
         } break;
 
         case WM_TIMER:
         {
+            if (vboxClipboardIsNewAPI(pCtx))
+                break;
+
             HWND hViewer = GetClipboardViewer();
 
             /* Re-register ourselves in the clipboard chain if our last ping
@@ -204,7 +276,7 @@ static LRESULT vboxClipboardProcessMsg(VBOXCLIPBOARDCONTEXT *pCtx, HWND hwnd, UI
             pCtx->fCBChainPingInProcess = TRUE;
             hViewer = GetClipboardViewer();
             if (hViewer)
-                SendMessageCallback(hViewer, WM_CHANGECBCHAIN, (WPARAM)pCtx->hwndNextInChain, (LPARAM)pCtx->hwndNextInChain, CBChainPingProc, (ULONG_PTR) pCtx);
+                SendMessageCallback(hViewer, WM_CHANGECBCHAIN, (WPARAM)pCtx->hwndNextInChain, (LPARAM)pCtx->hwndNextInChain, vboxClipboardChainPingProc, (ULONG_PTR)pCtx);
         } break;
 
         case WM_CLOSE:
@@ -558,10 +630,10 @@ static int vboxClipboardInit (VBOXCLIPBOARDCONTEXT *pCtx)
     wc.lpszMenuName  = NULL;
     wc.lpszClassName = gachWindowClassName;
 
-    pCtx->atomWindowClass = RegisterClass (&wc);
+    pCtx->wndClass = RegisterClass (&wc);
 
     int rc = VINF_SUCCESS;
-    if (pCtx->atomWindowClass == 0)
+    if (pCtx->wndClass == 0)
     {
         rc = VERR_NOT_SUPPORTED;
     }
@@ -583,7 +655,8 @@ static int vboxClipboardInit (VBOXCLIPBOARDCONTEXT *pCtx)
                          SWP_NOACTIVATE | SWP_HIDEWINDOW | SWP_NOCOPYBITS | SWP_NOREDRAW | SWP_NOSIZE);
 
             addToCBChain(pCtx);
-            pCtx->timerRefresh = SetTimer(pCtx->hwnd, 0, 10 * 1000, NULL);
+            if (!vboxClipboardIsNewAPI(pCtx))
+                pCtx->timerRefresh = SetTimer(pCtx->hwnd, 0, 10 * 1000, NULL);
         }
     }
 
@@ -603,10 +676,10 @@ static void vboxClipboardDestroy(VBOXCLIPBOARDCONTEXT *pCtx)
         pCtx->hwnd = NULL;
     }
 
-    if (pCtx->atomWindowClass != 0)
+    if (pCtx->wndClass != 0)
     {
         UnregisterClass(gachWindowClassName, pCtx->pEnv->hInstance);
-        pCtx->atomWindowClass = 0;
+        pCtx->wndClass = 0;
     }
 }
 
@@ -638,8 +711,11 @@ int VBoxClipboardInit(const VBOXSERVICEENV *pEnv, void **ppInstance, bool *pfSta
     RT_ZERO (gCtx);
     gCtx.pEnv = pEnv;
 
+    /* Check that new Clipboard API is available */
+    vboxClipboardInitNewAPI(&gCtx);
+
     int rc = VbglR3ClipboardConnect(&gCtx.u32ClientID);
-    if (RT_SUCCESS (rc))
+    if (RT_SUCCESS(rc))
     {
         rc = vboxClipboardInit(&gCtx);
         if (RT_SUCCESS (rc))
@@ -693,6 +769,7 @@ unsigned __stdcall VBoxClipboardThread(void *pInstance)
             LogFlowFunc(("VBoxClipboardThread: VbglR3ClipboardGetHostMsg u32Msg = %ld, u32Formats = %ld\n", u32Msg, u32Formats));
             switch (u32Msg)
             {
+                /** @todo r=andy: Use a \#define for WM_USER (+1). */
                 case VBOX_SHARED_CLIPBOARD_HOST_MSG_FORMATS:
                 {
                     /* The host has announced available clipboard formats.

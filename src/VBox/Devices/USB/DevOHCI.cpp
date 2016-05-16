@@ -2184,7 +2184,7 @@ static void ohciCalcTimerIntervals(POHCI pThis, uint32_t u32FrameRate)
  * @returns nothing.
  * @param   pThis    The OHCI device data.
  */
-static void ohciFramerateCalcNew(POHCI pThis)
+static bool ohciFramerateCalcNew(POHCI pThis)
 {
     uint32_t uNewFrameRate = pThis->uFrameRate;
 
@@ -2218,7 +2218,9 @@ static void ohciFramerateCalcNew(POHCI pThis)
     {
         LogFlow(("Frame rate changed from %u to %u\n", pThis->uFrameRate, uNewFrameRate));
         ohciCalcTimerIntervals(pThis, uNewFrameRate);
+        return true;
     }
+    return false;
 }
 
 
@@ -2608,9 +2610,10 @@ static DECLCALLBACK(void) ohciRhXferCompletion(PVUSBIROOTHUBPORT pInterface, PVU
     /* finally write back the endpoint descriptor. */
     ohciWriteEd(pThis, pUrb->Hci.EdAddr, &Ed);
 
-    /* Calculate new frame rate and wakeup the . */
-    ohciFramerateCalcNew(pThis);
-    RTSemEventMultiSignal(pThis->hSemEventFrame);
+    /* Calculate new frame rate and wakeup the framer thread if the rate was chnaged. */
+    if (ohciFramerateCalcNew(pThis))
+        RTSemEventMultiSignal(pThis->hSemEventFrame);
+
     RTCritSectLeave(&pThis->CritSect);
 }
 
@@ -2843,9 +2846,11 @@ static bool ohciServiceTdMultiple(POHCI pThis, VUSBXFERTYPE enmType, PCOHCIED pE
         ohciReadTd(pThis, pCur->TdAddr, &pCur->Td);
         ohciBufInit(&pCur->Buf, pCur->Td.cbp, pCur->Td.be);
 
-        /* don't combine if the direction doesn't match up. */
+        /* Don't combine if the direction doesn't match up. There can't actually be
+         * a mismatch for bulk/interrupt EPs unless the guest is buggy.
+         */
         if (    (pCur->Td.hwinfo & (TD_HWINFO_DIR))
-            !=  (pCur->Td.hwinfo & (TD_HWINFO_DIR)))
+            !=  (Head.Td.hwinfo & (TD_HWINFO_DIR)))
             break;
 
         pTail->pNext = pCur;
@@ -5624,7 +5629,7 @@ static DECLCALLBACK(void) ohciR3LoadReattachDevices(PPDMDEVINS pDevIns, PTMTIMER
 /**
  * Reset notification.
  *
- * @returns VBox status.
+ * @returns VBox status code.
  * @param   pDevIns     The device instance data.
  */
 static DECLCALLBACK(void) ohciR3Reset(PPDMDEVINS pDevIns)
@@ -5647,7 +5652,7 @@ static DECLCALLBACK(void) ohciR3Reset(PPDMDEVINS pDevIns)
 /**
  * Resume notification.
  *
- * @returns VBox status.
+ * @returns VBox status code.
  * @param   pDevIns     The device instance data.
  */
 static DECLCALLBACK(void) ohciR3Resume(PPDMDEVINS pDevIns)
@@ -5727,7 +5732,7 @@ static DECLCALLBACK(void) ohciR3InfoRegs(PPDMDEVINS pDevIns, PCDBGFINFOHLP pHlp,
 /**
  * Relocate device instance data.
  *
- * @returns VBox status.
+ * @returns VBox status code.
  * @param   pDevIns     The device instance data.
  * @param   offDelta    The relocation delta.
  */
@@ -5745,7 +5750,7 @@ static DECLCALLBACK(void) ohciR3Relocate(PPDMDEVINS pDevIns, RTGCINTPTR offDelta
  * Most VM resources are freed by the VM. This callback is provided so that any non-VM
  * resources can be freed correctly.
  *
- * @returns VBox status.
+ * @returns VBox status code.
  * @param   pDevIns     The device instance data.
  */
 static DECLCALLBACK(int) ohciR3Destruct(PPDMDEVINS pDevIns)

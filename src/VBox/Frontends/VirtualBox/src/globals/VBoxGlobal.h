@@ -193,9 +193,6 @@ public:
 
     bool processArgs();
 
-    /** Shows UI. */
-    bool showUI();
-
     bool switchToMachine(CMachine &machine);
 
     bool launchMachine(CMachine &machine, LaunchMode enmLaunchMode = LaunchMode_Default);
@@ -254,6 +251,11 @@ public:
     /** Returns pixmap corresponding to passed @a strOSTypeID.
       * In case if non-null @a pLogicalSize pointer provided, it will be updated properly. */
     QPixmap vmGuestOSTypeIcon(const QString &strOSTypeID, QSize *pLogicalSize = 0) const;
+
+    /** Returns pixmap corresponding to passed @a strOSTypeID and @a physicalSize. */
+    QPixmap vmGuestOSTypePixmap(const QString &strOSTypeID, const QSize &physicalSize) const;
+    /** Returns HiDPI pixmap corresponding to passed @a strOSTypeID and @a physicalSize. */
+    QPixmap vmGuestOSTypePixmapHiDPI(const QString &strOSTypeID, const QSize &physicalSize) const;
 
     CGuestOSType vmGuestOSType (const QString &aTypeId,
                                 const QString &aFamilyId = QString::null) const;
@@ -337,10 +339,6 @@ public:
     /** Shortcut to openSession (aId, true). */
     CSession openExistingSession(const QString &aId) { return openSession(aId, KLockType_Shared); }
 
-#ifdef VBOX_GUI_WITH_NETWORK_MANAGER
-    void reloadProxySettings();
-#endif /* VBOX_GUI_WITH_NETWORK_MANAGER */
-
     /* API: Medium-processing stuff: */
     void createMedium(const UIMedium &medium);
     void deleteMedium(const QString &strMediumID);
@@ -349,7 +347,7 @@ public:
     QString openMedium(UIMediumType mediumType, QString strMediumLocation, QWidget *pParent = 0);
 
     /* API: Medium-enumeration stuff: */
-    void startMediumEnumeration(bool fForceStart = true);
+    void startMediumEnumeration();
     bool agressiveCaching() const { return mAgressiveCaching; }
     bool isMediumEnumerationInProgress() const;
     UIMedium medium(const QString &strMediumID) const;
@@ -493,13 +491,15 @@ public slots:
     bool openURL (const QString &aURL);
 
     void sltGUILanguageChange(QString strLang);
-    void sltProcessGlobalSettingChange();
 
 protected slots:
 
     /* Handlers: Prepare/cleanup stuff: */
     void prepare();
     void cleanup();
+
+    /** Shows UI. */
+    void showUI();
 
     /** Handles the VBoxSVC availability change. */
     void sltHandleVBoxSVCAvailabilityChange(bool fAvailable);
@@ -513,6 +513,9 @@ private:
     /* Constructor/destructor: */
     VBoxGlobal();
     ~VBoxGlobal();
+
+    /** Re-initializes COM wrappers and containers. */
+    void comWrappersReinit();
 
 #ifdef VBOX_WITH_DEBUGGER_GUI
     void initDebuggerVar(int *piDbgCfgVar, const char *pszEnvVar, const char *pszExtraDataName, bool fDefault = false);
@@ -538,6 +541,10 @@ private:
     CHost m_host;
     /** Holds the symbolic VirtualBox home-folder representation. */
     QString m_strHomeFolder;
+    /** Holds the guest OS family IDs. */
+    QList<QString> m_guestOSFamilyIDs;
+    /** Holds the guest OS types for each family ID. */
+    QList<QList<CGuestOSType> > m_guestOSTypes;
 
     /** Holds whether acquired COM wrappers are currently valid. */
     bool m_fWrappersValid;
@@ -626,9 +633,6 @@ private:
     QString mBrandingConfig;
 
     int m3DAvailable;
-
-    QList <QString> mFamilyIDs;
-    QList <QList <CGuestOSType> > mTypes;
 
     QString mDiskTypes_Differencing;
 

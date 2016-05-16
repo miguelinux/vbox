@@ -6,7 +6,7 @@
  */
 
 /*
- * Copyright (C) 2014-2015 Oracle Corporation
+ * Copyright (C) 2014-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -106,6 +106,10 @@ int AudioMixerAddStreamIn(PAUDMIXSINK pSink, PPDMIAUDIOCONNECTOR pConnector, PPD
         LogFlowFunc(("%s: pStream=%p, cStreams=%RU8\n",
                      pSink->pszName, pMixStream, pSink->cStreams));
 
+        /* Increase the stream's reference count to let others know
+         * we're reyling on it to be around now. */
+        pStream->State.cRefs++;
+
         if (ppStream)
             *ppStream = pMixStream;
 
@@ -143,6 +147,10 @@ int AudioMixerAddStreamOut(PAUDMIXSINK pSink, PPDMIAUDIOCONNECTOR pConnector, PP
 
         LogFlowFunc(("%s: pStream=%p, cStreams=%RU8\n",
                      pSink->pszName, pMixStream, pSink->cStreams));
+
+        /* Increase the stream's reference count to let others know
+         * we're reyling on it to be around now. */
+        pStream->State.cRefs++;
 
         if (ppStream)
             *ppStream = pMixStream;
@@ -200,30 +208,24 @@ int AudioMixerCreate(const char *pszName, uint32_t uFlags, PAUDIOMIXER *ppMixer)
 
 void AudioMixerDestroy(PAUDIOMIXER pMixer)
 {
-    if (pMixer)
+    if (!pMixer)
+        return;
+
+    LogFlowFunc(("Destroying %s ...\n", pMixer->pszName));
+
+    PAUDMIXSINK pSink, pSinkNext;
+    RTListForEachSafe(&pMixer->lstSinks, pSink, pSinkNext, AUDMIXSINK, Node)
+        AudioMixerRemoveSink(pMixer, pSink);
+
+    Assert(pMixer->cSinks == 0);
+
+    if (pMixer->pszName)
     {
-        LogFlowFunc(("Destroying %s ...\n", pMixer->pszName));
-
-        PAUDMIXSINK pSink = RTListGetFirst(&pMixer->lstSinks, AUDMIXSINK, Node);
-        while (pSink)
-        {
-            PAUDMIXSINK pNext = RTListNodeGetNext(&pSink->Node, AUDMIXSINK, Node);
-            bool fLast = RTListNodeIsLast(&pMixer->lstSinks, &pSink->Node);
-
-            AudioMixerRemoveSink(pMixer, pSink);
-
-            if (fLast)
-                break;
-
-            pSink = pNext;
-        }
-
-        Assert(pMixer->cSinks == 0);
-
         RTStrFree(pMixer->pszName);
-
-        RTMemFree(pMixer);
+        pMixer->pszName = NULL;
     }
+
+    RTMemFree(pMixer);
 }
 
 static void audioMixerDestroySink(PAUDMIXSINK pSink)
@@ -232,7 +234,8 @@ static void audioMixerDestroySink(PAUDMIXSINK pSink)
     if (!pSink)
         return;
 
-    RTStrFree(pSink->pszName);
+    if (pSink->pszName)
+        RTStrFree(pSink->pszName);
 
     RTMemFree(pSink);
 }
@@ -244,6 +247,17 @@ static void audioMixerDestroyStream(PAUDMIXSTREAM pStream)
         return;
 
     RTMemFree(pStream);
+}
+
+int AudioMixerGetDeviceFormat(PAUDIOMIXER pMixer, PPDMAUDIOSTREAMCFG pCfg)
+{
+    AssertPtrReturn(pMixer, VERR_INVALID_POINTER);
+    AssertPtrReturn(pCfg, VERR_INVALID_POINTER);
+
+    /** @todo Perform a deep copy, if needed. */
+    *pCfg = pMixer->devFmt;
+
+    return VINF_SUCCESS;
 }
 
 uint32_t AudioMixerGetStreamCount(PAUDIOMIXER pMixer)
@@ -348,19 +362,9 @@ void AudioMixerRemoveSink(PAUDIOMIXER pMixer, PAUDMIXSINK pSink)
     if (!pSink)
         return;
 
-    PAUDMIXSTREAM pStream = RTListGetFirst(&pSink->lstStreams, AUDMIXSTREAM, Node);
-    while (pStream)
-    {
-        PAUDMIXSTREAM pNext = RTListNodeGetNext(&pStream->Node, AUDMIXSTREAM, Node);
-        bool fLast = RTListNodeIsLast(&pSink->lstStreams, &pStream->Node);
-
+    PAUDMIXSTREAM pStream, pStreamNext;
+    RTListForEachSafe(&pSink->lstStreams, pStream, pStreamNext, AUDMIXSTREAM, Node)
         AudioMixerRemoveStream(pSink, pStream);
-
-        if (fLast)
-            break;
-
-        pStream = pNext;
-    }
 
     Assert(pSink->cStreams == 0);
 
@@ -384,11 +388,35 @@ void AudioMixerRemoveStream(PAUDMIXSINK pSink, PAUDMIXSTREAM pStream)
     RTListNodeRemove(&pStream->Node);
     pSink->cStreams--;
 
+#ifdef DEBUG
     const char *pszStream = pSink->enmDir == AUDMIXSINKDIR_INPUT
                           ? pStream->pIn->MixBuf.pszName : pStream->pOut->MixBuf.pszName;
 
     LogFlowFunc(("%s: pStream=%s, cStreams=%RU8\n",
-                 pSink->pszName, pszStream, pSink->cStreams));
+                 pSink->pszName, pszStream ? pszStream : "<Unnamed>", pSink->cStreams));
+#endif
+
+    /* Decrease the reference count again. */
+    switch (pSink->enmDir)
+    {
+        case AUDMIXSINKDIR_INPUT:
+        {
+            Assert(pStream->pIn->State.cRefs);
+            pStream->pIn->State.cRefs--;
+            break;
+        }
+
+        case AUDMIXSINKDIR_OUTPUT:
+        {
+            Assert(pStream->pOut->State.cRefs);
+            pStream->pOut->State.cRefs--;
+            break;
+        }
+
+        default:
+            AssertMsgFailed(("Not implemented\n"));
+            break;
+    }
 
     audioMixerDestroyStream(pStream);
 }

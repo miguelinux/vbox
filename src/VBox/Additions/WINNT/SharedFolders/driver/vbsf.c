@@ -81,10 +81,10 @@ static void VBoxMRxUnload(IN PDRIVER_OBJECT DriverObject)
     {
         PMRX_VBOX_DEVICE_EXTENSION pDeviceExtension;
         pDeviceExtension = (PMRX_VBOX_DEVICE_EXTENSION)((PBYTE)VBoxMRxDeviceObject + sizeof(RDBSS_DEVICE_OBJECT));
-        vboxDisconnect (&pDeviceExtension->hgcmClient);
+        VbglR0SfDisconnect(&pDeviceExtension->hgcmClient);
     }
 
-    vboxUninit();
+    VbglR0SfTerm();
 
     if (VBoxMRxDeviceObject)
     {
@@ -410,7 +410,7 @@ NTSTATUS DriverEntry(IN PDRIVER_OBJECT  DriverObject,
     PMRX_VBOX_DEVICE_EXTENSION pDeviceExtension;
     ULONG i;
     int vboxRC;
-    VBSFCLIENT hgcmClient;
+    VBGLSFCLIENT hgcmClient;
 
     Log(("VBOXSF: DriverEntry: Driver object %p\n", DriverObject));
 
@@ -421,7 +421,7 @@ NTSTATUS DriverEntry(IN PDRIVER_OBJECT  DriverObject,
     }
 
     /* Initialize VBox subsystem. */
-    vboxRC = vboxInit();
+    vboxRC = VbglR0SfInit();
     if (RT_FAILURE(vboxRC))
     {
         Log(("VBOXSF: DriverEntry: ERROR while initializing VBox subsystem (%Rrc)!\n", vboxRC));
@@ -430,12 +430,12 @@ NTSTATUS DriverEntry(IN PDRIVER_OBJECT  DriverObject,
 
     /* Connect the HGCM client */
     RT_ZERO(hgcmClient);
-    vboxRC = vboxConnect(&hgcmClient);
+    vboxRC = VbglR0SfConnect(&hgcmClient);
     if (RT_FAILURE(vboxRC))
     {
         Log(("VBOXSF: DriverEntry: ERROR while connecting to host (%Rrc)!\n",
              vboxRC));
-        vboxUninit();
+        VbglR0SfTerm();
         return STATUS_UNSUCCESSFUL;
     }
 
@@ -554,8 +554,8 @@ failure:
 
     Log(("VBOXSF: DriverEntry: Failure! Status = 0x%08X\n", Status));
 
-    vboxDisconnect(&hgcmClient);
-    vboxUninit();
+    VbglR0SfDisconnect(&hgcmClient);
+    VbglR0SfTerm();
 
     if (VBoxMRxDeviceObject)
     {
@@ -719,7 +719,7 @@ NTSTATUS VBoxMRxDevFcbXXXControlFile(IN OUT PRX_CONTEXT RxContext)
                         break;
                     }
 
-                    vboxRC = vboxCallQueryMappings(&pDeviceExtension->hgcmClient, mappings, &cMappings);
+                    vboxRC = VbglR0SfQueryMappings(&pDeviceExtension->hgcmClient, mappings, &cMappings);
                     if (vboxRC == VINF_SUCCESS)
                     {
                         __try
@@ -870,7 +870,7 @@ NTSTATUS VBoxMRxDevFcbXXXControlFile(IN OUT PRX_CONTEXT RxContext)
                         Log(("VBOXSF: MRxDevFcbXXXControlFile: IOCTL_MRX_VBOX_GETGLOBALCONN: Connection ID = %d\n",
                              *pu8ConnectId));
 
-                        vboxRC = vboxCallQueryMapName(&pDeviceExtension->hgcmClient,
+                        vboxRC = VbglR0SfQueryMapName(&pDeviceExtension->hgcmClient,
                                                       (*pu8ConnectId) & ~0x80 /** @todo fix properly */,
                                                       pString, ShflStringSizeOfBuffer(pString));
                         if (   vboxRC == VINF_SUCCESS

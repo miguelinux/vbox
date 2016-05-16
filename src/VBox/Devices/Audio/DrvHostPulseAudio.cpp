@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2015 Oracle Corporation
+ * Copyright (C) 2006-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -57,6 +57,7 @@ RT_C_DECLS_END
  */
 static struct pa_threaded_mainloop *g_pMainLoop;
 static struct pa_context           *g_pContext;
+static volatile bool                g_fAbortMainLoop;
 
 /**
  * Host Pulse audio driver instance data.
@@ -128,6 +129,16 @@ static PULSEAUDIOCFG s_pulseCfg =
 
 static int  drvHostPulseAudioError(PDRVHOSTPULSEAUDIO pThis, const char *szMsg);
 static void drvHostPulseAudioCbSuccess(pa_stream *pStream, int fSuccess, void *pvContext);
+
+/**
+ * Signal the main loop to abort. Just signalling isn't sufficient as the
+ * mainloop might not have been entered yet.
+ */
+static void drvHostPulseAudioAbortMainLoop(void)
+{
+    g_fAbortMainLoop = true;
+    pa_threaded_mainloop_signal(g_pMainLoop, 0);
+}
 
 static pa_sample_format_t drvHostPulseAudioFmtToPulse(PDMAUDIOFMT fmt)
 {
@@ -204,13 +215,13 @@ static int drvHostPulseAudioWaitFor(pa_operation *pOP, RTMSINTERVAL cMsTimeout)
     if (pOP)
     {
         uint64_t u64StartMs = RTTimeMilliTS();
-        uint64_t u64ElapsedMs;
-
         while (pa_operation_get_state(pOP) == PA_OPERATION_RUNNING)
         {
-            pa_threaded_mainloop_wait(g_pMainLoop);
+            if (!g_fAbortMainLoop)
+                pa_threaded_mainloop_wait(g_pMainLoop);
+            g_fAbortMainLoop = false;
 
-            u64ElapsedMs = RTTimeMilliTS() - u64StartMs;
+            uint64_t u64ElapsedMs = RTTimeMilliTS() - u64StartMs;
             if (u64ElapsedMs >= cMsTimeout)
             {
                 rc = VERR_TIMEOUT;
@@ -227,23 +238,21 @@ static int drvHostPulseAudioWaitFor(pa_operation *pOP, RTMSINTERVAL cMsTimeout)
 /**
  * Context status changed.
  */
-static void drvHostPulseAudioCbCtxState(pa_context *pContext, void *pvContext)
+static void drvHostPulseAudioCbCtxState(pa_context *pContext, void *pvUser)
 {
     AssertPtrReturnVoid(pContext);
-
-    PPULSEAUDIOSTREAM pStrm = (PPULSEAUDIOSTREAM)pvContext;
-    NOREF(pStrm);
+    NOREF(pvUser);
 
     switch (pa_context_get_state(pContext))
     {
         case PA_CONTEXT_READY:
         case PA_CONTEXT_TERMINATED:
-            pa_threaded_mainloop_signal(g_pMainLoop, 0);
+            drvHostPulseAudioAbortMainLoop();
             break;
 
         case PA_CONTEXT_FAILED:
             LogRel(("PulseAudio: Audio input/output stopped!\n"));
-            pa_threaded_mainloop_signal(g_pMainLoop, 0);
+            drvHostPulseAudioAbortMainLoop();
             break;
 
         default:
@@ -287,7 +296,7 @@ static void drvHostPulseAudioCbStreamState(pa_stream *pStream, void *pvContext)
         case PA_STREAM_READY:
         case PA_STREAM_FAILED:
         case PA_STREAM_TERMINATED:
-            pa_threaded_mainloop_signal(g_pMainLoop, 0 /* fWait */);
+            drvHostPulseAudioAbortMainLoop();
             break;
 
         default:
@@ -305,11 +314,9 @@ static void drvHostPulseAudioCbSuccess(pa_stream *pStream, int fSuccess, void *p
     pStrm->fOpSuccess = fSuccess;
 
     if (fSuccess)
-    {
-        pa_threaded_mainloop_signal(g_pMainLoop, 0 /* fWait */);
-    }
+        drvHostPulseAudioAbortMainLoop();
     else
-         drvHostPulseAudioError(pStrm->pDrv, "Failed to finish stream operation");
+        drvHostPulseAudioError(pStrm->pDrv, "Failed to finish stream operation");
 }
 
 static int drvHostPulseAudioOpen(bool fIn, const char *pszName,
@@ -372,7 +379,7 @@ static int drvHostPulseAudioOpen(bool fIn, const char *pszName,
             {
                 LogRel(("PulseAudio: Could not connect input stream \"%s\": %s\n",
                         pszName, pa_strerror(pa_context_errno(g_pContext))));
-                rc = VERR_GENERAL_FAILURE; /** @todo Find a better rc. */
+                rc = VERR_AUDIO_BACKEND_INIT_FAILED;
                 break;
             }
         }
@@ -386,18 +393,19 @@ static int drvHostPulseAudioOpen(bool fIn, const char *pszName,
             {
                 LogRel(("PulseAudio: Could not connect playback stream \"%s\": %s\n",
                         pszName, pa_strerror(pa_context_errno(g_pContext))));
-                rc = VERR_GENERAL_FAILURE; /** @todo Find a better rc. */
+                rc = VERR_AUDIO_BACKEND_INIT_FAILED;
                 break;
             }
         }
 
         /* Wait until the stream is ready. */
-        pa_stream_state_t sstate;
         for (;;)
         {
-            pa_threaded_mainloop_wait(g_pMainLoop);
+            if (!g_fAbortMainLoop)
+                pa_threaded_mainloop_wait(g_pMainLoop);
+            g_fAbortMainLoop = false;
 
-            sstate = pa_stream_get_state(pStream);
+            pa_stream_state_t sstate = pa_stream_get_state(pStream);
             if (sstate == PA_STREAM_READY)
                 break;
             else if (   sstate == PA_STREAM_FAILED
@@ -405,7 +413,7 @@ static int drvHostPulseAudioOpen(bool fIn, const char *pszName,
             {
                 LogRel(("PulseAudio: Failed to initialize stream \"%s\" (state %ld)\n",
                         pszName, sstate));
-                rc = VERR_GENERAL_FAILURE; /** @todo Find a better rc. */
+                rc = VERR_AUDIO_BACKEND_INIT_FAILED;
                 break;
             }
         }
@@ -424,17 +432,17 @@ static int drvHostPulseAudioOpen(bool fIn, const char *pszName,
             LogFunc(("Obtained playback buffer attributes: maxlength=%d, tlength=%d, prebuf=%d, minreq=%d\n",
                      pBufAttr->maxlength, pBufAttr->tlength, pBufAttr->prebuf, pBufAttr->minreq));
 
-        pa_threaded_mainloop_unlock(g_pMainLoop);
     }
     while (0);
 
+    if (   RT_FAILURE(rc)
+        && pStream)
+        pa_stream_disconnect(pStream);
+
+    pa_threaded_mainloop_unlock(g_pMainLoop);
+
     if (RT_FAILURE(rc))
     {
-        if (pStream)
-            pa_stream_disconnect(pStream);
-
-        pa_threaded_mainloop_unlock(g_pMainLoop);
-
         if (pStream)
             pa_stream_unref(pStream);
     }
@@ -482,10 +490,11 @@ static DECLCALLBACK(int) drvHostPulseAudioInit(PPDMIHOSTAUDIO pInterface)
         {
             LogRel(("PulseAudio: Failed to start threaded mainloop: %s\n",
                      pa_strerror(pa_context_errno(g_pContext))));
-            rc = VERR_GENERAL_FAILURE; /** @todo Find a better rc. */
+            rc = VERR_AUDIO_BACKEND_INIT_FAILED;
             break;
         }
 
+        g_fAbortMainLoop = false;
         pa_context_set_state_callback(g_pContext, drvHostPulseAudioCbCtxState, NULL);
         pa_threaded_mainloop_lock(g_pMainLoop);
         fLocked = true;
@@ -495,42 +504,38 @@ static DECLCALLBACK(int) drvHostPulseAudioInit(PPDMIHOSTAUDIO pInterface)
         {
             LogRel(("PulseAudio: Failed to connect to server: %s\n",
                      pa_strerror(pa_context_errno(g_pContext))));
-            rc = VERR_GENERAL_FAILURE; /** @todo Find a better rc. */
+            rc = VERR_AUDIO_BACKEND_INIT_FAILED;
             break;
         }
 
         /* Wait until the g_pContext is ready */
         for (;;)
         {
-            pa_context_state_t cstate;
-            pa_threaded_mainloop_wait(g_pMainLoop);
+            if (!g_fAbortMainLoop)
+                pa_threaded_mainloop_wait(g_pMainLoop);
+            g_fAbortMainLoop = false;
 
-            cstate = pa_context_get_state(g_pContext);
+            pa_context_state_t cstate = pa_context_get_state(g_pContext);
             if (cstate == PA_CONTEXT_READY)
                 break;
             else if (   cstate == PA_CONTEXT_TERMINATED
                      || cstate == PA_CONTEXT_FAILED)
             {
                 LogRel(("PulseAudio: Failed to initialize context (state %d)\n", cstate));
-                rc = VERR_GENERAL_FAILURE; /** @todo Find a better rc. */
+                rc = VERR_AUDIO_BACKEND_INIT_FAILED;
                 break;
             }
         }
-
-        pa_threaded_mainloop_unlock(g_pMainLoop);
     }
     while (0);
+
+    if (fLocked)
+        pa_threaded_mainloop_unlock(g_pMainLoop);
 
     if (RT_FAILURE(rc))
     {
         if (g_pMainLoop)
-        {
-            if (fLocked)
-                pa_threaded_mainloop_unlock(g_pMainLoop);
-
-            if (g_pMainLoop)
-                pa_threaded_mainloop_stop(g_pMainLoop);
-        }
+            pa_threaded_mainloop_stop(g_pMainLoop);
 
         if (g_pContext)
         {
@@ -598,7 +603,7 @@ static DECLCALLBACK(int) drvHostPulseAudioInitOut(PPDMIHOSTAUDIO pInterface,
     streamCfg.uHz       = pThisStrmOut->SampleSpec.rate;
     streamCfg.cChannels = pThisStrmOut->SampleSpec.channels;
 
-    rc = drvAudioStreamCfgToProps(&streamCfg, &pHstStrmOut->Props);
+    rc = DrvAudioStreamCfgToProps(&streamCfg, &pHstStrmOut->Props);
     if (RT_SUCCESS(rc))
     {
         uint32_t cbBuf  = RT_MIN(pThisStrmOut->BufAttr.tlength * 2,
@@ -681,7 +686,7 @@ static DECLCALLBACK(int) drvHostPulseAudioInitIn(PPDMIHOSTAUDIO pInterface,
     streamCfg.uHz       = pThisStrmIn->SampleSpec.rate;
     streamCfg.cChannels = pThisStrmIn->SampleSpec.channels;
 
-    rc = drvAudioStreamCfgToProps(&streamCfg, &pHstStrmIn->Props);
+    rc = DrvAudioStreamCfgToProps(&streamCfg, &pHstStrmIn->Props);
     if (RT_SUCCESS(rc))
     {
         uint32_t cSamples = RT_MIN(pThisStrmIn->BufAttr.fragsize * 10, pThisStrmIn->BufAttr.maxlength)
@@ -832,7 +837,7 @@ static DECLCALLBACK(int) drvHostPulseAudioPlayOut(PPDMIHOSTAUDIO pInterface, PPD
     int rc = VINF_SUCCESS;
     uint32_t cbReadTotal = 0;
 
-    uint32_t cLive = drvAudioHstOutSamplesLive(pHstStrmOut);
+    uint32_t cLive = AudioMixBufAvail(&pHstStrmOut->MixBuf);
     if (!cLive)
     {
         LogFlowFunc(("%p: No live samples, skipping\n", pHstStrmOut));
@@ -986,6 +991,7 @@ static DECLCALLBACK(int) drvHostPulseAudioControlOut(PPDMIHOSTAUDIO pInterface,
     switch (enmStreamCmd)
     {
         case PDMAUDIOSTREAMCMD_ENABLE:
+        case PDMAUDIOSTREAMCMD_RESUME:
         {
             pa_threaded_mainloop_lock(g_pMainLoop);
 
@@ -1010,6 +1016,7 @@ static DECLCALLBACK(int) drvHostPulseAudioControlOut(PPDMIHOSTAUDIO pInterface,
         }
 
         case PDMAUDIOSTREAMCMD_DISABLE:
+        case PDMAUDIOSTREAMCMD_PAUSE:
         {
             /* Pause audio output (the Pause bit of the AC97 x_CR register is set).
              * Note that we must return immediately from here! */
@@ -1052,6 +1059,7 @@ static DECLCALLBACK(int) drvHostPulseAudioControlIn(PPDMIHOSTAUDIO pInterface, P
     switch (enmStreamCmd)
     {
         case PDMAUDIOSTREAMCMD_ENABLE:
+        case PDMAUDIOSTREAMCMD_RESUME:
         {
             pa_threaded_mainloop_lock(g_pMainLoop);
             /* This should return immediately. */
@@ -1063,6 +1071,7 @@ static DECLCALLBACK(int) drvHostPulseAudioControlIn(PPDMIHOSTAUDIO pInterface, P
         }
 
         case PDMAUDIOSTREAMCMD_DISABLE:
+        case PDMAUDIOSTREAMCMD_PAUSE:
         {
             pa_threaded_mainloop_lock(g_pMainLoop);
             if (pThisStrmIn->pu8PeekBuf) /* Do we need to drop the peek buffer?*/
@@ -1092,10 +1101,10 @@ static DECLCALLBACK(int) drvHostPulseAudioGetConf(PPDMIHOSTAUDIO pInterface, PPD
     NOREF(pInterface);
     AssertPtrReturn(pCfg, VERR_INVALID_POINTER);
 
-    pCfg->cbStreamOut = sizeof(PULSEAUDIOSTREAM);
-    pCfg->cbStreamIn = sizeof(PULSEAUDIOSTREAM);
-    pCfg->cMaxHstStrmsOut = INT_MAX;
-    pCfg->cMaxHstStrmsIn = INT_MAX;
+    pCfg->cbStreamOut     = sizeof(PULSEAUDIOSTREAM);
+    pCfg->cbStreamIn      = sizeof(PULSEAUDIOSTREAM);
+    pCfg->cMaxHstStrmsOut = UINT32_MAX;
+    pCfg->cMaxHstStrmsIn  = UINT32_MAX;
 
     return VINF_SUCCESS;
 }

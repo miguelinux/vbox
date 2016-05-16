@@ -140,9 +140,9 @@ const char* USBDeviceFilter::i_describeUSBFilterIdx(USBFILTERIDX aIdx)
                 ||  strchr(pcszValue, '?')
                 /* || strchr (psz, '[') - later */
                 )
-                vrc = USBFilterSetStringPattern(aFilter, aIdx, pcszValue, true /* fMustBePresent */);
+                vrc = USBFilterSetStringPattern(aFilter, aIdx, pcszValue, true /*fMustBePresent*/);
             else
-                vrc = USBFilterSetStringExact(aFilter, aIdx, pcszValue, true /* fMustBePresent */);
+                vrc = USBFilterSetStringExact(aFilter, aIdx, pcszValue, true /*fMustBePresent*/, false /*fPurge*/);
         }
     }
 
@@ -204,6 +204,7 @@ void USBDeviceFilter::FinalRelease()
  *  Initializes the USB device filter object.
  *
  *  @param aParent  Handle of the parent object.
+ *  @param data     Reference filter settings.
  */
 HRESULT USBDeviceFilter::init(USBDeviceFilters *aParent,
                               const settings::USBDeviceFilter &data)

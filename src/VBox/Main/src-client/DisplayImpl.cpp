@@ -111,6 +111,7 @@ HRESULT Display::FinalConstruct()
 
     mfSeamlessEnabled = false;
     mpRectVisibleRegion = NULL;
+    mcRectVisibleRegion = 0;
 
 #ifdef VBOX_WITH_CROGL
     mfCrOglDataHidden = false;
@@ -4105,7 +4106,7 @@ DECLCALLBACK(void *)  Display::i_drvQueryInterface(PPDMIBASE pInterface, const c
 /**
  * Destruct a display driver instance.
  *
- * @returns VBox status.
+ * @returns VBox status code.
  * @param   pDrvIns     The driver instance data.
  */
 DECLCALLBACK(void) Display::i_drvDestruct(PPDMDRVINS pDrvIns)

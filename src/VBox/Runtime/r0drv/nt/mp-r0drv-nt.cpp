@@ -231,7 +231,7 @@ RTDECL(bool) RTMpIsCpuWorkPending(void)
  *
  * @param   uUserCtx            The user context argument (PRTMPARGS).
  */
-static ULONG_PTR __stdcall rtmpNtOnAllBroadcastIpiWrapper(ULONG_PTR uUserCtx)
+static ULONG_PTR rtmpNtOnAllBroadcastIpiWrapper(ULONG_PTR uUserCtx)
 {
     PRTMPARGS pArgs = (PRTMPARGS)uUserCtx;
     /*ASMAtomicIncU32(&pArgs->cHits); - not needed */
@@ -246,7 +246,7 @@ static ULONG_PTR __stdcall rtmpNtOnAllBroadcastIpiWrapper(ULONG_PTR uUserCtx)
  *
  * @param   uUserCtx            The user context argument (PRTMPARGS).
  */
-static ULONG_PTR __stdcall rtmpNtOnOthersBroadcastIpiWrapper(ULONG_PTR uUserCtx)
+static ULONG_PTR rtmpNtOnOthersBroadcastIpiWrapper(ULONG_PTR uUserCtx)
 {
     PRTMPARGS pArgs = (PRTMPARGS)uUserCtx;
     RTCPUID idCpu = KeGetCurrentProcessorNumber();
@@ -265,7 +265,7 @@ static ULONG_PTR __stdcall rtmpNtOnOthersBroadcastIpiWrapper(ULONG_PTR uUserCtx)
  *
  * @param   uUserCtx            The user context argument (PRTMPARGS).
  */
-static ULONG_PTR __stdcall rtmpNtOnPairBroadcastIpiWrapper(ULONG_PTR uUserCtx)
+static ULONG_PTR rtmpNtOnPairBroadcastIpiWrapper(ULONG_PTR uUserCtx)
 {
     PRTMPARGS pArgs = (PRTMPARGS)uUserCtx;
     RTCPUID idCpu = KeGetCurrentProcessorNumber();
@@ -285,7 +285,7 @@ static ULONG_PTR __stdcall rtmpNtOnPairBroadcastIpiWrapper(ULONG_PTR uUserCtx)
  *
  * @param   uUserCtx            The user context argument (PRTMPARGS).
  */
-static ULONG_PTR __stdcall rtmpNtOnSpecificBroadcastIpiWrapper(ULONG_PTR uUserCtx)
+static ULONG_PTR rtmpNtOnSpecificBroadcastIpiWrapper(ULONG_PTR uUserCtx)
 {
     PRTMPARGS pArgs = (PRTMPARGS)uUserCtx;
     RTCPUID idCpu = KeGetCurrentProcessorNumber();
@@ -302,14 +302,15 @@ static ULONG_PTR __stdcall rtmpNtOnSpecificBroadcastIpiWrapper(ULONG_PTR uUserCt
  * Internal worker for the RTMpOn* APIs using KeIpiGenericCall.
  *
  * @returns VINF_SUCCESS.
- * @param   pfnWorker   The callback.
- * @param   pvUser1     User argument 1.
- * @param   pvUser2     User argument 2.
- * @param   idCpu       First CPU to match, ultimately specific to the
- *                      pfnNativeWrapper used.
- * @param   idCpu2      Second CPU to match, ultimately specific to the
- *                      pfnNativeWrapper used.
- * @param   pcHits      Where to return the number of this. Optional.
+ * @param   pfnWorker           The callback.
+ * @param   pvUser1             User argument 1.
+ * @param   pvUser2             User argument 2.
+ * @param   pfnNativeWrapper    The wrapper between the NT and IPRT callbacks.
+ * @param   idCpu               First CPU to match, ultimately specific to the
+ *                              pfnNativeWrapper used.
+ * @param   idCpu2              Second CPU to match, ultimately specific to the
+ *                              pfnNativeWrapper used.
+ * @param   pcHits              Where to return the number of this. Optional.
  */
 static int rtMpCallUsingBroadcastIpi(PFNRTMPWORKER pfnWorker, void *pvUser1, void *pvUser2,
                                      PKIPI_BROADCAST_WORKER pfnNativeWrapper, RTCPUID idCpu, RTCPUID idCpu2,
@@ -340,7 +341,7 @@ static int rtMpCallUsingBroadcastIpi(PFNRTMPWORKER pfnWorker, void *pvUser1, voi
  * @param   SystemArgument1     Argument specified by KeInsertQueueDpc
  * @param   SystemArgument2     Argument specified by KeInsertQueueDpc
  */
-static VOID __stdcall rtmpNtDPCWrapper(IN PKDPC Dpc, IN PVOID DeferredContext, IN PVOID SystemArgument1, IN PVOID SystemArgument2)
+static VOID rtmpNtDPCWrapper(IN PKDPC Dpc, IN PVOID DeferredContext, IN PVOID SystemArgument1, IN PVOID SystemArgument2)
 {
     PRTMPARGS pArgs = (PRTMPARGS)DeferredContext;
 
@@ -599,8 +600,8 @@ DECLINLINE(void) rtMpNtOnSpecificRelease(PRTMPNTONSPECIFICARGS pArgs)
  * @param   SystemArgument1     Argument specified by KeInsertQueueDpc
  * @param   SystemArgument2     Argument specified by KeInsertQueueDpc
  */
-static VOID __stdcall rtMpNtOnSpecificDpcWrapper(IN PKDPC Dpc, IN PVOID DeferredContext,
-                                                 IN PVOID SystemArgument1, IN PVOID SystemArgument2)
+static VOID rtMpNtOnSpecificDpcWrapper(IN PKDPC Dpc, IN PVOID DeferredContext,
+                                       IN PVOID SystemArgument1, IN PVOID SystemArgument2)
 {
     PRTMPNTONSPECIFICARGS pArgs = (PRTMPNTONSPECIFICARGS)DeferredContext;
     ASMAtomicWriteBool(&pArgs->fExecuting, true);
@@ -797,7 +798,7 @@ static VOID rtMpNtPokeCpuDummy(IN PKDPC Dpc, IN PVOID DeferredContext, IN PVOID 
 #ifndef IPRT_TARGET_NT4
 
 /** Callback used by rtMpPokeCpuUsingBroadcastIpi. */
-static ULONG_PTR __stdcall rtMpIpiGenericCall(ULONG_PTR Argument)
+static ULONG_PTR rtMpIpiGenericCall(ULONG_PTR Argument)
 {
     NOREF(Argument);
     return 0;

@@ -1806,6 +1806,8 @@ static int vboxWddmWdProgram(PVBOXMP_DEVEXT pDevExt, uint32_t cMillis)
                 if (offCmd != HGSMIOFFSET_VOID)
                 {
                     VBoxVideoCmnPortWriteUlong(VBoxCommonFromDeviceExt(pDevExt)->guestCtx.port, offCmd);
+                    /* Make the compiler aware that the host has changed memory. */
+                    ASMCompilerBarrier();
                     rc = VBoxSHGSMICommandDoneSynch(&VBoxCommonFromDeviceExt(pDevExt)->guestCtx.heapCtx, pHdr);
                     AssertRC(rc);
                     if (RT_SUCCESS(rc))
@@ -1951,8 +1953,8 @@ NTSTATUS VBoxWddmSlGetScanLine(PVBOXMP_DEVEXT pDevExt, DXGKARG_GETSCANLINE *pGet
     Assert(pTarget->Size.cy);
     if (pTarget->Size.cy)
     {
-        uint32_t curScanLine;
-        BOOL bVBlank;
+        uint32_t curScanLine = 0;
+        BOOL bVBlank = FALSE;
         LARGE_INTEGER DevVSyncTime;
         DevVSyncTime.QuadPart =  ASMAtomicReadU64((volatile uint64_t*)&pDevExt->VSyncTime.QuadPart);
         LARGE_INTEGER VSyncTime;
@@ -1961,25 +1963,25 @@ NTSTATUS VBoxWddmSlGetScanLine(PVBOXMP_DEVEXT pDevExt, DXGKARG_GETSCANLINE *pGet
         if (VSyncTime.QuadPart < DevVSyncTime.QuadPart)
         {
             WARN(("vsync time is less than the one stored in device"));
-            curScanLine = 0;
+            bVBlank = TRUE;
         }
         else
         {
             VSyncTime.QuadPart = VSyncTime.QuadPart - DevVSyncTime.QuadPart;
-            /* time is in 100ns, */
-            curScanLine = (uint32_t)((pTarget->Size.cy * VSyncTime.QuadPart) / DevVSyncTime.QuadPart);
-            if (pDevExt->bVSyncTimerEnabled)
-            {
-                if (curScanLine >= pTarget->Size.cy)
-                    curScanLine = 0;
-            }
+            /*
+             * Check whether we are in VBlank state or actively drawing a scan line
+             * 10% of the 60Hz are dedicated to VBlank.
+             *
+             * Time intervals are in 100ns steps.
+             */
+            LARGE_INTEGER VSyncPeriod;
+            VSyncPeriod.QuadPart = VSyncTime.QuadPart % 166666LL; /* ASSUMES 60Hz*/
+            if (VSyncPeriod.QuadPart >= 150000LL)
+                bVBlank = TRUE;
             else
-            {
-                curScanLine %= pTarget->Size.cy;
-            }
+                curScanLine = (uint32_t)((pTarget->Size.cy * VSyncPeriod.QuadPart) / 150000LL);
         }
 
-        bVBlank = (!curScanLine || curScanLine > pTarget->Size.cy);
         pGetScanLine->ScanLine = curScanLine;
         pGetScanLine->InVerticalBlank = bVBlank;
     }

@@ -1,6 +1,6 @@
 #! /bin/sh
 #
-# Linux Additions kernel module init script ($Revision: 102425 $)
+# Linux Additions kernel module init script ($Revision: 106390 $)
 #
 
 #
@@ -16,7 +16,7 @@
 #
 
 
-# chkconfig: 345 30 70
+# chkconfig: 345 10 90
 # description: VirtualBox Linux Additions kernel modules
 #
 ### BEGIN INIT INFO
@@ -43,10 +43,12 @@ cpu=`uname -m`;
 case "$cpu" in
   i[3456789]86|x86)
     cpu="x86"
+    ldconfig_arch="(libc6)"
     lib_candidates="/usr/lib/i386-linux-gnu /usr/lib /lib"
     ;;
   x86_64|amd64)
     cpu="amd64"
+    ldconfig_arch="(libc6,x86-64)"
     lib_candidates="/usr/lib/x86_64-linux-gnu /usr/lib64 /usr/lib /lib64 /lib"
     ;;
 esac
@@ -63,8 +65,6 @@ elif [ -f /etc/SuSE-release ]; then
     system=suse
 elif [ -f /etc/gentoo-release ]; then
     system=gentoo
-elif [ -f /etc/lfs-release -a -d /etc/rc.d/init.d ]; then
-    system=lfs
 else
     system=other
 fi
@@ -117,19 +117,6 @@ if [ "$system" = "gentoo" ]; then
     if [ "`which $0`" = "/sbin/rc" ]; then
         shift
     fi
-fi
-
-if [ "$system" = "lfs" ]; then
-    . /etc/rc.d/init.d/functions
-    fail_msg() {
-        echo_failure
-    }
-    succ_msg() {
-        echo_ok
-    }
-    begin() {
-        echo $1
-    }
 fi
 
 if [ "$system" = "other" ]; then
@@ -268,6 +255,13 @@ do_vboxguest_non_udev()
 start()
 {
     begin "Starting the VirtualBox Guest Additions ";
+    if test -r $config; then
+      . $config
+    else
+      fail "Configuration file $config not found"
+    fi
+    test -n "$INSTALL_DIR" -a -n "$INSTALL_VER" ||
+      fail "Configuration file $config not complete"
     uname -r | grep -q -E '^2\.6|^3|^4' 2>/dev/null &&
         ps -A -o comm | grep -q '/*udevd$' 2>/dev/null ||
         no_udev=1
@@ -302,9 +296,36 @@ start()
             fail "modprobe vboxsf failed"
         }
     }
+    # Load the kernel video driver if we can.
+    $MODPROBE vboxvideo > /dev/null 2>&1
 
-    # This is needed as X.Org Server 1.13 does not auto-load the module.
-    running_vboxvideo || $MODPROBE vboxvideo > /dev/null 2>&1
+    # Put the X.Org driver in place.  This is harmless if it is not needed.
+    /sbin/rcvboxadd-x11 setup
+    # Install the guest OpenGL drivers.  For now we don't support
+    # multi-architecture installations
+    rm -rf /etc/ld.so.conf.d/00vboxvideo.conf
+    ldconfig
+    if /usr/bin/VBoxClient --check3d; then
+        rm -r /tmp/VBoxOGL
+        mkdir -m 0755 /tmp/VBoxOGL
+        mkdir -m 0755 /tmp/VBoxOGL/system
+        ldconfig -p | while read -r line; do
+            case "${line}" in "libGL.so.1 ${ldconfig_arch} => "*)
+                ln -s "${line#libGL.so.1 ${ldconfig_arch} => }" /tmp/VBoxOGL/system/libGL.so.1
+                break
+            esac
+        done
+        ldconfig -p | while read -r line; do
+            case "${line}" in "libEGL.so.1 ${ldconfig_arch} => "*)
+                ln -s "${line#libEGL.so.1 ${ldconfig_arch} => }" /tmp/VBoxOGL/system/libEGL.so.1
+                break
+            esac
+        done
+        echo "/tmp/VBoxOGL" > /etc/ld.so.conf.d/00vboxvideo.conf
+        ln -s "${INSTALL_DIR}/lib/VBoxOGL.so" /tmp/VBoxOGL/libGL.so.1
+        ln -s "${INSTALL_DIR}/lib/VBoxEGL.so" /tmp/VBoxOGL/libEGL.so.1
+        ldconfig
+    fi
 
     # Mount all shared folders from /etc/fstab. Normally this is done by some
     # other startup script but this requires the vboxdrv kernel module loaded.
@@ -318,6 +339,10 @@ start()
 stop()
 {
     begin "Stopping VirtualBox Additions ";
+    if test -r /etc/ld.so.conf.d/00vboxvideo.conf; then
+        rm /etc/ld.so.conf.d/00vboxvideo.conf
+        ldconfig
+    fi
     if ! umount -a -t vboxsf 2>/dev/null; then
         fail "Cannot unmount vboxsf folders"
     fi
@@ -391,20 +416,14 @@ setup_modules()
         return 1
     fi
     succ_msg
-    if expr `uname -r` '<' '2.6.27' > /dev/null; then
-        echo "Not building the VirtualBox advanced graphics driver as this Linux version is"
-        echo "too old to use it."
-    else
-        begin "Building the OpenGL support module"
-        if ! $BUILDINTMP \
-            --use-module-symvers /tmp/vboxguest-Module.symvers \
-            --module-source $MODULE_SRC/vboxvideo \
-            --no-print-directory install >> $LOG 2>&1; then
-            show_error "Look at $LOG to find out what went wrong. The module is not built but the others are."
-        else
-            succ_msg
-        fi
+    begin "Building the graphics driver module"
+    if ! $BUILDINTMP \
+        --use-module-symvers /tmp/vboxguest-Module.symvers \
+        --module-source $MODULE_SRC/vboxvideo \
+        --no-print-directory install >> $LOG 2>&1; then
+        show_error "Look at $LOG to find out what went wrong"
     fi
+    succ_msg
     depmod
     return 0
 }
@@ -488,6 +507,7 @@ setup()
     export BUILD_TYPE
     export USERNAME
 
+    rm -f $LOG
     MODULE_SRC="$INSTALL_DIR/src/vboxguest-$INSTALL_VER"
     BUILDINTMP="$MODULE_SRC/build_in_tmp"
     DODKMS="$MODULE_SRC/do_dkms"
@@ -528,6 +548,9 @@ cleanup()
     for i in $OLDMODULES; do
       rm -rf /usr/src/$i-*
     done
+
+    # Clean-up X11-related bits
+    /sbin/rcvboxadd-x11 cleanup
 
     # Remove other files
     rm /sbin/mount.vboxsf 2>/dev/null

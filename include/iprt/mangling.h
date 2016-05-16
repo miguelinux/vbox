@@ -1029,9 +1029,11 @@
 # define RTNetUDPChecksum                               RT_MANGLER(RTNetUDPChecksum)
 # define RTNetStrToMacAddr                              RT_MANGLER(RTNetStrToMacAddr)
 # define RTNetIsIPv4AddrStr                             RT_MANGLER(RTNetIsIPv4AddrStr)
+# define RTNetStrIsIPv4AddrAny                          RT_MANGLER(RTNetStrIsIPv4AddrAny)
 # define RTNetStrToIPv4AddrEx                           RT_MANGLER(RTNetStrToIPv4AddrEx)
 # define RTNetStrToIPv4Addr                             RT_MANGLER(RTNetStrToIPv4Addr)
 # define RTNetIsIPv6AddrStr                             RT_MANGLER(RTNetIsIPv6AddrStr)
+# define RTNetStrIsIPv6AddrAny                          RT_MANGLER(RTNetStrIsIPv6AddrAny)
 # define RTNetStrToIPv6AddrEx                           RT_MANGLER(RTNetStrToIPv6AddrEx)
 # define RTNetStrToIPv6Addr                             RT_MANGLER(RTNetStrToIPv6Addr)
 # define RTOnceSlow                                     RT_MANGLER(RTOnceSlow)
@@ -1147,6 +1149,7 @@
 # define RTR0AssertPanicSystem                          RT_MANGLER(RTR0AssertPanicSystem)      /* r0drv */
 # define RTR0DbgKrnlInfoOpen                            RT_MANGLER(RTR0DbgKrnlInfoOpen)        /* r0drv */
 # define RTR0DbgKrnlInfoQueryMember                     RT_MANGLER(RTR0DbgKrnlInfoQueryMember) /* r0drv */
+# define RTR0DbgKrnlInfoQuerySize                       RT_MANGLER(RTR0DbgKrnlInfoQuerySize)   /* r0drv */
 # define RTR0DbgKrnlInfoQuerySymbol                     RT_MANGLER(RTR0DbgKrnlInfoQuerySymbol) /* r0drv */
 # define RTR0DbgKrnlInfoRelease                         RT_MANGLER(RTR0DbgKrnlInfoRelease)     /* r0drv */
 # define RTR0DbgKrnlInfoRetain                          RT_MANGLER(RTR0DbgKrnlInfoRetain)      /* r0drv */
@@ -1875,18 +1878,21 @@
 # define RTUriParsedQuery                               RT_MANGLER(RTUriParsedQuery)
 # define RTUriIsSchemeMatch                             RT_MANGLER(RTUriIsSchemeMatch)
 # define RTUtf16AllocTag                                RT_MANGLER(RTUtf16AllocTag)
+# define RTUtf16ReallocTag                              RT_MANGLER(RTUtf16ReallocTag)
 # define RTUtf16CalcLatin1Len                           RT_MANGLER(RTUtf16CalcLatin1Len)
 # define RTUtf16CalcLatin1LenEx                         RT_MANGLER(RTUtf16CalcLatin1LenEx)
 # define RTUtf16CalcUtf8Len                             RT_MANGLER(RTUtf16CalcUtf8Len)
 # define RTUtf16CalcUtf8LenEx                           RT_MANGLER(RTUtf16CalcUtf8LenEx)
 # define RTUtf16Cmp                                     RT_MANGLER(RTUtf16Cmp)
 # define RTUtf16CmpAscii                                RT_MANGLER(RTUtf16CmpAscii)
+# define RTUtf16CmpUtf8                                 RT_MANGLER(RTUtf16CmpUtf8)
 # define RTUtf16DupExTag                                RT_MANGLER(RTUtf16DupExTag)
 # define RTUtf16DupTag                                  RT_MANGLER(RTUtf16DupTag)
 # define RTUtf16Free                                    RT_MANGLER(RTUtf16Free)
 # define RTUtf16GetCpExInternal                         RT_MANGLER(RTUtf16GetCpExInternal)
 # define RTUtf16GetCpInternal                           RT_MANGLER(RTUtf16GetCpInternal)
 # define RTUtf16ICmp                                    RT_MANGLER(RTUtf16ICmp)
+# define RTUtf16ICmpUtf8                                RT_MANGLER(RTUtf16ICmpUtf8)
 # define RTUtf16IsValidEncoding                         RT_MANGLER(RTUtf16IsValidEncoding)
 # define RTUtf16Len                                     RT_MANGLER(RTUtf16Len)
 # define RTUtf16LocaleICmp                              RT_MANGLER(RTUtf16LocaleICmp)

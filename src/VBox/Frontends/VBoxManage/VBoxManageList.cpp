@@ -178,6 +178,18 @@ static HRESULT listNetworkInterfaces(const ComPtr<IVirtualBox> pVirtualBox,
  */
 static HRESULT listHostInfo(const ComPtr<IVirtualBox> pVirtualBox)
 {
+    static struct
+    {
+        ProcessorFeature_T feature;
+        const char *pszName;
+    } features[]
+    =
+    {
+        { ProcessorFeature_HWVirtEx,     "HW virtualization" },
+        { ProcessorFeature_PAE,          "PAE" },
+        { ProcessorFeature_LongMode,     "long mode" },
+        { ProcessorFeature_NestedPaging, "nested paging" },
+    };
     HRESULT rc;
     ComPtr<IHost> Host;
     CHECK_ERROR(pVirtualBox, COMGETTER(Host)(Host.asOutParam()));
@@ -202,15 +214,21 @@ static HRESULT listHostInfo(const ComPtr<IVirtualBox> pVirtualBox)
     ULONG processorCoreCount = 0;
     CHECK_ERROR(Host, COMGETTER(ProcessorCoreCount)(&processorCoreCount));
     RTPrintf("Processor core count: %lu\n", processorCoreCount);
-    ULONG processorSpeed = 0;
-    Bstr processorDescription;
+    for (unsigned i = 0; i < RT_ELEMENTS(features); i++)
+    {
+        BOOL supported;
+        CHECK_ERROR(Host, GetProcessorFeature(features[i].feature, &supported));
+        RTPrintf("Processor supports %s: %s\n", features[i].pszName, supported ? "yes" : "no");
+    }
     for (ULONG i = 0; i < processorCount; i++)
     {
+        ULONG processorSpeed = 0;
         CHECK_ERROR(Host, GetProcessorSpeed(i, &processorSpeed));
         if (processorSpeed)
             RTPrintf("Processor#%u speed: %lu MHz\n", i, processorSpeed);
         else
             RTPrintf("Processor#%u speed: unknown\n", i);
+        Bstr processorDescription;
         CHECK_ERROR(Host, GetProcessorDescription(i, processorDescription.asOutParam()));
         RTPrintf("Processor#%u description: %ls\n", i, processorDescription.raw());
     }
@@ -442,11 +460,15 @@ static HRESULT listUsbHost(const ComPtr<IVirtualBox> &pVirtualBox)
             RTPrintf("USB version/speed:  %u/%s\n", usVersion, pszSpeed);
 
             /* optional stuff. */
+            SafeArray<BSTR> CollDevInfo;
             Bstr bstr;
-            CHECK_ERROR_RET(dev, COMGETTER(Manufacturer)(bstr.asOutParam()), 1);
+            CHECK_ERROR_RET(dev, COMGETTER(DeviceInfo)(ComSafeArrayAsOutParam(CollDevInfo)), 1);
+            if (CollDevInfo.size() >= 1)
+                bstr = Bstr(CollDevInfo[0]);
             if (!bstr.isEmpty())
                 RTPrintf("Manufacturer:       %ls\n", bstr.raw());
-            CHECK_ERROR_RET(dev, COMGETTER(Product)(bstr.asOutParam()), 1);
+            if (CollDevInfo.size() >= 2)
+                bstr = Bstr(CollDevInfo[1]);
             if (!bstr.isEmpty())
                 RTPrintf("Product:            %ls\n", bstr.raw());
             CHECK_ERROR_RET(dev, COMGETTER(SerialNumber)(bstr.asOutParam()), 1);
@@ -1154,7 +1176,7 @@ static HRESULT produceList(enum enmListType enmCommand, bool fOptLong, const Com
                 net->COMGETTER(IPv6Enabled)(&fEnabled);
                 RTPrintf("IPv6 Enabled:   %s\n", fEnabled ? "Yes" : "No");
                 Bstr ipv6prefix;
-                net->COMGETTER(Network)(network.asOutParam());
+                net->COMGETTER(IPv6Prefix)(ipv6prefix.asOutParam());
                 RTPrintf("IPv6 Prefix:    %ls\n", ipv6prefix.raw());
                 net->COMGETTER(NeedDhcpServer)(&fEnabled);
                 RTPrintf("DHCP Enabled:   %s\n", fEnabled ? "Yes" : "No");

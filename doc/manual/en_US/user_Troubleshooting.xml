@@ -420,16 +420,16 @@
 
       <para><screen>[ ELF 64 Header]
 [ Program Header, type PT_NOTE ]
-  -&gt; offset to COREDESCRIPTOR
+  &rarr; offset to COREDESCRIPTOR
 [ Program Header, type PT_LOAD ] - one for each contiguous physical memory range
-  -&gt; Memory offset of range
-  -&gt; File offset
+  &rarr; Memory offset of range
+  &rarr; File offset
 [ Note Header, type NT_VBOXCORE ]
 [ COREDESCRIPTOR ]
-  -&gt; Magic
-  -&gt; VM core file version
-  -&gt; VBox version
-  -&gt; Number of vCPUs etc.
+  &rarr; Magic
+  &rarr; VM core file version
+  &rarr; VBox version
+  &rarr; Number of vCPUs etc.
 [ Note Header, type NT_VBOXCPU ] - one for each vCPU
 [ vCPU 1 Note Header ]
   [ DBGFCORECPU - vCPU 1 dump ]
@@ -767,6 +767,23 @@
       command:</para>
 
       <para><screen>VBoxManage setextradata "VM name" "VBoxInternal/PDM/HaltOnReset" 1</screen></para>
+    </sect2>
+
+    <sect2>
+      <title>PCnet driver failure in 32-bit Windows Server 2003 guests</title>
+
+      <para>Certain editions of Windows 2000 and 2003 servers support more
+      than 4 GB RAM on 32-bit systems. The AMD PCnet network driver shipped with 
+      Windows Server 2003 fails to load if the 32-bit guest OS uses paging
+      extensions (which will occur with more than approximately 3.5 GB RAM
+      assigned to the VM).</para>
+
+      <para>This problem is known to occur with version 4.38.0.0 of the PCnet
+      driver. The issue was fixed in version 4.51.0.0 of the driver, which
+      is available as a separate download. An alternative solution may be
+      changing the emulated NIC type to Intel PRO/1000 MT Desktop (82540EM),
+      or reducing the RAM assigned to the VM to approximately 3.5 GB or less.
+      </para>
     </sect2>
 
     <sect2>

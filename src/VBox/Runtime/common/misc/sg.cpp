@@ -48,12 +48,12 @@ static void *sgBufGet(PRTSGBUF pSgBuf, size_t *pcbData)
     }
 
 #ifndef RDESKTOP
-    AssertReleaseMsg(      pSgBuf->cbSegLeft <= 32 * _1M
-                     &&    (uintptr_t)pSgBuf->pvSegCur                     >= (uintptr_t)pSgBuf->paSegs[pSgBuf->idxSeg].pvSeg
-                     &&    (uintptr_t)pSgBuf->pvSegCur + pSgBuf->cbSegLeft <= (uintptr_t)pSgBuf->paSegs[pSgBuf->idxSeg].pvSeg + pSgBuf->paSegs[pSgBuf->idxSeg].cbSeg,
-                     ("pSgBuf->idxSeg=%d pSgBuf->cSegs=%d pSgBuf->pvSegCur=%p pSgBuf->cbSegLeft=%zd pSgBuf->paSegs[%d].pvSeg=%p pSgBuf->paSegs[%d].cbSeg=%zd\n",
-                      pSgBuf->idxSeg, pSgBuf->cSegs, pSgBuf->pvSegCur, pSgBuf->cbSegLeft,
-                      pSgBuf->idxSeg, pSgBuf->paSegs[pSgBuf->idxSeg].pvSeg, pSgBuf->idxSeg, pSgBuf->paSegs[pSgBuf->idxSeg].cbSeg));
+    AssertMsg(      pSgBuf->cbSegLeft <= 128 * _1M
+              &&    (uintptr_t)pSgBuf->pvSegCur                     >= (uintptr_t)pSgBuf->paSegs[pSgBuf->idxSeg].pvSeg
+              &&    (uintptr_t)pSgBuf->pvSegCur + pSgBuf->cbSegLeft <= (uintptr_t)pSgBuf->paSegs[pSgBuf->idxSeg].pvSeg + pSgBuf->paSegs[pSgBuf->idxSeg].cbSeg,
+              ("pSgBuf->idxSeg=%d pSgBuf->cSegs=%d pSgBuf->pvSegCur=%p pSgBuf->cbSegLeft=%zd pSgBuf->paSegs[%d].pvSeg=%p pSgBuf->paSegs[%d].cbSeg=%zd\n",
+               pSgBuf->idxSeg, pSgBuf->cSegs, pSgBuf->pvSegCur, pSgBuf->cbSegLeft,
+               pSgBuf->idxSeg, pSgBuf->paSegs[pSgBuf->idxSeg].pvSeg, pSgBuf->idxSeg, pSgBuf->paSegs[pSgBuf->idxSeg].cbSeg));
 #endif
 
     cbData = RT_MIN(*pcbData, pSgBuf->cbSegLeft);
@@ -83,15 +83,23 @@ static void *sgBufGet(PRTSGBUF pSgBuf, size_t *pcbData)
 RTDECL(void) RTSgBufInit(PRTSGBUF pSgBuf, PCRTSGSEG paSegs, size_t cSegs)
 {
     AssertPtr(pSgBuf);
-    AssertPtr(paSegs);
-    Assert(cSegs > 0);
+    Assert(   (cSegs > 0 && VALID_PTR(paSegs))
+           || (!cSegs && !paSegs));
     Assert(cSegs < (~(unsigned)0 >> 1));
 
     pSgBuf->paSegs    = paSegs;
     pSgBuf->cSegs     = (unsigned)cSegs;
     pSgBuf->idxSeg    = 0;
-    pSgBuf->pvSegCur  = paSegs[0].pvSeg;
-    pSgBuf->cbSegLeft = paSegs[0].cbSeg;
+    if (cSegs && paSegs)
+    {
+        pSgBuf->pvSegCur  = paSegs[0].pvSeg;
+        pSgBuf->cbSegLeft = paSegs[0].cbSeg;
+    }
+    else
+    {
+        pSgBuf->pvSegCur  = NULL;
+        pSgBuf->cbSegLeft = 0;
+    }
 }
 
 
@@ -99,9 +107,17 @@ RTDECL(void) RTSgBufReset(PRTSGBUF pSgBuf)
 {
     AssertPtrReturnVoid(pSgBuf);
 
-    pSgBuf->idxSeg    = 0;
-    pSgBuf->pvSegCur  = pSgBuf->paSegs[0].pvSeg;
-    pSgBuf->cbSegLeft = pSgBuf->paSegs[0].cbSeg;
+    pSgBuf->idxSeg = 0;
+    if (pSgBuf->cSegs)
+    {
+        pSgBuf->pvSegCur  = pSgBuf->paSegs[0].pvSeg;
+        pSgBuf->cbSegLeft = pSgBuf->paSegs[0].cbSeg;
+    }
+    else
+    {
+        pSgBuf->pvSegCur  = NULL;
+        pSgBuf->cbSegLeft = 0;
+    }
 }
 
 

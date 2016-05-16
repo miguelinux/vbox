@@ -104,7 +104,7 @@ static DECLCALLBACK(int) drvAudioVRDEInitIn(PPDMIHOSTAUDIO pInterface,
     if (pcSamples)
         *pcSamples = _4K; /** @todo Make this configurable. */
 
-    return drvAudioStreamCfgToProps(pCfg, &pVRDEStrmIn->HstStrmIn.Props);
+    return DrvAudioStreamCfgToProps(pCfg, &pVRDEStrmIn->HstStrmIn.Props);
 }
 
 static DECLCALLBACK(int) drvAudioVRDEInitOut(PPDMIHOSTAUDIO pInterface,
@@ -122,7 +122,7 @@ static DECLCALLBACK(int) drvAudioVRDEInitOut(PPDMIHOSTAUDIO pInterface,
     if (pcSamples)
         *pcSamples = _4K; /** @todo Make this configurable. */
 
-    return drvAudioStreamCfgToProps(pCfg, &pVRDEStrmOut->HstStrmOut.Props);
+    return DrvAudioStreamCfgToProps(pCfg, &pVRDEStrmOut->HstStrmOut.Props);
 }
 
 static DECLCALLBACK(bool) drvAudioVRDEIsEnabled(PPDMIHOSTAUDIO pInterface, PDMAUDIODIR enmDir)
@@ -139,7 +139,7 @@ static DECLCALLBACK(bool) drvAudioVRDEIsEnabled(PPDMIHOSTAUDIO pInterface, PDMAU
 }
 
 /**
- * <Missing brief description>
+ * {FIXME - Missing brief description - FIXME}
  *
  * Transfers audio input formerly sent by a connected RDP client / VRDE backend
  * (using the onVRDEInputXXX methods) over to the VRDE host (VM). The audio device
@@ -212,7 +212,7 @@ static DECLCALLBACK(int) drvAudioVRDEPlayOut(PPDMIHOSTAUDIO pInterface, PPDMAUDI
     PVRDESTREAMOUT pVRDEStrmOut = (PVRDESTREAMOUT)pHstStrmOut;
     AssertPtrReturn(pVRDEStrmOut, VERR_INVALID_POINTER);
 
-    uint32_t live = drvAudioHstOutSamplesLive(pHstStrmOut);
+    uint32_t live = AudioMixBufAvail(&pHstStrmOut->MixBuf);
     uint64_t now = PDMDrvHlpTMGetVirtualTime(pDrv->pDrvIns);
     uint64_t ticks = now  - pVRDEStrmOut->old_ticks;
     uint64_t ticks_per_second = PDMDrvHlpTMGetVirtualFreq(pDrv->pDrvIns);
@@ -303,7 +303,7 @@ static DECLCALLBACK(int) drvAudioVRDEControlOut(PPDMIHOSTAUDIO pInterface, PPDMA
     PDRVAUDIOVRDE pDrv = RT_FROM_MEMBER(pInterface, DRVAUDIOVRDE, IHostAudio);
     AssertPtrReturn(pDrv, VERR_INVALID_POINTER);
 
-    PVRDESTREAMIN pVRDEStrmOut = (PVRDESTREAMIN)pHstStrmOut;
+    PVRDESTREAMOUT pVRDEStrmOut = (PVRDESTREAMOUT)pHstStrmOut;
     AssertPtrReturn(pVRDEStrmOut, VERR_INVALID_POINTER);
 
     LogFlowFunc(("enmStreamCmd=%ld\n", enmStreamCmd));

@@ -167,12 +167,6 @@ HRESULT HostUSBDevice::getManufacturer(com::Utf8Str &aManufacturer)
     AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
 
     aManufacturer = mUsb->pszManufacturer;
-    if (mUsb->pszManufacturer == NULL || mUsb->pszManufacturer[0] == 0)
-    {
-        const char* vendorName = AliasDictionary::findVendor(mUsb->idVendor);
-        if (vendorName)
-            aManufacturer = vendorName;
-    }
     return S_OK;
 }
 
@@ -182,12 +176,6 @@ HRESULT HostUSBDevice::getProduct(com::Utf8Str &aProduct)
     AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
 
     aProduct = mUsb->pszProduct;
-    if (mUsb->pszProduct == NULL || mUsb->pszProduct[0] == 0)
-    {
-        const char* productName = AliasDictionary::findProduct(mUsb->idVendor, mUsb->idProduct);
-        if (productName)
-            aProduct = productName;
-    }
     return S_OK;
 }
 
@@ -314,6 +302,31 @@ HRESULT HostUSBDevice::getState(USBDeviceState_T *aState)
 }
 
 
+
+HRESULT HostUSBDevice::getDeviceInfo(std::vector<com::Utf8Str> &aInfo)
+{
+    AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
+
+    com::Utf8Str strManufacturer;
+    com::Utf8Str strProduct;
+
+    if (mUsb->pszManufacturer && *mUsb->pszManufacturer)
+        strManufacturer = mUsb->pszManufacturer;
+    else
+        strManufacturer = USBIdDatabase::findVendor(mUsb->idVendor);
+
+    if (mUsb->pszProduct && *mUsb->pszProduct)
+        strProduct = mUsb->pszProduct;
+    else
+        strProduct = USBIdDatabase::findProduct(mUsb->idVendor, mUsb->idProduct);
+
+    aInfo.resize(2);
+    aInfo[0] = strManufacturer;
+    aInfo[1] = strProduct;
+
+    return S_OK;
+}
+
 // public methods only for internal purposes
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -333,22 +346,27 @@ com::Utf8Str HostUSBDevice::i_getName()
     bool haveProduct = mUsb->pszProduct && *mUsb->pszProduct;
     if (haveManufacturer && haveProduct)
         name = Utf8StrFmt("%s %s", mUsb->pszManufacturer, mUsb->pszProduct);
-    else if (haveManufacturer)
-        name = Utf8StrFmt("%s", mUsb->pszManufacturer);
-    else if (haveProduct)
-        name = Utf8StrFmt("%s", mUsb->pszProduct);
     else
     {
-        const char* vendorName = AliasDictionary::findVendor(mUsb->idVendor);
-        const char* productName = AliasDictionary::findProduct(mUsb->idVendor, mUsb->idProduct);
-        if (vendorName && productName)
-        {
-            name = Utf8StrFmt("%s %s", vendorName, productName);
-        }
+        Utf8Str strProduct;
+        Utf8Str strVendor = USBIdDatabase::findVendorAndProduct(mUsb->idVendor, mUsb->idProduct, &strProduct);
+        if (   (strVendor.isNotEmpty() || haveManufacturer)
+            && (strProduct.isNotEmpty() || haveProduct))
+            name = Utf8StrFmt("%s %s", haveManufacturer ? mUsb->pszManufacturer
+                                                        : strVendor.c_str(),
+                                       haveProduct ? mUsb->pszProduct
+                                                   : strProduct.c_str());
         else
         {
-            name = "<unknown>";
-            LogRel(("USB: Unknown USB device detected (idVendor: 0x%04x, idProduct: 0x%04x). Please, report the idVendor and idProduct to virtualbox.org.\n", vendorName, productName));
+            LogRel(("USB: Unknown USB device detected (idVendor: 0x%04x, idProduct: 0x%04x). Please, report the idVendor and idProduct to virtualbox.org.\n",
+                    mUsb->idVendor, mUsb->idProduct));
+            if (strVendor.isNotEmpty())
+                name = strVendor;
+            else
+            {
+                Assert(strProduct.isEmpty());
+                name = "<unknown>";
+            }
         }
     }
 

@@ -681,7 +681,10 @@ void UIExtraDataManagerWindow::sltExtraDataChange(QString strID, QString strKey,
             m_pModelSourceOfData->removeRow(iPosition);
         /* If 'changed value' is NOT empty => UPDATE item: */
         else
+        {
+            m_pModelSourceOfData->itemFromIndex(dataKeyIndex(iPosition))->setData(strKey, Qt::UserRole);
             m_pModelSourceOfData->itemFromIndex(dataValueIndex(iPosition))->setText(strValue);
+        }
     }
     /* Else if 'changed value' is NOT empty: */
     else if (!strValue.isEmpty())
@@ -757,19 +760,74 @@ void UIExtraDataManagerWindow::sltDataHandleSelectionChanged(const QItemSelectio
 
 void UIExtraDataManagerWindow::sltDataHandleItemChanged(QStandardItem *pItem)
 {
-    /* Value-data index: */
-    const QModelIndex valueIndex = m_pModelSourceOfData->indexFromItem(pItem);
-    const int iRow = valueIndex.row();
-    const int iColumn = valueIndex.column();
-    AssertMsgReturnVoid(iColumn == 1, ("Only 2nd column can be changed!\n"));
+    /* Make sure passed item is valid: */
+    AssertPtrReturnVoid(pItem);
 
-    /* Key-data index: */
-    const QModelIndex keyIndex = dataKeyIndex(iRow);
+    /* Item-data index: */
+    const QModelIndex itemIndex = m_pModelSourceOfData->indexFromItem(pItem);
+    const int iRow = itemIndex.row();
+    const int iColumn = itemIndex.column();
 
-    /* Update extra-data: */
-    gEDataManager->setExtraDataString(keyIndex.data().toString(),
-                                      valueIndex.data().toString(),
-                                      currentChooserID());
+    /* Key-data is changed: */
+    if (iColumn == 0)
+    {
+        /* Should we replace changed key? */
+        bool fReplace = true;
+
+        /* List of 'known keys': */
+        QStringList knownKeys;
+        for (int iKeyRow = 0; iKeyRow < m_pModelSourceOfData->rowCount(); ++iKeyRow)
+        {
+            /* Do not consider the row we are changing as Qt's model is not yet updated: */
+            if (iKeyRow != iRow)
+                knownKeys << dataKey(iKeyRow);
+        }
+
+        /* If changed key exists: */
+        if (knownKeys.contains(itemIndex.data().toString()))
+        {
+            /* Show warning and ask for overwriting approval: */
+            if (!msgCenter().questionBinary(this, MessageType_Question,
+                                            QString("Overwriting already existing key, Continue?"),
+                                            0 /* auto-confirm id */,
+                                            QString("Overwrite") /* ok button text */,
+                                            QString() /* cancel button text */,
+                                            false /* ok button by default? */))
+            {
+                /* Cancel the operation, restore the original extra-data key: */
+                pItem->setData(itemIndex.data(Qt::UserRole).toString(), Qt::DisplayRole);
+                fReplace = false;
+            }
+            else
+            {
+                /* Delete previous extra-data key: */
+                gEDataManager->setExtraDataString(itemIndex.data().toString(),
+                                                  QString(),
+                                                  currentChooserID());
+            }
+        }
+
+        /* Replace changed extra-data key if necessary: */
+        if (fReplace)
+        {
+            gEDataManager->setExtraDataString(itemIndex.data(Qt::UserRole).toString(),
+                                              QString(),
+                                              currentChooserID());
+            gEDataManager->setExtraDataString(itemIndex.data().toString(),
+                                              dataValue(iRow),
+                                              currentChooserID());
+        }
+    }
+    /* Value-data is changed: */
+    else
+    {
+        /* Key-data index: */
+        const QModelIndex keyIndex = dataKeyIndex(iRow);
+        /* Update extra-data: */
+        gEDataManager->setExtraDataString(keyIndex.data().toString(),
+                                          itemIndex.data().toString(),
+                                          currentChooserID());
+    }
 }
 
 void UIExtraDataManagerWindow::sltDataHandleCustomContextMenuRequested(const QPoint &pos)
@@ -907,9 +965,35 @@ void UIExtraDataManagerWindow::sltAdd()
     /* Execute input-dialog: */
     if (pInputDialog->exec() == QDialog::Accepted)
     {
-        gEDataManager->setExtraDataString(pInputDialog->property("Key").toString(),
-                                          pInputDialog->property("Value").toString(),
-                                          currentChooserID());
+        /* Should we add new key? */
+        bool fAdd = true;
+
+        /* List of 'known keys': */
+        QStringList knownKeys;
+        for (int iKeyRow = 0; iKeyRow < m_pModelSourceOfData->rowCount(); ++iKeyRow)
+            knownKeys << dataKey(iKeyRow);
+
+        /* If new key exists: */
+        if (knownKeys.contains(pInputDialog->property("Key").toString()))
+        {
+            /* Show warning and ask for overwriting approval: */
+            if (!msgCenter().questionBinary(this, MessageType_Question,
+                                            QString("Overwriting already existing key, Continue?"),
+                                            0 /* auto-confirm id */,
+                                            QString("Overwrite") /* ok button text */,
+                                            QString() /* cancel button text */,
+                                            false /* ok button by default? */))
+            {
+                /* Cancel the operation: */
+                fAdd = false;
+            }
+        }
+
+        /* Add new extra-data key if necessary: */
+        if (fAdd)
+            gEDataManager->setExtraDataString(pInputDialog->property("Key").toString(),
+                                              pInputDialog->property("Value").toString(),
+                                              currentChooserID());
     }
 
     /* Destroy input-dialog: */
@@ -1702,7 +1786,7 @@ void UIExtraDataManagerWindow::addDataItem(const QString &strKey,
     QList<QStandardItem*> items;
     /* Create key item: */
     items << new QStandardItem(strKey);
-    items.last()->setEditable(false);
+    items.last()->setData(strKey, Qt::UserRole);
     AssertPtrReturnVoid(items.last());
     /* Create value item: */
     items << new QStandardItem(strValue);
@@ -1789,7 +1873,7 @@ QStringList UIExtraDataManagerWindow::knownExtraDataKeys()
 #endif /* !Q_WS_MAC */
            << GUI_StatusBar_Enabled << GUI_RestrictedStatusBarIndicators << GUI_StatusBar_IndicatorOrder
 #ifdef Q_WS_MAC
-           << GUI_RealtimeDockIconUpdateEnabled << GUI_RealtimeDockIconUpdateMonitor
+           << GUI_RealtimeDockIconUpdateEnabled << GUI_RealtimeDockIconUpdateMonitor << GUI_DockIconDisableOverlay
 #endif /* Q_WS_MAC */
            << GUI_PassCAD
            << GUI_MouseCapturePolicy
@@ -2229,14 +2313,18 @@ QRect UIExtraDataManager::selectorWindowGeometry(QWidget *pWidget)
     if (pWidget)
         geometry.setSize(geometry.size().expandedTo(pWidget->minimumSizeHint()));
 
-    /* Get screen-geometry [of screen with point (iX, iY) if possible]: */
+    /* Get available-geometry [of screen with point (iX, iY) if possible]: */
     const QRect availableGeometry = fOk ? vboxGlobal().availableGeometry(QPoint(iX, iY)) :
                                           vboxGlobal().availableGeometry();
 
+    /* In Windows Qt fails to reposition out of screen window properly, so doing it ourselves: */
+#ifdef Q_WS_WIN
     /* Make sure resulting geometry is within current bounds: */
-    geometry = geometry.intersected(availableGeometry);
+    if (fOk && !availableGeometry.contains(geometry))
+        geometry = VBoxGlobal::getNormalized(geometry, QRegion(availableGeometry));
+#endif /* Q_WS_WIN */
 
-    /* Move default-geometry to screen-geometry' center: */
+    /* As final fallback, move default-geometry to available-geometry' center: */
     if (!fOk)
         geometry.moveCenter(availableGeometry.center());
 
@@ -3345,6 +3433,18 @@ void UIExtraDataManager::setRealtimeDockIconUpdateMonitor(int iIndex, const QStr
 {
     setExtraDataString(GUI_RealtimeDockIconUpdateMonitor, iIndex ? QString::number(iIndex) : QString(), strID);
 }
+
+bool UIExtraDataManager::dockIconDisableOverlay(const QString &strID)
+{
+    /* 'False' unless feature allowed: */
+    return isFeatureAllowed(GUI_DockIconDisableOverlay, strID);
+}
+
+void UIExtraDataManager::setDockIconDisableOverlay(bool fDisabled, const QString &strID)
+{
+    /* 'True' if feature allowed, null-string otherwise: */
+    setExtraDataString(GUI_DockIconDisableOverlay, toFeatureAllowed(fDisabled), strID);
+}
 #endif /* Q_WS_MAC */
 
 bool UIExtraDataManager::passCADtoGuest(const QString &strID)
@@ -3425,16 +3525,23 @@ QRect UIExtraDataManager::informationWindowGeometry(QWidget *pWidget, QWidget *p
     if (pWidget)
         geometry.setSize(geometry.size().expandedTo(pWidget->minimumSizeHint()));
 
-    /* Get screen-geometry [of screen with point (iX, iY) if possible]: */
+    /* Get available-geometry [of screen with point (iX, iY) if possible]: */
     const QRect availableGeometry = fOk ? vboxGlobal().availableGeometry(QPoint(iX, iY)) :
                                           vboxGlobal().availableGeometry();
 
+    /* In Windows Qt fails to reposition out of screen window properly, so doing it ourselves: */
+#ifdef Q_WS_WIN
     /* Make sure resulting geometry is within current bounds: */
-    geometry = geometry.intersected(availableGeometry);
+    if (fOk && !availableGeometry.contains(geometry))
+        geometry = VBoxGlobal::getNormalized(geometry, QRegion(availableGeometry));
+#endif /* Q_WS_WIN */
 
-    /* Move default-geometry to pParentWidget' geometry center: */
+    /* As a fallback, move default-geometry to pParentWidget' geometry center: */
     if (!fOk && pParentWidget)
         geometry.moveCenter(pParentWidget->geometry().center());
+    /* As final fallback, move default-geometry to available-geometry' center: */
+    else if (!fOk)
+        geometry.moveCenter(availableGeometry.center());
 
     /* Return result: */
     return geometry;
@@ -3535,14 +3642,18 @@ QRect UIExtraDataManager::extraDataManagerGeometry(QWidget *pWidget)
     if (pWidget)
         geometry.setSize(geometry.size().expandedTo(pWidget->minimumSizeHint()));
 
-    /* Get screen-geometry [of screen with point (iX, iY) if possible]: */
+    /* Get available-geometry [of screen with point (iX, iY) if possible]: */
     const QRect availableGeometry = fOk ? vboxGlobal().availableGeometry(QPoint(iX, iY)) :
                                           vboxGlobal().availableGeometry();
 
+    /* In Windows Qt fails to reposition out of screen window properly, so doing it ourselves: */
+#ifdef Q_WS_WIN
     /* Make sure resulting geometry is within current bounds: */
-    geometry = geometry.intersected(availableGeometry);
+    if (fOk && !availableGeometry.contains(geometry))
+        geometry = VBoxGlobal::getNormalized(geometry, QRegion(availableGeometry));
+#endif /* Q_WS_WIN */
 
-    /* Move default-geometry to current screen center: */
+    /* As final fallback, move default-geometry to available-geometry' center: */
     if (!fOk)
         geometry.moveCenter(availableGeometry.center());
 
@@ -3648,14 +3759,15 @@ QRect UIExtraDataManager::logWindowGeometry(QWidget *pWidget, const QRect &defau
     if (pWidget)
         geometry.setSize(geometry.size().expandedTo(pWidget->minimumSizeHint()));
 
-    /* In Windows Qt fails to reposition out of screen window properly, so moving to centre: */
+    /* In Windows Qt fails to reposition out of screen window properly, so doing it ourselves: */
 #ifdef Q_WS_WIN
-    /* Get screen-geometry [of screen with point (iX, iY) if possible]: */
-    const QRect availableGeometry = vboxGlobal().availableGeometry(QPoint(iX, iY));
+    /* Get available-geometry [of screen with point (iX, iY) if possible]: */
+    const QRect availableGeometry = fOk ? vboxGlobal().availableGeometry(QPoint(iX, iY)) :
+                                          vboxGlobal().availableGeometry();
 
     /* Make sure resulting geometry is within current bounds: */
-    if (!availableGeometry.contains(geometry, true))
-        geometry.moveCenter(defaultGeometry.center());
+    if (!availableGeometry.contains(geometry))
+        geometry = VBoxGlobal::getNormalized(geometry, QRegion(availableGeometry));
 #endif /* Q_WS_WIN */
 
     /* Return result: */
@@ -3725,9 +3837,12 @@ void UIExtraDataManager::sltExtraDataChange(QString strMachineID, QString strKey
                 emit sigHidLedsSyncStateChange(!isFeatureRestricted(strKey, strMachineID));
 #ifdef Q_WS_MAC
             /* 'Dock icon' appearance changed (allowed if not restricted)? */
-            else if (   strKey == GUI_RealtimeDockIconUpdateEnabled
-                     || strKey == GUI_RealtimeDockIconUpdateMonitor)
+            else if (strKey == GUI_RealtimeDockIconUpdateEnabled ||
+                     strKey == GUI_RealtimeDockIconUpdateMonitor)
                 emit sigDockIconAppearanceChange(!isFeatureRestricted(strKey, strMachineID));
+            /* 'Dock icon overlay' appearance changed (restricted if not allowed)? */
+            else if (strKey == GUI_DockIconDisableOverlay)
+                emit sigDockIconOverlayAppearanceChange(isFeatureAllowed(strKey, strMachineID));
 #endif /* Q_WS_MAC */
         }
 

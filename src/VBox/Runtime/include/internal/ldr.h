@@ -357,7 +357,7 @@ typedef struct RTLDROPS
      * @retval  VERR_NOT_FOUND the property was not found in the module.
      *
      * @param   pMod            Pointer to the loader module structure.
-     * @param   enmLdrProp      The property to query (valid).
+     * @param   enmProp         The property to query (valid).
      * @param   pvBits          Pointer to the bits returned by
      *                          RTLDROPS::pfnGetBits(), optional.
      * @param   pvBuf           Pointer to the input / output buffer. This is valid.
@@ -394,7 +394,7 @@ typedef struct RTLDROPS
      * Calculate the image hash according the image signing rules.
      *
      * @returns IPRT status code.
-     * @param   hLdrMod         The module handle.
+     * @param   pMod            The module handle.
      * @param   enmDigest       Which kind of digest.
      * @param   pszDigest       Where to store the image digest.
      * @param   cbDigest        Size of the buffer @a pszDigest points at.
@@ -496,6 +496,7 @@ int rtldrMachoOpen(PRTLDRREADER pReader, uint32_t fFlags, RTLDRARCH enmArch, RTF
 
 
 DECLHIDDEN(int) rtLdrReadAt(RTLDRMOD hLdrMod, void *pvBuf, uint32_t iDbgInfo, RTFOFF off, size_t cb);
+DECLHIDDEN(const char *) rtLdrArchName(RTLDRARCH enmArch);
 
 RT_C_DECLS_END
 

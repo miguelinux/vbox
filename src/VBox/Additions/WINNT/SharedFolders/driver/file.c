@@ -27,50 +27,50 @@
 #define VBSF_MAX_READ_WRITE_PAGES 256
 
 
-typedef int FNVBSFTRANSFERBUFFER(PVBSFCLIENT pClient, PVBSFMAP pMap, SHFLHANDLE hFile,
+typedef int FNVBSFTRANSFERBUFFER(PVBGLSFCLIENT pClient, PVBGLSFMAP pMap, SHFLHANDLE hFile,
                                  uint64_t offset, uint32_t *pcbBuffer,
                                  uint8_t *pBuffer, bool fLocked);
 typedef FNVBSFTRANSFERBUFFER *PFNVBSFTRANSFERBUFFER;
 
-typedef int FNVBSFTRANSFERPAGES(PVBSFCLIENT pClient, PVBSFMAP pMap, SHFLHANDLE hFile,
+typedef int FNVBSFTRANSFERPAGES(PVBGLSFCLIENT pClient, PVBGLSFMAP pMap, SHFLHANDLE hFile,
                                 uint64_t offset, uint32_t *pcbBuffer,
                                 uint16_t offFirstPage, uint16_t cPages, RTGCPHYS64 *paPages);
 typedef FNVBSFTRANSFERPAGES *PFNVBSFTRANSFERPAGES;
 
 
-static int vbsfTransferBufferRead(PVBSFCLIENT pClient, PVBSFMAP pMap, SHFLHANDLE hFile,
+static int vbsfTransferBufferRead(PVBGLSFCLIENT pClient, PVBGLSFMAP pMap, SHFLHANDLE hFile,
                                   uint64_t offset, uint32_t *pcbBuffer,
                                   uint8_t *pBuffer, bool fLocked)
 {
-    return vboxCallRead(pClient, pMap, hFile, offset, pcbBuffer, pBuffer, fLocked);
+    return VbglR0SfRead(pClient, pMap, hFile, offset, pcbBuffer, pBuffer, fLocked);
 }
 
-static int vbsfTransferBufferWrite(PVBSFCLIENT pClient, PVBSFMAP pMap, SHFLHANDLE hFile,
+static int vbsfTransferBufferWrite(PVBGLSFCLIENT pClient, PVBGLSFMAP pMap, SHFLHANDLE hFile,
                                    uint64_t offset, uint32_t *pcbBuffer,
                                    uint8_t *pBuffer, bool fLocked)
 {
-    return vboxCallWrite(pClient, pMap, hFile, offset, pcbBuffer, pBuffer, fLocked);
+    return VbglR0SfWrite(pClient, pMap, hFile, offset, pcbBuffer, pBuffer, fLocked);
 }
 
-static int vbsfTransferPagesRead(PVBSFCLIENT pClient, PVBSFMAP pMap, SHFLHANDLE hFile,
+static int vbsfTransferPagesRead(PVBGLSFCLIENT pClient, PVBGLSFMAP pMap, SHFLHANDLE hFile,
                                  uint64_t offset, uint32_t *pcbBuffer,
                                  uint16_t offFirstPage, uint16_t cPages, RTGCPHYS64 *paPages)
 {
-    return VbglR0SharedFolderReadPageList(pClient, pMap, hFile, offset, pcbBuffer, offFirstPage, cPages, paPages);
+    return VbglR0SfReadPageList(pClient, pMap, hFile, offset, pcbBuffer, offFirstPage, cPages, paPages);
 }
 
-static int vbsfTransferPagesWrite(PVBSFCLIENT pClient, PVBSFMAP pMap, SHFLHANDLE hFile,
+static int vbsfTransferPagesWrite(PVBGLSFCLIENT pClient, PVBGLSFMAP pMap, SHFLHANDLE hFile,
                                   uint64_t offset, uint32_t *pcbBuffer,
                                   uint16_t offFirstPage, uint16_t cPages, RTGCPHYS64 *paPages)
 {
-    return VbglR0SharedFolderWritePageList(pClient, pMap, hFile, offset, pcbBuffer, offFirstPage, cPages, paPages);
+    return VbglR0SfWritePageList(pClient, pMap, hFile, offset, pcbBuffer, offFirstPage, cPages, paPages);
 }
 
 
 typedef struct VBSFTRANSFERCTX
 {
-    PVBSFCLIENT pClient;
-    PVBSFMAP pMap;
+    PVBGLSFCLIENT pClient;
+    PVBGLSFMAP pMap;
     SHFLHANDLE hFile;
     uint64_t offset;
     uint32_t cbData;
@@ -490,7 +490,7 @@ NTSTATUS VBoxMRxLocks(IN PRX_CONTEXT RxContext)
     else
         fu32Lock |= SHFL_LOCK_WAIT;
 
-    vboxRC = vboxCallLock(&pDeviceExtension->hgcmClient, &pNetRootExtension->map, pVBoxFobx->hFile,
+    vboxRC = VbglR0SfLock(&pDeviceExtension->hgcmClient, &pNetRootExtension->map, pVBoxFobx->hFile,
                           LowIoContext->ParamsFor.Locks.ByteOffset, LowIoContext->ParamsFor.Locks.Length, fu32Lock);
 
     Status = VBoxErrorToNTStatus(vboxRC);
@@ -523,7 +523,7 @@ NTSTATUS VBoxMRxFlush (IN PRX_CONTEXT RxContext)
     Log(("VBOXSF: MRxFlush\n"));
 
     /* Do the actual flushing of file buffers */
-    vboxRC = vboxCallFlush(&pDeviceExtension->hgcmClient, &pNetRootExtension->map, pVBoxFobx->hFile);
+    vboxRC = VbglR0SfFlush(&pDeviceExtension->hgcmClient, &pNetRootExtension->map, pVBoxFobx->hFile);
 
     Status = VBoxErrorToNTStatus(vboxRC);
 
@@ -564,15 +564,15 @@ NTSTATUS vbsfSetEndOfFile(IN OUT struct _RX_CONTEXT * RxContext,
     RtlZeroMemory(pObjInfo, cbBuffer);
     pObjInfo->cbObject = pNewFileSize->QuadPart;
 
-    vboxRC = vboxCallFSInfo(&pDeviceExtension->hgcmClient, &pNetRootExtension->map, pVBoxFobx->hFile,
+    vboxRC = VbglR0SfFsInfo(&pDeviceExtension->hgcmClient, &pNetRootExtension->map, pVBoxFobx->hFile,
                             SHFL_INFO_SET | SHFL_INFO_SIZE, &cbBuffer, (PSHFLDIRINFO)pObjInfo);
 
-    Log(("VBOXSF: vbsfSetEndOfFile: vboxCallFSInfo returned %Rrc\n", vboxRC));
+    Log(("VBOXSF: vbsfSetEndOfFile: VbglR0SfFsInfo returned %Rrc\n", vboxRC));
 
     Status = VBoxErrorToNTStatus(vboxRC);
     if (Status == STATUS_SUCCESS)
     {
-        Log(("VBOXSF: vbsfSetEndOfFile: vboxCallFSInfo new allocation size = %RX64\n",
+        Log(("VBOXSF: vbsfSetEndOfFile: VbglR0SfFsInfo new allocation size = %RX64\n",
              pObjInfo->cbAllocated));
 
         /* Return new allocation size */

@@ -314,9 +314,7 @@ static bool vbvaFetchCmd(VBVADATA *pVBVAData, VBVACMDHDR **ppHdr, uint32_t *pcbC
             /* The command does not cross buffer boundary. Return address in the buffer. */
             *ppHdr = (VBVACMDHDR *)pu8Src;
 
-            /* Advance data offset and sync with guest. */
-            pVBVAData->off32Data = (pVBVAData->off32Data + cbRecord) % pVBVAData->cbData;
-            pVBVAData->guest.pVBVA->off32Data = pVBVAData->off32Data;
+            /* The data offset will be updated in vbvaReleaseCmd. */
         }
         else
         {
@@ -352,17 +350,19 @@ static bool vbvaFetchCmd(VBVADATA *pVBVAData, VBVACMDHDR **ppHdr, uint32_t *pcbC
 static void vbvaReleaseCmd(VBVADATA *pVBVAData, VBVACMDHDR *pHdr, uint32_t cbCmd)
 {
     VBVAPARTIALRECORD *pPartialRecord = &pVBVAData->partialRecord;
-    uint8_t *au8RingBuffer = pVBVAData->guest.pu8Data;
+    const uint8_t *au8RingBuffer = pVBVAData->guest.pu8Data;
 
-    if (   (uint8_t *)pHdr >= au8RingBuffer
-        && (uint8_t *)pHdr < &au8RingBuffer[pVBVAData->cbData])
+    if (   (uintptr_t)pHdr >= (uintptr_t)au8RingBuffer
+        && (uintptr_t)pHdr < (uintptr_t)&au8RingBuffer[pVBVAData->cbData])
     {
         /* The pointer is inside ring buffer. Must be continuous chunk. */
-        Assert(pVBVAData->cbData - ((uint8_t *)pHdr - au8RingBuffer) >= cbCmd);
+        Assert(pVBVAData->cbData - (uint32_t)((uint8_t *)pHdr - au8RingBuffer) >= cbCmd);
 
-        /* Do nothing. */
+        /* Advance data offset and sync with guest. */
+        pVBVAData->off32Data = (pVBVAData->off32Data + cbCmd) % pVBVAData->cbData;
+        pVBVAData->guest.pVBVA->off32Data = pVBVAData->off32Data;
 
-        Assert (!pPartialRecord->pu8 && pPartialRecord->cb == 0);
+        Assert(!pPartialRecord->pu8 && pPartialRecord->cb == 0);
     }
     else
     {
@@ -766,7 +766,6 @@ static int vbvaMousePointerShape(PVGASTATE pVGAState, VBVACONTEXT *pCtx, const V
     /* Save mouse info it will be used to restore mouse pointer after restoring saved state. */
     pCtx->mouseShapeInfo.fSet = true;
     pCtx->mouseShapeInfo.fVisible = fVisible;
-    pCtx->mouseShapeInfo.fAlpha = fAlpha;
     if (fShape)
     {
         /* Data related to shape. */
@@ -774,6 +773,7 @@ static int vbvaMousePointerShape(PVGASTATE pVGAState, VBVACONTEXT *pCtx, const V
         pCtx->mouseShapeInfo.u32HotY = parms.u32HotY;
         pCtx->mouseShapeInfo.u32Width = parms.u32Width;
         pCtx->mouseShapeInfo.u32Height = parms.u32Height;
+        pCtx->mouseShapeInfo.fAlpha = fAlpha;
 
         /* Reallocate memory buffer if necessary. */
         if (cbPointerData > pCtx->mouseShapeInfo.cbAllocated)
@@ -2085,7 +2085,16 @@ void VBVARaiseIrq (PVGASTATE pVGAState, uint32_t fFlags)
     HGSMISetHostGuestFlags(pVGAState->pHGSMI, HGSMIHOSTFLAGS_IRQ | fFlags);
     PDMCritSectLeave(&pVGAState->CritSect);
 
-    PDMDevHlpPCISetIrq(pDevIns, 0, PDM_IRQ_LEVEL_HIGH);
+    /* Set IRQ only for a running VM.
+     * If HGSMIHOSTFLAGS_IRQ is set, then vgaR3Resume/vgaR3PowerOn will
+     * set the postponed IRQ.
+     */
+    VMSTATE enmVMState = PDMDevHlpVMState(pDevIns);
+    if (   enmVMState == VMSTATE_RUNNING
+        || enmVMState == VMSTATE_RUNNING_LS)
+    {
+        PDMDevHlpPCISetIrq(pDevIns, 0, PDM_IRQ_LEVEL_HIGH);
+    }
 }
 
 static DECLCALLBACK(int) vbvaRaiseIrqEMT(PVGASTATE pVGAState, uint32_t fFlags)
@@ -2102,6 +2111,18 @@ void VBVARaiseIrqNoWait(PVGASTATE pVGAState, uint32_t fFlags)
      * 2. guest issues an IRQ clean request, that cleans up the flag and the interrupt
      * 3. IRQ is set */
     VMR3ReqCallNoWait(PDMDevHlpGetVM(pVGAState->pDevInsR3), VMCPUID_ANY, (PFNRT)vbvaRaiseIrqEMT, 2, pVGAState, fFlags);
+}
+
+void VBVAOnResume(PVGASTATE pThis)
+{
+    PPDMDEVINS pDevIns = pThis->pDevInsR3;
+
+    PDMCritSectEnter(&pThis->CritSect, VERR_SEM_BUSY);
+    bool fIrq = RT_BOOL(HGSMIGetHostGuestFlags(pThis->pHGSMI) & HGSMIHOSTFLAGS_IRQ);
+    PDMCritSectLeave(&pThis->CritSect);
+
+    if (fIrq)
+        PDMDevHlpPCISetIrq(pDevIns, 0, PDM_IRQ_LEVEL_HIGH);
 }
 
 static int vbvaHandleQueryConf32(PVGASTATE pVGAState, VBVACONF32 *pConf32)
@@ -2424,7 +2445,7 @@ static DECLCALLBACK(void) vbvaNotifyGuest (void *pvCallback)
 
 /** The guest submitted a command buffer. Verify the buffer size and invoke corresponding handler.
  *
- * @return VBox status.
+ * @return VBox status code.
  * @param pvHandler      The VBVA channel context.
  * @param u16ChannelInfo Command code.
  * @param pvBuffer       HGSMI buffer with command data.
@@ -2762,6 +2783,34 @@ void VBVAPause(PVGASTATE pVGAState, bool fPause)
     {
         pCtx->fPaused = fPause;
     }
+}
+
+bool VBVAIsPaused(PVGASTATE pVGAState)
+{
+    if (pVGAState && pVGAState->pHGSMI)
+    {
+        const VBVACONTEXT *pCtx = (VBVACONTEXT *)HGSMIContext(pVGAState->pHGSMI);
+        if (pCtx && pCtx->cViews)
+        {
+            /* If VBVA is enabled at all. */
+            const VBVAVIEW *pView = &pCtx->aViews[0];
+            if (pView->vbva.guest.pVBVA)
+                return pCtx->fPaused;
+        }
+    }
+    /* VBVA is disabled. */
+    return true;
+}
+
+void VBVAOnVBEChanged(PVGASTATE pVGAState)
+{
+    /* The guest does not depend on host handling the VBE registers. */
+    if (pVGAState->fGuestCaps & VBVACAPS_USE_VBVA_ONLY)
+    {
+        return;
+    }
+
+    VBVAPause(pVGAState, (pVGAState->vbe_regs[VBE_DISPI_INDEX_ENABLE] & VBE_DISPI_ENABLED) == 0);
 }
 
 void VBVAReset (PVGASTATE pVGAState)

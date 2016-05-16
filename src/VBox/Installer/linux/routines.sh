@@ -149,6 +149,7 @@ ExecStop=${script} stop
 [Install]
 WantedBy=multi-user.target
 EOF
+    systemctl daemon-reexec
 }
 
 ## Installs a file containing a shell script as an init script
@@ -166,7 +167,7 @@ install_init_script()
     test -L "/sbin/rc${name}" && rm "/sbin/rc${name}"
     ln -s "${script}" "/sbin/rc${name}"
     if test -x "`which systemctl 2>/dev/null`"; then
-        if ! test -L /sbin/init || ls -l /sbin/init | grep -q ">.*systemd"; then
+        if ! test -f /sbin/init || ls -l /sbin/init | grep -q ">.*systemd"; then
             { systemd_wrap_init_script "$script" "$name"; return; }
         fi
     fi
@@ -364,7 +365,10 @@ maybe_run_python_bindings_installer() {
     echo  1>&2 "Python found: $PYTHON, installing bindings..."
     # Pass install path via environment
     export VBOX_INSTALL_PATH
-    $SHELL -c "cd $VBOX_INSTALL_PATH/sdk/installer && $PYTHON vboxapisetup.py install"
+    $SHELL -c "cd $VBOX_INSTALL_PATH/sdk/installer && $PYTHON vboxapisetup.py install \
+        --record $CONFIG_DIR/python-$CONFIG_FILES"
+    cat $CONFIG_DIR/python-$CONFIG_FILES >> $CONFIG_DIR/$CONFIG_FILES
+    rm $CONFIG_DIR/python-$CONFIG_FILES
     # remove files created during build
     rm -rf $VBOX_INSTALL_PATH/sdk/installer/build
 

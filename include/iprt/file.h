@@ -97,6 +97,10 @@ RTDECL(int) RTFileQuerySize(const char *pszPath, uint64_t *pcbFile);
 
 /** @name Open flags
  * @{ */
+/** Attribute access only.
+ * @remarks Only accepted on windows, requires RTFILE_O_ACCESS_ATTR_MASK
+ *          to yield a non-zero result.  Otherwise, this is invalid. */
+#define RTFILE_O_ATTR_ONLY              UINT32_C(0x00000000)
 /** Open the file with read access. */
 #define RTFILE_O_READ                   UINT32_C(0x00000001)
 /** Open the file with write access. */
@@ -104,7 +108,7 @@ RTDECL(int) RTFileQuerySize(const char *pszPath, uint64_t *pcbFile);
 /** Open the file with read & write access. */
 #define RTFILE_O_READWRITE              UINT32_C(0x00000003)
 /** The file access mask.
- * @remarks The value 0 is invalid. */
+ * @remarks The value 0 is invalid, except for windows special case. */
 #define RTFILE_O_ACCESS_MASK            UINT32_C(0x00000003)
 
 /** Open file in APPEND mode, so all writes to the file handle will
@@ -780,16 +784,20 @@ RTDECL(int) RTFileCreateTempSecure(char *pszTemplate);
 /**
  * Opens a new file with a unique name in the temp directory.
  *
+ * Unlike the other temp file creation APIs, this does not allow you any control
+ * over the name.  Nor do you have to figure out where the temporary directory
+ * is.
+ *
  * @returns iprt status code.
- * @param   pszTemplate     The file name template on input. The actual file
- *                          name on success. Empty string on failure.
- * @param   fMode           The mode to create the file with.  Use 0600 unless
- *                          you have reason not to.
+ * @param   phFile          Where to return the handle to the file.
+ * @param   pszFilename     Where to return the name (+path) of the file .
+ * @param   cbFilename      The size of the buffer @a pszFilename points to.
+ * @param   fOpen           The RTFILE_O_XXX flags to open the file with.
  *
  * @remarks If actual control over the filename or location is required, we'll
  *          create an extended edition of this API.
  */
-RTDECL(int) RTFileOpenTemp(PRTFILE pFile, char *pszFilename, size_t cbFilename, uint64_t fOpen);
+RTDECL(int) RTFileOpenTemp(PRTFILE phFile, char *pszFilename, size_t cbFilename, uint64_t fOpen);
 
 
 /** @page   pg_rt_filelock      RT File locking API description
@@ -1004,7 +1012,7 @@ RTDECL(int) RTFileGetOwner(RTFILE File, uint32_t *pUid, uint32_t *pGid);
  *
  * @returns iprt status code.
  * @param   File        Handle to the file.
- * @param   iRequest    IOCTL request to carry out.
+ * @param   ulRequest   IOCTL request to carry out.
  * @param   pvData      IOCTL data.
  * @param   cbData      Size of the IOCTL data.
  * @param   piRet       Return value of the IOCTL request.

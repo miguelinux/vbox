@@ -3594,7 +3594,7 @@
 
   <interface
     name="IInternalMachineControl" extends="$unknown"
-    uuid="ec36f437-ad4d-4512-94dd-f4c568143aa7"
+    uuid="cdbc59df-4f4d-4cf2-809c-917601355afc"
     internal="yes"
     wsmap="suppress"
     >
@@ -3916,6 +3916,22 @@
       </param>
       <param name="vmNetTx" type="unsigned long" dir="in">
         <desc>Network transmit rate for VM.</desc>
+      </param>
+    </method>
+
+    <method name="authenticateExternal">
+      <desc>
+        Verify credentials using the external auth library.
+      </desc>
+      <param name="authParams" type="wstring" dir="in" safearray="yes">
+        <desc>
+          The auth parameters, credentials, etc.
+        </desc>
+      </param>
+      <param name="result" type="wstring" dir="out">
+        <desc>
+          The authentification result.
+        </desc>
       </param>
     </method>
   </interface>
@@ -17994,7 +18010,7 @@ Snapshot 1 (B.vdi)            Snapshot 1 (B.vdi)
     name="IUSBDevice" extends="$unknown"
     uuid="5915d179-83c7-4f2b-a323-9a97f46f4e29"
     wsmap="managed"
-    reservedAttributes="4"
+    reservedAttributes="3"
     >
     <desc>
       The IUSBDevice interface represents a virtual USB device attached to the
@@ -18075,6 +18091,18 @@ Snapshot 1 (B.vdi)            Snapshot 1 (B.vdi)
       <desc>
         Whether the device is physically connected to a remote VRDE
         client or to a local host machine.
+      </desc>
+    </attribute>
+
+    <attribute name="deviceInfo" type="wstring" readonly="yes" safearray="yes">
+      <desc>
+        Array of device attributes as single strings.
+
+        So far the following are used:
+          0: The manufacturer string, if the device doesn't expose the ID one is taken
+             from an internal database or an empty string if none is found.
+          1: The product string, if the device doesn't expose the ID one is taken
+             from an internal database or an empty string if none is found.
       </desc>
     </attribute>
 

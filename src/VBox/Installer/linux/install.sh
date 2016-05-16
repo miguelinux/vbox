@@ -364,7 +364,7 @@ if [ "$ACTION" = "install" ]; then
 
     # If Python is available, install Python bindings
     if [ -n "$PYTHON" ]; then
-      maybe_run_python_bindings_installer $INSTALLATION_DIR
+      maybe_run_python_bindings_installer $INSTALLATION_DIR $CONFIG_DIR $CONFIG_FILES
     fi
 
     install_device_node_setup "$VBOXDRV_GRP" "$VBOXDRV_MODE" "$INSTALLATION_DIR"
@@ -402,7 +402,7 @@ if [ "$ACTION" = "install" ]; then
     else
         info "VirtualBox has been installed successfully, but the kernel module could not"
         info "be built.  When you have fixed the problems preventing this, execute"
-        info "  /sbin/vboxconfig"
+        info "  /sbin/rcvboxdrv setup"
         info "as administrator to build it."
     fi
     info ""

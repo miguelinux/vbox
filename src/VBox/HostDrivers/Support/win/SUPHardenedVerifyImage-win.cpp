@@ -578,8 +578,8 @@ static bool supHardViUtf16PathEndsWith(PCRTUTF16 pwsz, const char *pszSuffix)
  * Simple case insensitive UTF-16 / ASCII starts-with path predicate.
  *
  * @returns true if starts with given string, false if not.
- * @param   pwsz                The UTF-16 path string.
- * @param   pszPrefix           The ascii prefix string.
+ * @param   pwszLeft            The UTF-16 path string.
+ * @param   pszRight            The ascii prefix string.
  */
 static bool supHardViUtf16PathStartsWithAscii(PCRTUTF16 pwszLeft, const char *pszRight)
 {
@@ -1130,7 +1130,7 @@ DECLHIDDEN(int) supHardenedWinVerifyImageByLdrMod(RTLDRMOD hLdrMod, PCRTUTF16 pw
      * In one report by 'thor' the WinSxS resident comctl32.dll was owned by
      * SECURITY_BUILTIN_DOMAIN_RID + DOMAIN_ALIAS_RID_ADMINS (with 4.3.16).
      */
-    /** @todo Since we're now allowing Builtin\Administrators after all, perhaps we
+    /** @todo Since we're now allowing Builtin\\Administrators after all, perhaps we
      *        could drop these system32 + winsxs hacks?? */
     if (   (pNtViRdr->fFlags & SUPHNTVI_F_TRUSTED_INSTALLER_OWNER)
         && !supHardNtViCheckIsOwnedByTrustedInstallerOrSimilar(pNtViRdr->hFile, pwszName))
@@ -2275,8 +2275,24 @@ static int supR3HardNtViCallWinVerifyTrust(HANDLE hFile, PCRTUTF16 pwszName, uin
             case TRUST_E_NOSIGNATURE:             pszErrConst = "TRUST_E_NOSIGNATURE";          break;
             case TRUST_E_FAIL:                    pszErrConst = "TRUST_E_FAIL";                 break;
             case TRUST_E_EXPLICIT_DISTRUST:       pszErrConst = "TRUST_E_EXPLICIT_DISTRUST";    break;
+            case CERT_E_EXPIRED:                  pszErrConst = "CERT_E_EXPIRED";               break;
+            case CERT_E_VALIDITYPERIODNESTING:    pszErrConst = "CERT_E_VALIDITYPERIODNESTING"; break;
+            case CERT_E_ROLE:                     pszErrConst = "CERT_E_ROLE";                  break;
+            case CERT_E_PATHLENCONST:             pszErrConst = "CERT_E_PATHLENCONST";          break;
+            case CERT_E_CRITICAL:                 pszErrConst = "CERT_E_CRITICAL";              break;
+            case CERT_E_PURPOSE:                  pszErrConst = "CERT_E_PURPOSE";               break;
+            case CERT_E_ISSUERCHAINING:           pszErrConst = "CERT_E_ISSUERCHAINING";        break;
+            case CERT_E_MALFORMED:                pszErrConst = "CERT_E_MALFORMED";             break;
+            case CERT_E_UNTRUSTEDROOT:            pszErrConst = "CERT_E_UNTRUSTEDROOT";         break;
             case CERT_E_CHAINING:                 pszErrConst = "CERT_E_CHAINING";              break;
+            case CERT_E_REVOKED:                  pszErrConst = "CERT_E_REVOKED";               break;
+            case CERT_E_UNTRUSTEDTESTROOT:        pszErrConst = "CERT_E_UNTRUSTEDTESTROOT";     break;
             case CERT_E_REVOCATION_FAILURE:       pszErrConst = "CERT_E_REVOCATION_FAILURE";    break;
+            case CERT_E_CN_NO_MATCH:              pszErrConst = "CERT_E_CN_NO_MATCH";           break;
+            case CERT_E_WRONG_USAGE:              pszErrConst = "CERT_E_WRONG_USAGE";           break;
+            case CERT_E_UNTRUSTEDCA:              pszErrConst = "CERT_E_UNTRUSTEDCA";           break;
+            case CERT_E_INVALID_POLICY:           pszErrConst = "CERT_E_INVALID_POLICY";        break;
+            case CERT_E_INVALID_NAME:             pszErrConst = "CERT_E_INVALID_NAME";          break;
             case CRYPT_E_FILE_ERROR:              pszErrConst = "CRYPT_E_FILE_ERROR";           break;
             case CRYPT_E_REVOKED:                 pszErrConst = "CRYPT_E_REVOKED";              break;
         }
@@ -2620,11 +2636,13 @@ l_fresh_context:
  * This is used by supHardenedWinVerifyImageByLdrMod as well as
  * supR3HardenedScreenImage.
  *
- * @returns IPRT status code.
+ * @returns IPRT status code, modified @a rc.
  * @param   hFile               Handle of the file to verify.
  * @param   pwszName            Full NT path to the DLL in question, used for
  *                              dealing with unsigned system dlls as well as for
  *                              error/logging.
+ * @param   fFlags              SUPHNTVI_F_XXX.
+ * @param   rc                  The current status code.
  * @param   pfWinVerifyTrust    Where to return whether WinVerifyTrust was
  *                              actually used.
  * @param   pErrInfo            Pointer to error info structure. Optional.
@@ -2753,24 +2771,28 @@ DECLHIDDEN(bool) supHardenedWinIsWinVerifyTrustCallable(void)
  * Initializes g_uNtVerCombined and g_NtVerInfo.
  * Called from suplibHardenedWindowsMain and suplibOsInit.
  */
-DECLHIDDEN(void) supR3HardenedWinInitVersion(void)
+DECLHIDDEN(void) supR3HardenedWinInitVersion(bool fEarly)
 {
     /*
      * Get the windows version.  Use RtlGetVersion as GetVersionExW and
      * GetVersion might not be telling the whole truth (8.0 on 8.1 depending on
      * the application manifest).
+     *
+     * Note! Windows 10 build 14267+ touches BSS when calling RtlGetVersion, so we
+     *       have to use the fallback for the call from the early init code.
      */
     OSVERSIONINFOEXW NtVerInfo;
 
     RT_ZERO(NtVerInfo);
     NtVerInfo.dwOSVersionInfoSize = sizeof(RTL_OSVERSIONINFOEXW);
-    if (!NT_SUCCESS(RtlGetVersion((PRTL_OSVERSIONINFOW)&NtVerInfo)))
+    if (   fEarly
+        || !NT_SUCCESS(RtlGetVersion((PRTL_OSVERSIONINFOW)&NtVerInfo)))
     {
         RT_ZERO(NtVerInfo);
         PPEB pPeb = NtCurrentPeb();
         NtVerInfo.dwMajorVersion = pPeb->OSMajorVersion;
         NtVerInfo.dwMinorVersion = pPeb->OSMinorVersion;
-        NtVerInfo.dwBuildNumber  = pPeb->OSPlatformId;
+        NtVerInfo.dwBuildNumber  = pPeb->OSBuildNumber;
     }
 
     g_uNtVerCombined = SUP_MAKE_NT_VER_COMBINED(NtVerInfo.dwMajorVersion, NtVerInfo.dwMinorVersion, NtVerInfo.dwBuildNumber,

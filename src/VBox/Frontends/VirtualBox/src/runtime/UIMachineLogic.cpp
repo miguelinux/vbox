@@ -399,7 +399,10 @@ void UIMachineLogic::saveState()
         fSuccess = uisession()->pause();
     /* Save-state: */
     if (fSuccess)
+    {
+        LogRel(("GUI: Passing request to save VM state from machine-logic to UI session.\n"));
         fSuccess = uisession()->saveState();
+    }
 
     /* Disable 'manual-override' finally: */
     setManualOverrideMode(false);
@@ -429,6 +432,7 @@ void UIMachineLogic::powerOff(bool fDiscardingState)
     bool fSuccess = true;
     /* Power-off: */
     bool fServerCrashed = false;
+    LogRel(("GUI: Passing request to power VM off from machine-logic to UI session.\n"));
     fSuccess = uisession()->powerOff(fDiscardingState, fServerCrashed) || fServerCrashed;
 
     /* Disable 'manual-override' finally: */
@@ -463,6 +467,7 @@ void UIMachineLogic::closeRuntimeUI()
     }
 
     /* Asynchronously ask UISession to close Runtime UI: */
+    LogRel(("GUI: Passing request to close Runtime UI from machine-logic to UI session.\n"));
     QMetaObject::invokeMethod(uisession(), "sltCloseRuntimeUI", Qt::QueuedConnection);
 }
 
@@ -491,6 +496,7 @@ void UIMachineLogic::sltHandleVBoxSVCAvailabilityChange()
     msgCenter().warnAboutVBoxSVCUnavailable();
 
     /* Power VM off: */
+    LogRel(("GUI: Request to power VM off due to VBoxSVC is unavailable.\n"));
     powerOff(false);
 }
 
@@ -545,12 +551,16 @@ void UIMachineLogic::sltMachineStateChanged()
                 case GuruMeditationHandlerType_Default:
                 {
                     if (msgCenter().remindAboutGuruMeditation(QDir::toNativeSeparators(strLogFolder)))
+                    {
+                        LogRel(("GUI: User request to power VM off on Guru Meditation.\n"));
                         powerOff(false /* do NOT restore current snapshot */);
+                    }
                     break;
                 }
                 /* Power off VM silently: */
                 case GuruMeditationHandlerType_PowerOff:
                 {
+                    LogRel(("GUI: Automatic request to power VM off on Guru Meditation.\n"));
                     powerOff(false /* do NOT restore current snapshot */);
                     break;
                 }
@@ -617,6 +627,7 @@ void UIMachineLogic::sltMachineStateChanged()
                     }
                 }
 
+                LogRel(("GUI: Request to close Runtime UI because VM is powered off already.\n"));
                 closeRuntimeUI();
                 return;
             }
@@ -1193,6 +1204,18 @@ void UIMachineLogic::prepareDock()
     connect(gEDataManager, SIGNAL(sigDockIconAppearanceChange(bool)),
             this, SLOT(sltChangeDockIconUpdate(bool)));
 
+    /* Get dock icon disable overlay action: */
+    QAction *pDockIconDisableOverlay = actionPool()->action(UIActionIndexRT_M_Dock_M_DockSettings_T_DisableOverlay);
+    /* Prepare dock icon disable overlay action with initial data: */
+    pDockIconDisableOverlay->setChecked(gEDataManager->dockIconDisableOverlay(vboxGlobal().managedVMUuid()));
+    /* Connect dock icon disable overlay related signals: */
+    connect(pDockIconDisableOverlay, SIGNAL(triggered(bool)),
+            this, SLOT(sltDockIconDisableOverlayChanged(bool)));
+    connect(gEDataManager, SIGNAL(sigDockIconOverlayAppearanceChange(bool)),
+            this, SLOT(sltChangeDockIconOverlayAppearance(bool)));
+    /* Add dock icon disable overlay action to the dock settings menu: */
+    pDockSettingsMenu->addAction(pDockIconDisableOverlay);
+
     /* Monitor selection if there are more than one monitor */
     int cGuestScreens = machine().GetMonitorCount();
     if (cGuestScreens > 1)
@@ -1221,7 +1244,7 @@ void UIMachineLogic::prepareDock()
 
     /* Now the dock icon preview */
     QString osTypeId = guest().GetOSTypeId();
-    m_pDockIconPreview = new UIDockIconPreview(uisession(), vboxGlobal().vmGuestOSTypeIcon(osTypeId));
+    m_pDockIconPreview = new UIDockIconPreview(uisession(), vboxGlobal().vmGuestOSTypePixmapHiDPI(osTypeId, QSize(42, 42)));
 
     /* Should the dock-icon be updated at runtime? */
     bool fEnabled = gEDataManager->realtimeDockIconUpdateEnabled(vboxGlobal().managedVMUuid());
@@ -1431,11 +1454,13 @@ void UIMachineLogic::sltTypeCABS()
 
 void UIMachineLogic::sltTypeCtrlBreak()
 {
-    static QVector<LONG> sequence(4);
+    static QVector<LONG> sequence(6);
     sequence[0] = 0x1d;        /* Ctrl down */
-    sequence[1] = 0x46;        /* Break down */
-    sequence[2] = 0x46 | 0x80; /* Break up */
-    sequence[3] = 0x1d | 0x80; /* Ctrl up */
+    sequence[1] = 0xe0;        /* Extended flag */
+    sequence[2] = 0x46;        /* Break down */
+    sequence[3] = 0xe0;        /* Extended flag */
+    sequence[4] = 0x46 | 0x80; /* Break up */
+    sequence[5] = 0x1d | 0x80; /* Ctrl up */
     keyboard().PutScancodes(sequence);
     AssertWrapperOk(keyboard());
 }
@@ -1566,6 +1591,7 @@ void UIMachineLogic::sltPowerOff()
         return;
     }
 
+    LogRel(("GUI: User request to power VM off.\n"));
     powerOff(machine().GetSnapshotCount() > 0);
 }
 
@@ -1596,6 +1622,7 @@ void UIMachineLogic::sltClose()
     }
 
     /* Try to close active machine-window: */
+    LogRel(("GUI: Request to close active machine-window.\n"));
     activeMachineWindow()->close();
 }
 
@@ -1645,10 +1672,24 @@ void UIMachineLogic::sltTakeScreenshot()
     if (!isMachineWindowsCreated())
         return;
 
+    /* Formatting default filename for screenshot. VM folder is the default directory to save: */
+    const QFileInfo fi(machine().GetSettingsFilePath());
+    const QString strCurrentTime = QDateTime::currentDateTime().toString("dd_MM_yyyy_hh_mm_ss");
+    const QString strFormatDefaultFileName = QString("VirtualBox").append("_").append(machine().GetName()).append("_").append(strCurrentTime);
+    const QString strDefaultFileName = QDir(fi.absolutePath()).absoluteFilePath(strFormatDefaultFileName);
+
+    /* Formatting temporary filename for screenshot. It is saved in system temporary directory if available, else in VM folder: */
+    QString strTempFile = QDir(fi.absolutePath()).absoluteFilePath("temp").append("_").append(strCurrentTime).append(".png");
+    if (QDir::temp().exists())
+        strTempFile = QDir::temp().absoluteFilePath("temp").append("_").append(strCurrentTime).append(".png");
+
+    /* Do the screenshot: */
+    takeScreenshot(strTempFile, "png");
+
     /* Which image formats for writing does this Qt version know of? */
     QList<QByteArray> formats = QImageWriter::supportedImageFormats();
     QStringList filters;
-    /* Build a filters list out of it. */
+    /* Build a filters list out of it: */
     for (int i = 0; i < formats.size(); ++i)
     {
         const QString &s = formats.at(i) + " (*." + formats.at(i).toLower() + ")";
@@ -1656,7 +1697,7 @@ void UIMachineLogic::sltTakeScreenshot()
         if (filters.indexOf(QRegExp(QRegExp::escape(s), Qt::CaseInsensitive)) == -1)
             filters << s;
     }
-    /* Try to select some common defaults. */
+    /* Try to select some common defaults: */
     QString strFilter;
     int i = filters.indexOf(QRegExp(".*png.*", Qt::CaseInsensitive));
     if (i == -1)
@@ -1680,18 +1721,14 @@ void UIMachineLogic::sltTakeScreenshot()
         activeMachineWindow()->machineView()->clearFocus();
 #endif /* Q_WS_WIN */
 
-    /* Request the filename from the user. */
-    QFileInfo fi(machine().GetSettingsFilePath());
-    QString strAbsolutePath(fi.absolutePath());
-    QString strCompleteBaseName(fi.completeBaseName());
-    QString strStart = QDir(strAbsolutePath).absoluteFilePath(strCompleteBaseName);
-    QString strFilename = QIFileDialog::getSaveFileName(strStart,
-                                                        filters.join(";;"),
-                                                        activeMachineWindow(),
-                                                        tr("Select a filename for the screenshot ..."),
-                                                        &strFilter,
-                                                        true /* resolve symlinks */,
-                                                        true /* confirm overwrite */);
+    /* Request the filename from the user: */
+    const QString strFilename = QIFileDialog::getSaveFileName(strDefaultFileName,
+                                                              filters.join(";;"),
+                                                              activeMachineWindow(),
+                                                              tr("Select a filename for the screenshot ..."),
+                                                              &strFilter,
+                                                              true /* resolve symlinks */,
+                                                              true /* confirm overwrite */);
 
 #ifdef Q_WS_WIN
     /* Due to Qt bug, modal QFileDialog appeared above the active machine-window
@@ -1703,9 +1740,26 @@ void UIMachineLogic::sltTakeScreenshot()
         activeMachineWindow()->machineView()->setFocus();
 #endif /* Q_WS_WIN */
 
-    /* Do the screenshot. */
     if (!strFilename.isEmpty())
-        takeScreenshot(strFilename, strFilter.split(" ").value(0, "png"));
+    {
+        const QString strFormat = strFilter.split(" ").value(0, "png");
+        const QImage tmpImage(strTempFile);
+
+        /* On X11 Qt Filedialog returns the filepath without the filetype suffix, so adding it ourselves: */
+#ifdef Q_WS_X11
+        /* Add filetype suffix only if user has not added it explicitly: */
+        if (!strFilename.endsWith(QString(".%1").arg(strFormat)))
+            tmpImage.save(QDir::toNativeSeparators(QFile::encodeName(QString("%1.%2").arg(strFilename, strFormat))),
+                          strFormat.toAscii().constData());
+        else
+            tmpImage.save(QDir::toNativeSeparators(QFile::encodeName(strFilename)),
+                          strFormat.toAscii().constData());
+#else /* !Q_WS_X11 */
+        tmpImage.save(QDir::toNativeSeparators(QFile::encodeName(strFilename)),
+                      strFormat.toAscii().constData());
+#endif /* !Q_WS_X11 */
+    }
+    QFile::remove(strTempFile);
 }
 
 void UIMachineLogic::sltOpenVideoCaptureOptions()
@@ -2100,17 +2154,50 @@ void UIMachineLogic::sltChangeDockIconUpdate(bool fEnabled)
         updateDockOverlay();
     }
 }
+
+void UIMachineLogic::sltChangeDockIconOverlayAppearance(bool fDisabled)
+{
+    /* Update dock icon overlay: */
+    if (isMachineWindowsCreated())
+        updateDockOverlay();
+    /* Make sure to update dock icon disable overlay action state when 'GUI_DockIconDisableOverlay' changed from extra-data manager: */
+    QAction *pDockIconDisableOverlay = actionPool()->action(UIActionIndexRT_M_Dock_M_DockSettings_T_DisableOverlay);
+    if (fDisabled != pDockIconDisableOverlay->isChecked())
+    {
+        /* Block signals initially to avoid recursive loop: */
+        pDockIconDisableOverlay->blockSignals(true);
+        /* Update state: */
+        pDockIconDisableOverlay->setChecked(fDisabled);
+        /* Make sure to unblock signals again: */
+        pDockIconDisableOverlay->blockSignals(false);
+    }
+}
+
+void UIMachineLogic::sltDockIconDisableOverlayChanged(bool fDisabled)
+{
+    /* Write dock icon disable overlay flag to extra-data: */
+    gEDataManager->setDockIconDisableOverlay(fDisabled, vboxGlobal().managedVMUuid());
+}
 #endif /* Q_WS_MAC */
 
 void UIMachineLogic::sltSwitchKeyboardLedsToGuestLeds()
 {
+    /* Due to async nature of that feature
+     * it can happen that this slot is called when machine-window is
+     * minimized or not active anymore, we should ignore those cases. */
+    QWidget *pActiveWindow = QApplication::activeWindow();
+    if (   !pActiveWindow                                 // no window is active anymore
+        || !qobject_cast<UIMachineWindow*>(pActiveWindow) // window is not machine one
+        || pActiveWindow->isMinimized())                  // window is minimized
+    {
+        LogRel2(("GUI: HID LEDs Sync: skipping sync because active window is lost or minimized!\n"));
+        return;
+    }
 //    /* Log statement (printf): */
 //    QString strDt = QDateTime::currentDateTime().toString("HH:mm:ss:zzz");
 //    printf("%s: UIMachineLogic: sltSwitchKeyboardLedsToGuestLeds called, machine name is {%s}\n",
 //           strDt.toAscii().constData(),
 //           machineName().toAscii().constData());
-
-    /* Here we have to store host LED lock states. */
 
     /* Here we have to update host LED lock states using values provided by UISession registry.
      * [bool] uisession() -> isNumLock(), isCapsLock(), isScrollLock() can be used for that. */
@@ -2145,18 +2232,23 @@ void UIMachineLogic::sltSwitchKeyboardLedsToPreviousLeds()
         return;
 
     /* Here we have to restore host LED lock states. */
-    if (m_pHostLedsState)
+    void *pvLedState = m_pHostLedsState;
+    if (pvLedState)
     {
+        /* bird: I've observed recursive calls here when setting m_pHostLedsState to NULL after calling
+                 WinHidDevicesApplyAndReleaseLedsState.  The result is a double free(), which the CRT
+                 usually detects and I could see this->m_pHostLedsState == NULL.  The windows function
+                 does dispatch loop fun, that's probably the reason for it.  Hopefully not an issue on OS X. */
+        m_pHostLedsState = NULL;
 #if defined(Q_WS_MAC)
-        DarwinHidDevicesApplyAndReleaseLedsState(m_pHostLedsState);
+        DarwinHidDevicesApplyAndReleaseLedsState(pvLedState);
 #elif defined(Q_WS_WIN)
         keyboardHandler()->winSkipKeyboardEvents(true);
-        WinHidDevicesApplyAndReleaseLedsState(m_pHostLedsState);
+        WinHidDevicesApplyAndReleaseLedsState(pvLedState);
         keyboardHandler()->winSkipKeyboardEvents(false);
 #else
         LogRelFlow(("UIMachineLogic::sltSwitchKeyboardLedsToPreviousLeds: restore host LED lock states does not supported on this platform\n"));
 #endif
-        m_pHostLedsState = NULL;
     }
 }
 
@@ -2531,6 +2623,7 @@ void UIMachineLogic::askUserForTheDiskEncryptionPasswords()
                 delete pDlg;
 
                 /* Propose the user to close VM: */
+                LogRel(("GUI: Request to close Runtime UI due to DEK was not provided.\n"));
                 QMetaObject::invokeMethod(this, "sltClose", Qt::QueuedConnection);
             }
         }

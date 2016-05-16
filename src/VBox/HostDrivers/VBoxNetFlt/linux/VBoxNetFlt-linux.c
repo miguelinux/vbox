@@ -23,6 +23,7 @@
 #define VBOXNETFLT_LINUX_NO_XMIT_QUEUE
 #include "the-linux-kernel.h"
 #include "version-generated.h"
+#include "revision-generated.h"
 #include "product-generated.h"
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 24)
 #include <linux/nsproxy.h>
@@ -35,6 +36,9 @@
 #include <linux/in.h>
 #include <linux/ip.h>
 #include <linux/if_vlan.h>
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 5, 0)
+#include <uapi/linux/pkt_cls.h>
+#endif
 #include <net/ipv6.h>
 #include <net/if_inet6.h>
 #include <net/addrconf.h>
@@ -65,12 +69,6 @@ typedef struct VBOXNETFLTNOTIFIER {
     PVBOXNETFLTINS pThis;
 } VBOXNETFLTNOTIFIER;
 typedef struct VBOXNETFLTNOTIFIER *PVBOXNETFLTNOTIFIER;
-
-
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 20, 0)
-# define vlan_tx_tag_get(skb)       skb_vlan_tag_get(skb)
-# define vlan_tx_tag_present(skb)   skb_vlan_tag_present(skb)
-#endif
 
 
 /*********************************************************************************************************************************
@@ -128,6 +126,21 @@ typedef struct VBOXNETFLTNOTIFIER *PVBOXNETFLTNOTIFIER;
 # endif
 #endif
 
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 20, 0)
+# define VBOX_HAVE_SKB_VLAN
+#else
+# ifdef RHEL_RELEASE_CODE
+#  if RHEL_RELEASE_CODE >= RHEL_RELEASE_VERSION(7, 2)
+#   define VBOX_HAVE_SKB_VLAN
+#  endif
+# endif
+#endif
+
+#ifdef VBOX_HAVE_SKB_VLAN
+# define vlan_tx_tag_get(skb)       skb_vlan_tag_get(skb)
+# define vlan_tx_tag_present(skb)   skb_vlan_tag_present(skb)
+#endif
+
 #ifndef NET_IP_ALIGN
 # define NET_IP_ALIGN 2
 #endif
@@ -139,6 +152,7 @@ typedef struct VBOXNETFLTNOTIFIER *PVBOXNETFLTNOTIFIER;
 #endif
 
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 18)
+
 /** Indicates that the linux kernel may send us GSO frames. */
 # define VBOXNETFLT_WITH_GSO                1
 
@@ -156,12 +170,13 @@ typedef struct VBOXNETFLTNOTIFIER *PVBOXNETFLTNOTIFIER;
  *  to the internal network.  */
 # define VBOXNETFLT_WITH_GSO_RECV           1
 
-#endif
+#endif /* LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 18) */
 
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 29)
 /** This enables or disables handling of GSO frames coming from the wire (GRO). */
 # define VBOXNETFLT_WITH_GRO                1
 #endif
+
 /*
  * GRO support was backported to RHEL 5.4
  */
@@ -195,7 +210,7 @@ MODULE_AUTHOR(VBOX_VENDOR);
 MODULE_DESCRIPTION(VBOX_PRODUCT " Network Filter Driver");
 MODULE_LICENSE("GPL");
 #ifdef MODULE_VERSION
-MODULE_VERSION(VBOX_VERSION_STRING " (" RT_XSTR(INTNETTRUNKIFPORT_VERSION) ")");
+MODULE_VERSION(VBOX_VERSION_STRING " r" RT_XSTR(VBOX_SVN_REV) " (" RT_XSTR(INTNETTRUNKIFPORT_VERSION) ")");
 #endif
 
 
@@ -770,11 +785,10 @@ static struct sk_buff *vboxNetFltLinuxSkBufFromSG(PVBOXNETFLTINS pThis, PINTNETS
  * @param   pThis               The instance.
  * @param   pBuf                The sk_buff.
  * @param   pSG                 The SG.
- * @param   pvFrame             The frame pointer, optional.
  * @param   cSegs               The number of segments allocated for the SG.
  *                              This should match the number in the mbuf exactly!
  * @param   fSrc                The source of the frame.
- * @param   pGso                Pointer to the GSO context if it's a GSO
+ * @param   pGsoCtx             Pointer to the GSO context if it's a GSO
  *                              internal network frame.  NULL if regular frame.
  */
 DECLINLINE(void) vboxNetFltLinuxSkBufToSG(PVBOXNETFLTINS pThis, struct sk_buff *pBuf, PINTNETSG pSG,
@@ -845,14 +859,9 @@ DECLINLINE(void) vboxNetFltLinuxSkBufToSG(PVBOXNETFLTINS pThis, struct sk_buff *
 }
 
 /**
- * Packet handler,
+ * Packet handler; not really documented - figure it out yourself.
  *
- * @returns 0 or EJUSTRETURN.
- * @param   pThis           The instance.
- * @param   pMBuf           The mbuf.
- * @param   pvFrame         The start of the frame, optional.
- * @param   fSrc            Where the packet (allegedly) comes from, one INTNETTRUNKDIR_* value.
- * @param   eProtocol       The protocol.
+ * @returns 0 or EJUSTRETURN - this is probably copy & pastry and thus wrong.
  */
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 14)
 static int vboxNetFltLinuxPacketHandler(struct sk_buff *pBuf,
@@ -1371,7 +1380,9 @@ static int vboxNetFltLinuxForwardSegment(PVBOXNETFLTINS pThis, struct sk_buff *p
 }
 
 /**
+ * I won't disclose what I do, figure it out yourself, including pThis referencing.
  *
+ * @param   pThis       The net filter instance.
  * @param   pBuf        The socket buffer.  This is consumed by this function.
  */
 static void vboxNetFltLinuxForwardToIntNet(PVBOXNETFLTINS pThis, struct sk_buff *pBuf)
@@ -1608,8 +1619,7 @@ static void vboxNetFltSetLinkState(PVBOXNETFLTINS pThis, struct net_device *pDev
  *
  * @returns VBox status code.
  * @param   pThis           The instance.
- * @param   fRediscovery    If set we're doing a rediscovery attempt, so, don't
- *                          flood the release log.
+ * @param   pDev            The device to attach to.
  */
 static int vboxNetFltLinuxAttachToInterface(PVBOXNETFLTINS pThis, struct net_device *pDev)
 {

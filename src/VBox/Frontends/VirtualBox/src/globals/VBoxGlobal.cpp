@@ -51,7 +51,6 @@
 
 /* GUI includes: */
 # include "VBoxGlobal.h"
-# include "VBoxUtils.h"
 # include "UISelectorWindow.h"
 # include "UIMessageCenter.h"
 # include "UIPopupCenter.h"
@@ -145,9 +144,6 @@
 
 #include <QLibraryInfo>
 #include <QProgressDialog>
-#ifdef VBOX_GUI_WITH_NETWORK_MANAGER
-# include <QNetworkProxy>
-#endif /* VBOX_GUI_WITH_NETWORK_MANAGER */
 #include <QSettings>
 #include <QStyleOptionSpinBox>
 
@@ -632,8 +628,8 @@ QList<ulong> XGetStrut(Window window)
 QList<CGuestOSType> VBoxGlobal::vmGuestOSFamilyList() const
 {
     QList<CGuestOSType> result;
-    for (int i = 0; i < mFamilyIDs.size(); ++i)
-        result << mTypes[i][0];
+    for (int i = 0; i < m_guestOSFamilyIDs.size(); ++i)
+        result << m_guestOSTypes[i][0];
     return result;
 }
 
@@ -643,9 +639,9 @@ QList<CGuestOSType> VBoxGlobal::vmGuestOSFamilyList() const
  */
 QList<CGuestOSType> VBoxGlobal::vmGuestOSTypeList(const QString &aFamilyId) const
 {
-    AssertMsg(mFamilyIDs.contains(aFamilyId), ("Family ID incorrect: '%s'.", aFamilyId.toLatin1().constData()));
-    return mFamilyIDs.contains(aFamilyId) ?
-           mTypes[mFamilyIDs.indexOf(aFamilyId)] : QList<CGuestOSType>();
+    AssertMsg(m_guestOSFamilyIDs.contains(aFamilyId), ("Family ID incorrect: '%s'.", aFamilyId.toLatin1().constData()));
+    return m_guestOSFamilyIDs.contains(aFamilyId) ?
+           m_guestOSTypes[m_guestOSFamilyIDs.indexOf(aFamilyId)] : QList<CGuestOSType>();
 }
 
 QPixmap VBoxGlobal::vmGuestOSTypeIcon(const QString &strOSTypeID, QSize *pLogicalSize /* = 0 */) const
@@ -660,6 +656,30 @@ QPixmap VBoxGlobal::vmGuestOSTypeIcon(const QString &strOSTypeID, QSize *pLogica
     return m_pIconPool->guestOSTypeIcon(strOSTypeID, pLogicalSize);
 }
 
+QPixmap VBoxGlobal::vmGuestOSTypePixmap(const QString &strOSTypeID, const QSize &physicalSize) const
+{
+    /* Prepare fallback pixmap: */
+    static QPixmap nullPixmap;
+
+    /* Make sure general icon-pool initialized: */
+    AssertReturn(m_pIconPool, nullPixmap);
+
+    /* Redirect to general icon-pool: */
+    return m_pIconPool->guestOSTypePixmap(strOSTypeID, physicalSize);
+}
+
+QPixmap VBoxGlobal::vmGuestOSTypePixmapHiDPI(const QString &strOSTypeID, const QSize &physicalSize) const
+{
+    /* Prepare fallback pixmap: */
+    static QPixmap nullPixmap;
+
+    /* Make sure general icon-pool initialized: */
+    AssertReturn(m_pIconPool, nullPixmap);
+
+    /* Redirect to general icon-pool: */
+    return m_pIconPool->guestOSTypePixmapHiDPI(strOSTypeID, physicalSize);
+}
+
 /**
  *  Returns the guest OS type object corresponding to the given type id of list
  *  containing OS types related to OS family determined by family id attribute.
@@ -669,14 +689,14 @@ CGuestOSType VBoxGlobal::vmGuestOSType(const QString &aTypeId,
              const QString &aFamilyId /* = QString::null */) const
 {
     QList <CGuestOSType> list;
-    if (mFamilyIDs.contains (aFamilyId))
+    if (m_guestOSFamilyIDs.contains (aFamilyId))
     {
-        list = mTypes [mFamilyIDs.indexOf (aFamilyId)];
+        list = m_guestOSTypes [m_guestOSFamilyIDs.indexOf (aFamilyId)];
     }
     else
     {
-        for (int i = 0; i < mFamilyIDs.size(); ++ i)
-            list += mTypes [i];
+        for (int i = 0; i < m_guestOSFamilyIDs.size(); ++ i)
+            list += m_guestOSTypes [i];
     }
     for (int j = 0; j < list.size(); ++ j)
         if (!list [j].GetId().compare (aTypeId))
@@ -690,9 +710,9 @@ CGuestOSType VBoxGlobal::vmGuestOSType(const QString &aTypeId,
  */
 QString VBoxGlobal::vmGuestOSTypeDescription (const QString &aTypeId) const
 {
-    for (int i = 0; i < mFamilyIDs.size(); ++ i)
+    for (int i = 0; i < m_guestOSFamilyIDs.size(); ++ i)
     {
-        QList <CGuestOSType> list (mTypes [i]);
+        QList <CGuestOSType> list (m_guestOSTypes [i]);
         for ( int j = 0; j < list.size(); ++ j)
             if (!list [j].GetId().compare (aTypeId))
                 return list [j].GetDescription();
@@ -867,8 +887,14 @@ QString VBoxGlobal::details (const CUSBDevice &aDevice) const
         sDetails = tr("Unknown device", "USB device details");
     else
     {
-        QString m = aDevice.GetManufacturer().trimmed();
-        QString p = aDevice.GetProduct().trimmed();
+        QVector<QString> devInfoVector = aDevice.GetDeviceInfo();
+        QString m;
+        QString p;
+
+        if (devInfoVector.size() >= 1)
+            m = devInfoVector[0].trimmed();
+        if (devInfoVector.size() >= 2)
+            p = devInfoVector[1].trimmed();
 
         if (m.isEmpty() && p.isEmpty())
         {
@@ -1555,40 +1581,6 @@ CSession VBoxGlobal::openSession(const QString &strId, KLockType lockType /* = K
     return session;
 }
 
-#ifdef VBOX_GUI_WITH_NETWORK_MANAGER
-void VBoxGlobal::reloadProxySettings()
-{
-    UIProxyManager proxyManager(settings().proxySettings());
-    if (proxyManager.authEnabled())
-    {
-        proxyManager.setAuthEnabled(false);
-        proxyManager.setAuthLogin(QString());
-        proxyManager.setAuthPassword(QString());
-        VBoxGlobalSettings globalSettings = settings();
-        globalSettings.setProxySettings(proxyManager.toString());
-        vboxGlobal().setSettings(globalSettings);
-    }
-    if (proxyManager.proxyEnabled())
-    {
-#if 0
-        QNetworkProxy::setApplicationProxy(QNetworkProxy(QNetworkProxy::HttpProxy,
-                                                         proxyManager.proxyHost(),
-                                                         proxyManager.proxyPort().toInt(),
-                                                         proxyManager.authEnabled() ? proxyManager.authLogin() : QString(),
-                                                         proxyManager.authEnabled() ? proxyManager.authPassword() : QString()));
-#else
-        QNetworkProxy::setApplicationProxy(QNetworkProxy(QNetworkProxy::HttpProxy,
-                                                         proxyManager.proxyHost(),
-                                                         proxyManager.proxyPort().toInt()));
-#endif
-    }
-    else
-    {
-        QNetworkProxy::setApplicationProxy(QNetworkProxy(QNetworkProxy::NoProxy));
-    }
-}
-#endif /* VBOX_GUI_WITH_NETWORK_MANAGER */
-
 void VBoxGlobal::createMedium(const UIMedium &medium)
 {
     if (m_mediumEnumeratorDtorRwLock.tryLockForRead())
@@ -1757,7 +1749,7 @@ QString VBoxGlobal::openMedium(UIMediumType mediumType, QString strMediumLocatio
     return QString();
 }
 
-void VBoxGlobal::startMediumEnumeration(bool fForceStart /* = true*/)
+void VBoxGlobal::startMediumEnumeration()
 {
     /* Make sure VBoxGlobal is already valid: */
     AssertReturnVoid(mValid);
@@ -1777,10 +1769,6 @@ void VBoxGlobal::startMediumEnumeration(bool fForceStart /* = true*/)
     /* If asked to restore snapshot, don't do this till *after* we're done
      * restoring or the code with have a heart attack. */
     if (shouldRestoreCurrentSnapshot())
-        return;
-
-    /* Developer doesn't want any unnecessary media caching! */
-    if (!fForceStart && !agressiveCaching())
         return;
 
     if (m_mediumEnumeratorDtorRwLock.tryLockForRead())
@@ -2112,6 +2100,13 @@ void VBoxGlobal::updateMachineStorage(const CMachine &constMachine, const UIMedi
                     msgCenter().cannotRemountMedium(machine, vboxGlobal().medium(strActualID),
                                                     fMount, false /* retry? */);
             }
+        }
+        /* If mounting was successful: */
+        if (fWasMounted)
+        {
+            /* Disable First RUN Wizard: */
+            if (gEDataManager->machineFirstTimeStarted(machine.GetId()))
+                gEDataManager->setMachineFirstTimeStarted(false, machine.GetId());
         }
     }
 
@@ -3869,14 +3864,6 @@ void VBoxGlobal::sltGUILanguageChange(QString strLang)
     loadLanguage(strLang);
 }
 
-void VBoxGlobal::sltProcessGlobalSettingChange()
-{
-#ifdef VBOX_GUI_WITH_NETWORK_MANAGER
-    /* Reload proxy settings: */
-    reloadProxySettings();
-#endif /* VBOX_GUI_WITH_NETWORK_MANAGER */
-}
-
 // Protected members
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -4025,12 +4012,8 @@ void VBoxGlobal::prepare()
         msgCenter().cannotCreateVirtualBoxClient(m_client);
         return;
     }
-    /* Fetch corresponding objects/values: */
-    m_vbox = virtualBoxClient().GetVirtualBox();
-    m_host = virtualBox().GetHost();
-    m_strHomeFolder = virtualBox().GetHomeFolder();
-    /* Mark wrappers valid: */
-    m_fWrappersValid = true;
+    /* Init wrappers: */
+    comWrappersReinit();
 
     /* Watch for the VBoxSVC availability changes: */
     connect(gVBoxEvents, SIGNAL(sigVBoxSVCAvailabilityChange(bool)),
@@ -4059,33 +4042,6 @@ void VBoxGlobal::prepare()
 
     connect(gEDataManager, SIGNAL(sigLanguageChange(QString)),
             this, SLOT(sltGUILanguageChange(QString)));
-
-    /* Initialize guest OS Type list. */
-    CGuestOSTypeVector coll = m_vbox.GetGuestOSTypes();
-    int osTypeCount = coll.size();
-    AssertMsg(osTypeCount > 0, ("Number of OS types must not be zero"));
-    if (osTypeCount > 0)
-    {
-        /* Here we ASSUME the 'Other' types are always the first, so we
-         * remember it and will append it to the list when finished.
-         * We do a two pass, first adding the specific types, then the two
-         * 'Other' types. */
-        for (int j = 0; j < 2; j++)
-        {
-            int cMax = j == 0 ? coll.size() : RT_MIN(2, coll.size());
-            for (int i = j == 0 ? 2 : 0; i < cMax; ++i)
-            {
-                CGuestOSType os = coll[i];
-                QString familyId(os.GetFamilyId());
-                if (!mFamilyIDs.contains(familyId))
-                {
-                    mFamilyIDs << familyId;
-                    mTypes << QList<CGuestOSType>();
-                }
-                mTypes[mFamilyIDs.indexOf(familyId)].append(os);
-            }
-        }
-    }
 
     qApp->installEventFilter (this);
 
@@ -4351,10 +4307,7 @@ void VBoxGlobal::prepare()
 
     UIConverter::prepare();
 
-    /* Cache IMedium data.
-     * There could be no used mediums at all,
-     * but this method should be run anyway just to enumerate null UIMedium object,
-     * used by some VBox smart widgets, like VBoxMediaComboBox: */
+    /* Create medium enumerator but don't do any immediate caching. */
     m_pMediumEnumerator = new UIMediumEnumerator;
     {
         /* Prepare medium-enumerator: */
@@ -4369,14 +4322,6 @@ void VBoxGlobal::prepare()
         connect(m_pMediumEnumerator, SIGNAL(sigMediumEnumerationFinished()),
                 this, SIGNAL(sigMediumEnumerationFinished()));
     }
-    if (agressiveCaching())
-        startMediumEnumeration();
-
-    /* Prepare global settings change handler: */
-    connect(&settings(), SIGNAL(propertyChanged(const char*, const char*)),
-            this, SLOT(sltProcessGlobalSettingChange()));
-    /* Handle global settings change for the first time: */
-    sltProcessGlobalSettingChange();
 
     /* Create shortcut pool: */
     UIShortcutPool::create();
@@ -4422,6 +4367,11 @@ void VBoxGlobal::cleanup()
         UISelectorWindow::destroy();
     if (gpMachine)
         UIMachine::destroy();
+    /* As part of recent change UIVirtualBoxEventHandler also used in runtimeUI.
+     * This needs to be destroyed before COM cleanup. As this is supposed to be only part of selectorUI,
+     * and needs to be reworked later doing this here for now: */
+    if (gpMachine)
+        UIVirtualBoxEventHandler::destroy();
 
     /* Cleanup medium-enumerator: */
     m_mediumEnumeratorDtorRwLock.lockForWrite();
@@ -4443,8 +4393,8 @@ void VBoxGlobal::cleanup()
     m_pIconPool = 0;
 
     /* ensure CGuestOSType objects are no longer used */
-    mFamilyIDs.clear();
-    mTypes.clear();
+    m_guestOSFamilyIDs.clear();
+    m_guestOSTypes.clear();
 
     /* Starting COM cleanup: */
     m_comCleanupProtectionToken.lockForWrite();
@@ -4498,12 +4448,8 @@ void VBoxGlobal::sltHandleVBoxSVCAvailabilityChange(bool fAvailable)
     {
         if (!m_fWrappersValid)
         {
-            /* Re-fetch corresponding objects/values: */
-            m_vbox = virtualBoxClient().GetVirtualBox();
-            m_host = virtualBox().GetHost();
-            m_strHomeFolder = virtualBox().GetHomeFolder();
-            /* Mark wrappers valid: */
-            m_fWrappersValid = true;
+            /* Re-init wrappers: */
+            comWrappersReinit();
 
             /* If that is Selector UI: */
             if (!isVMConsoleProcess())
@@ -4517,6 +4463,45 @@ void VBoxGlobal::sltHandleVBoxSVCAvailabilityChange(bool fAvailable)
 
     /* Notify listeners about the VBoxSVC availability change: */
     emit sigVBoxSVCAvailabilityChange();
+}
+
+void VBoxGlobal::comWrappersReinit()
+{
+    /* Re-fetch corresponding objects/values: */
+    m_vbox = virtualBoxClient().GetVirtualBox();
+    m_host = virtualBox().GetHost();
+    m_strHomeFolder = virtualBox().GetHomeFolder();
+
+    /* Re-initialize guest OS Type list: */
+    m_guestOSFamilyIDs.clear();
+    m_guestOSTypes.clear();
+    const CGuestOSTypeVector guestOSTypes = m_vbox.GetGuestOSTypes();
+    const int cGuestOSTypeCount = guestOSTypes.size();
+    AssertMsg(cGuestOSTypeCount > 0, ("Number of OS types must not be zero"));
+    if (cGuestOSTypeCount > 0)
+    {
+        /* Here we ASSUME the 'Other' types are always the first,
+         * so we remember them and will append them to the list when finished.
+         * We do a two pass, first adding the specific types, then the two 'Other' types. */
+        for (int j = 0; j < 2; ++j)
+        {
+            int cMax = j == 0 ? cGuestOSTypeCount : RT_MIN(2, cGuestOSTypeCount);
+            for (int i = j == 0 ? 2 : 0; i < cMax; ++i)
+            {
+                const CGuestOSType os = guestOSTypes.at(i);
+                const QString strFamilyID = os.GetFamilyId();
+                if (!m_guestOSFamilyIDs.contains(strFamilyID))
+                {
+                    m_guestOSFamilyIDs << strFamilyID;
+                    m_guestOSTypes << QList<CGuestOSType>();
+                }
+                m_guestOSTypes[m_guestOSFamilyIDs.indexOf(strFamilyID)].append(os);
+            }
+        }
+    }
+
+    /* Mark wrappers valid: */
+    m_fWrappersValid = true;
 }
 
 #ifdef VBOX_WITH_DEBUGGER_GUI
@@ -4632,7 +4617,7 @@ bool VBoxGlobal::isDebuggerWorker(int *piDbgCfgVar, const char *pszExtraDataName
 
 #endif /* VBOX_WITH_DEBUGGER_GUI */
 
-bool VBoxGlobal::showUI()
+void VBoxGlobal::showUI()
 {
     /* Load application settings: */
     VBoxGlobalSettings appSettings = settings();
@@ -4640,11 +4625,11 @@ bool VBoxGlobal::showUI()
     /* Show Selector UI: */
     if (!isVMConsoleProcess())
     {
-        /* Make sure Selector UI is permitted: */
+        /* Make sure Selector UI is permitted, quit if not: */
         if (appSettings.isFeatureActive("noSelector"))
         {
             msgCenter().cannotStartSelector();
-            return false;
+            return QApplication::quit();
         }
 
 #ifdef VBOX_BLEEDING_EDGE
@@ -4666,13 +4651,10 @@ bool VBoxGlobal::showUI()
     /* Show Runtime UI: */
     else
     {
-        /* Make sure machine is started: */
+        /* Make sure machine is started, quit if not: */
         if (!UIMachine::startMachine(vboxGlobal().managedVMUuid()))
-            return false;
+            return QApplication::quit();
     }
-
-    /* True by default: */
-    return true;
 }
 
 bool VBoxGlobal::switchToMachine(CMachine &machine)

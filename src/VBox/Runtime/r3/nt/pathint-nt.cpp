@@ -46,6 +46,7 @@ static char const g_szPrefix[]    = "\\??\\";
 
 /**
  * Handles the pass thru case for UTF-8 input.
+ * Win32 path uses "\\?\" prefix which is converted to "\??\" NT prefix.
  *
  * @returns IPRT status code.
  * @param   pNtName             Where to return the NT name.
@@ -56,14 +57,15 @@ static int rtNtPathFromWinUtf8PassThru(struct _UNICODE_STRING *pNtName, PHANDLE 
 {
     PRTUTF16 pwszPath = NULL;
     size_t   cwcLen;
-    int rc = RTStrToUtf16Ex(pszPath + 1, RTSTR_MAX, &pwszPath, 0, &cwcLen);
+    int rc = RTStrToUtf16Ex(pszPath, RTSTR_MAX, &pwszPath, 0, &cwcLen);
     if (RT_SUCCESS(rc))
     {
         if (cwcLen < _32K - 1)
         {
             pwszPath[0] = '\\';
-            pwszPath[1] = '.';
-            pwszPath[2] = '\\';
+            pwszPath[1] = '?';
+            pwszPath[2] = '?';
+            pwszPath[3] = '\\';
 
             pNtName->Buffer = pwszPath;
             pNtName->Length = (uint16_t)(cwcLen * sizeof(RTUTF16));
@@ -81,6 +83,7 @@ static int rtNtPathFromWinUtf8PassThru(struct _UNICODE_STRING *pNtName, PHANDLE 
 
 /**
  * Handles the pass thru case for UTF-16 input.
+ * Win32 path uses "\\?\" prefix which is converted to "\??\" NT prefix.
  *
  * @returns IPRT status code.
  * @param   pNtName             Where to return the NT name.
@@ -91,10 +94,6 @@ static int rtNtPathFromWinUtf8PassThru(struct _UNICODE_STRING *pNtName, PHANDLE 
 static int rtNtPathFromWinUtf16PassThru(struct _UNICODE_STRING *pNtName, PHANDLE phRootDir,
                                         PCRTUTF16 pwszWinPath, size_t cwcWinPath)
 {
-    /* Drop a character because: \\?\ -> \.\ */
-    pwszWinPath++;
-    cwcWinPath--;
-
     /* Check length and allocate memory for it. */
     int rc;
     if (cwcWinPath < _32K - 1)
@@ -104,9 +103,10 @@ static int rtNtPathFromWinUtf16PassThru(struct _UNICODE_STRING *pNtName, PHANDLE
         {
             /* Intialize the path. */
             pwszNtPath[0] = '\\';
-            pwszNtPath[1] = '.';
-            pwszNtPath[2] = '\\';
-            memcpy(pwszNtPath + 3, pwszWinPath + 3, (cwcWinPath - 3) * sizeof(RTUTF16));
+            pwszNtPath[1] = '?';
+            pwszNtPath[2] = '?';
+            pwszNtPath[3] = '\\';
+            memcpy(pwszNtPath + 4, pwszWinPath + 4, (cwcWinPath - 4) * sizeof(RTUTF16));
             pwszNtPath[cwcWinPath] = '\0';
 
             /* Initialize the return values. */
@@ -161,10 +161,11 @@ static int rtNtPathUtf8ToUniStr(struct _UNICODE_STRING *pNtName, PHANDLE phRootD
 
 
 /**
- * Converts a path to NT format and encoding.
+ * Converts a windows-style path to NT format and encoding.
  *
  * @returns IPRT status code.
- * @param   pNtName             Where to return the NT name.
+ * @param   pNtName             Where to return the NT name.  Free using
+ *                              rtTNtPathToNative.
  * @param   phRootDir           Where to return the root handle, if applicable.
  * @param   pszPath             The UTF-8 path.
  */
@@ -224,6 +225,21 @@ static int rtNtPathToNative(struct _UNICODE_STRING *pNtName, PHANDLE phRootDir, 
      */
     memcpy(szPath, pszPrefix, cchPrefix);
     return rtNtPathUtf8ToUniStr(pNtName, phRootDir, szPath);
+}
+
+
+/**
+ * Converts a windows-style path to NT format and encoding.
+ *
+ * @returns IPRT status code.
+ * @param   pNtName             Where to return the NT name.  Free using
+ *                              RTNtPathToNative.
+ * @param   phRootDir           Where to return the root handle, if applicable.
+ * @param   pszPath             The UTF-8 path.
+ */
+RTDECL(int) RTNtPathFromWinUtf8(struct _UNICODE_STRING *pNtName, PHANDLE phRootDir, const char *pszPath)
+{
+    return rtNtPathToNative(pNtName, phRootDir, pszPath);
 }
 
 
@@ -340,12 +356,38 @@ RTDECL(int) RTNtPathFromWinUtf16Ex(struct _UNICODE_STRING *pNtName, HANDLE *phRo
 
 
 /**
+ * Ensures that the NT string has sufficient storage to hold @a cwcMin RTUTF16
+ * chars plus a terminator.
+ *
+ * The NT string must have been returned by RTNtPathFromWinUtf8 or
+ * RTNtPathFromWinUtf16Ex.
+ *
+ * @returns IPRT status code.
+ * @param   pNtName             The NT path string.
+ * @param   cwcMin              The minimum number of RTUTF16 chars. Max 32767.
+ * @sa      RTNtPathFree
+ */
+RTDECL(int) RTNtPathEnsureSpace(struct _UNICODE_STRING *pNtName, size_t cwcMin)
+{
+    if (pNtName->MaximumLength / sizeof(RTUTF16) > cwcMin)
+        return VINF_SUCCESS;
+
+    AssertReturn(cwcMin < _64K / sizeof(RTUTF16), VERR_OUT_OF_RANGE);
+
+    size_t const cbMin = (cwcMin + 1) * sizeof(RTUTF16);
+    int rc = RTUtf16Realloc(&pNtName->Buffer, cbMin);
+    if (RT_SUCCESS(rc))
+        pNtName->MaximumLength = (uint16_t)cbMin;
+    return rc;
+}
+
+
+/**
  * Frees the native path and root handle.
  *
  * @param   pNtName             The NT path after a successful rtNtPathToNative
  *                              call.
- * @param   phRootDir           The root handle variable after a
- *                              rtNtPathToNative.
+ * @param   phRootDir           The root handle variable from the same call.
  */
 static void rtNtPathFreeNative(struct _UNICODE_STRING *pNtName, PHANDLE phRootDir)
 {
@@ -357,10 +399,9 @@ static void rtNtPathFreeNative(struct _UNICODE_STRING *pNtName, PHANDLE phRootDi
 /**
  * Frees the native path and root handle.
  *
- * @param   pNtName             The NT path after a successful
- *                              RTNtPathFromWinUtf16Ex call.
- * @param   phRootDir           The root handle variable after a successfull
- *                              RTNtPathFromWinUtf16Ex call.
+ * @param   pNtName             The NT path from a successful RTNtPathToNative
+ *                              or RTNtPathFromWinUtf16Ex call.
+ * @param   phRootDir           The root handle variable from the same call.
  */
 RTDECL(void) RTNtPathFree(struct _UNICODE_STRING *pNtName, HANDLE *phRootDir)
 {
@@ -431,9 +472,7 @@ RTDECL(int) RTNtPathOpen(const char *pszPath, ACCESS_MASK fDesiredAccess, ULONG 
  * @returns IPRT status code.
  * @param   pszPath             The UTF-8 path.
  * @param   fDesiredAccess      See NtCreateFile.
- * @param   fFileAttribs        See NtCreateFile.
  * @param   fShareAccess        See NtCreateFile.
- * @param   fCreateDisposition  See NtCreateFile.
  * @param   fCreateOptions      See NtCreateFile.
  * @param   fObjAttribs         The OBJECT_ATTRIBUTES::Attributes value, see
  *                              NtCreateFile and InitializeObjectAttributes.

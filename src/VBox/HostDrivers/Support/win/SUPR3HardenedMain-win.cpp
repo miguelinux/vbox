@@ -312,7 +312,7 @@ static PVERIFIERCACHEENTRY  volatile g_pVerifierCacheTodoWvt = NULL;
 static PVERIFIERCACHEIMPORT volatile g_pVerifierCacheTodoImports = NULL;
 
 /** The windows path to dir \\SystemRoot\\System32 directory (technically
- *  this whatever \KnownDlls\KnownDllPath points to). */
+ *  this whatever \\KnownDlls\\KnownDllPath points to). */
 SUPSYSROOTDIRBUF            g_System32WinPath;
 /** @ */
 
@@ -367,6 +367,10 @@ static uint32_t             g_fSupAdversaries = 0;
 #define SUPHARDNT_ADVERSARY_ZONE_ALARM              RT_BIT_32(12)
 /** Digital guardian.  */
 #define SUPHARDNT_ADVERSARY_DIGITAL_GUARDIAN        RT_BIT_32(13)
+/** Cylance protect or something (from googling, no available sample copy). */
+#define SUPHARDNT_ADVERSARY_CYLANCE                 RT_BIT_32(14)
+/** BeyondTrust / PowerBroker / something (googling, no available sample copy). */
+#define SUPHARDNT_ADVERSARY_BEYONDTRUST             RT_BIT_32(15)
 /** Unknown adversary detected while waiting on child. */
 #define SUPHARDNT_ADVERSARY_UNKNOWN                 RT_BIT_32(31)
 /** @} */
@@ -1154,6 +1158,28 @@ static void supR3HardenedWinVerifyCacheProcessWvtTodos(void)
 
 
 /**
+ * Translates VBox status code (from supHardenedWinVerifyImageTrust) to an NT
+ * status.
+ *
+ * @returns NT status.
+ * @param   rc                      VBox status code.
+ */
+static NTSTATUS supR3HardenedScreenImageCalcStatus(int rc)
+{
+    /* This seems to be what LdrLoadDll returns when loading a 32-bit DLL into
+       a 64-bit process.  At least here on windows 10 (2015-11-xx).
+
+       NtCreateSection probably returns something different, possibly a warning,
+       we currently don't distinguish between the too, so we stick with the
+       LdrLoadDll one as it's definitely an error.*/
+    if (rc == VERR_LDR_ARCH_MISMATCH)
+        return STATUS_INVALID_IMAGE_FORMAT;
+
+    return STATUS_TRUST_FAILURE;
+}
+
+
+/**
  * Screens an image file or file mapped with execute access.
  *
  * @returns NT status code.
@@ -1202,10 +1228,13 @@ static NTSTATUS supR3HardenedScreenImage(HANDLE hFile, bool fImage, bool fIgnore
         return rcNt;
     }
 
-    if (supHardNtVpIsPossible8dot3Path(uBuf.UniStr.Buffer))
+    if (!RTNtPathFindPossible8dot3Name(uBuf.UniStr.Buffer))
+        cbNameBuf += sizeof(WCHAR);
+    else
     {
         uBuf.UniStr.MaximumLength = sizeof(uBuf) - 128;
-        supHardNtVpFix8dot3Path(&uBuf.UniStr, true /*fPathOnly*/);
+        RTNtPathExpand8dot3Path(&uBuf.UniStr, true /*fPathOnly*/);
+        cbNameBuf = (uintptr_t)uBuf.UniStr.Buffer + uBuf.UniStr.Length + sizeof(WCHAR) - (uintptr_t)&uBuf.abBuffer[0];
     }
 
     /*
@@ -1263,7 +1292,7 @@ static NTSTATUS supR3HardenedScreenImage(HANDLE hFile, bool fImage, bool fIgnore
             supR3HardenedError(VINF_SUCCESS, false,
                                "supR3HardenedScreenImage/%s: cached rc=%Rrc fImage=%d fProtect=%#x fAccess=%#x cHits=%u %ls\n",
                                pszCaller, pCacheHit->rc, fImage, *pfProtect, *pfAccess, cHits, uBuf.UniStr.Buffer);
-        return STATUS_TRUST_FAILURE;
+        return supR3HardenedScreenImageCalcStatus(pCacheHit->rc);
     }
 
     /*
@@ -1449,7 +1478,7 @@ static NTSTATUS supR3HardenedScreenImage(HANDLE hFile, bool fImage, bool fIgnore
                            pszCaller, rc, fImage, *pfAccess, *pfProtect, uBuf.UniStr.Buffer, ErrInfo.pszMsg);
         if (hMyFile != hFile)
             supR3HardenedWinVerifyCacheInsert(&uBuf.UniStr, hMyFile, rc, fWinVerifyTrust, fFlags);
-        return STATUS_TRUST_FAILURE;
+        return supR3HardenedScreenImageCalcStatus(rc);
     }
 
     /*
@@ -2957,7 +2986,7 @@ DECLINLINE(bool) suplibCommandLineIsArgSeparator(int ch)
  * argument.
  *
  * @returns Pointer to a command line string (heap).
- * @param   pUniStr         Unicode string structure to initialize to the
+ * @param   pString         Unicode string structure to initialize to the
  *                          command line. Optional.
  * @param   iWhich          Which respawn we're to check for, 1 being the first
  *                          one, and 2 the second and final.
@@ -3536,7 +3565,7 @@ static void supR3HardNtChildSetUpChildInit(PSUPR3HARDNTCHILD pThis)
      * code bits for it.
      */
     PSUPHNTLDRCACHEENTRY pLdrEntry;
-    int rc = supHardNtLdrCacheOpen("ntdll.dll", &pLdrEntry);
+    int rc = supHardNtLdrCacheOpen("ntdll.dll", &pLdrEntry, NULL /*pErrInfo*/);
     if (RT_FAILURE(rc))
         supR3HardenedWinKillChild(pThis, "supR3HardenedWinSetupChildInit", rc,
                                   "supHardNtLdrCacheOpen failed on NTDLL: %Rrc\n", rc);
@@ -3748,7 +3777,7 @@ static void supR3HardNtChildFindNtdll(PSUPR3HARDNTCHILD pThis)
 /**
  * Gather child data.
  *
- * @param   This                The child process data structure.
+ * @param   pThis               The child process data structure.
  */
 static void supR3HardNtChildGatherData(PSUPR3HARDNTCHILD pThis)
 {
@@ -4192,7 +4221,7 @@ DECLHIDDEN(char *) supR3HardenedWinReadErrorInfoDevice(char *pszErrorInfo, size_
             if (NT_SUCCESS(rcNt) && NT_SUCCESS(Ios.Status) && Ios.Information > 0)
             {
                 memcpy(pszErrorInfo, pszPrefix, cchPrefix);
-                pszErrorInfo[RT_MIN(cbErrorInfo - 1, Ios.Information)] = '\0';
+                pszErrorInfo[RT_MIN(cbErrorInfo - 1, cchPrefix + Ios.Information)] = '\0';
                 SUP_DPRINTF(("supR3HardenedWinReadErrorInfoDevice: '%s'", &pszErrorInfo[cchPrefix]));
             }
             else
@@ -5098,11 +5127,11 @@ static void supR3HardenedLogFileInfo(PCRTUTF16 pwszFile, bool fAdversarial)
  *
  * @returns Mask of SUPHARDNT_ADVERSARY_XXX flags.
  *
- * @remarks The enumeration of \Driver normally requires administrator
+ * @remarks The enumeration of \\Driver normally requires administrator
  *          privileges.  So, the detection we're doing here isn't always gonna
  *          work just based on that.
  *
- * @todo    Find drivers in \FileSystems as well, then we could detect VrNsdDrv
+ * @todo    Find drivers in \\FileSystems as well, then we could detect VrNsdDrv
  *          from ViRobot APT Shield 2.0.
  */
 static uint32_t supR3HardenedWinFindAdversaries(void)
@@ -5189,10 +5218,14 @@ static uint32_t supR3HardenedWinFindAdversaries(void)
         { SUPHARDNT_ADVERSARY_MSE,                  "NisDrv" },
 
         /*{ SUPHARDNT_ADVERSARY_COMODO, "cmdguard" }, file system */
-        { SUPHARDNT_ADVERSARY_COMODO, "inspect" },
-        { SUPHARDNT_ADVERSARY_COMODO, "cmdHlp" },
+        { SUPHARDNT_ADVERSARY_COMODO,               "inspect" },
+        { SUPHARDNT_ADVERSARY_COMODO,               "cmdHlp" },
 
-        { SUPHARDNT_ADVERSARY_DIGITAL_GUARDIAN, "dgmaster" }, /* Not verified. */
+        { SUPHARDNT_ADVERSARY_DIGITAL_GUARDIAN,     "dgmaster" }, /* Not verified. */
+
+        { SUPHARDNT_ADVERSARY_CYLANCE,              "cyprotectdrv" }, /* Not verified. */
+
+        { SUPHARDNT_ADVERSARY_BEYONDTRUST,          "privman" }, /* Not verified. */
     };
 
     static const struct
@@ -5307,6 +5340,13 @@ static uint32_t supR3HardenedWinFindAdversaries(void)
         { SUPHARDNT_ADVERSARY_ZONE_ALARM, L"\\SystemRoot\\System32\\AntiTheftCredentialProvider.dll" },
 
         { SUPHARDNT_ADVERSARY_DIGITAL_GUARDIAN, L"\\SystemRoot\\System32\\drivers\\dgmaster.sys" },
+
+        { SUPHARDNT_ADVERSARY_CYLANCE, L"\\SystemRoot\\System32\\drivers\\cyprotectdrv32.sys" },
+        { SUPHARDNT_ADVERSARY_CYLANCE, L"\\SystemRoot\\System32\\drivers\\cyprotectdrv64.sys" },
+
+        { SUPHARDNT_ADVERSARY_BEYONDTRUST, L"\\SystemRoot\\System32\\drivers\\privman.sys" },
+        { SUPHARDNT_ADVERSARY_BEYONDTRUST, L"\\SystemRoot\\System32\\privman64.dll" },
+        { SUPHARDNT_ADVERSARY_BEYONDTRUST, L"\\SystemRoot\\System32\\privman32.dll" },
     };
 
     uint32_t fFound = 0;
@@ -5457,7 +5497,7 @@ extern "C" void __stdcall suplibHardenedWindowsMain(void)
      * Init g_uNtVerCombined. (The code is shared with SUPR3.lib and lives in
      * SUPHardenedVerfiyImage-win.cpp.)
      */
-    supR3HardenedWinInitVersion();
+    supR3HardenedWinInitVersion(false /*fEarly*/);
     g_enmSupR3HardenedMainState = SUPR3HARDENEDMAINSTATE_WIN_VERSION_INITIALIZED;
 
     /*
@@ -5681,7 +5721,7 @@ DECLASM(uintptr_t) supR3HardenedEarlyProcessInit(void)
     /*
      * Init g_uNtVerCombined as well as we can at this point.
      */
-    supR3HardenedWinInitVersion();
+    supR3HardenedWinInitVersion(true /*fEarly*/);
 
     /*
      * Convert the arguments to UTF-8 so we can open the log file if specified.
@@ -5696,12 +5736,13 @@ DECLASM(uintptr_t) supR3HardenedEarlyProcessInit(void)
     int    cArgs;
     char **papszArgs = suplibCommandLineToArgvWStub(CmdLineStr.Buffer, CmdLineStr.Length / sizeof(WCHAR), &cArgs);
     supR3HardenedOpenLog(&cArgs, papszArgs);
-    SUP_DPRINTF(("supR3HardenedVmProcessInit: uNtDllAddr=%p\n", uNtDllAddr));
+    SUP_DPRINTF(("supR3HardenedVmProcessInit: uNtDllAddr=%p g_uNtVerCombined=%#x\n", uNtDllAddr, g_uNtVerCombined));
 
     /*
      * Set up the direct system calls so we can more easily hook NtCreateSection.
      */
-    supR3HardenedWinInitSyscalls(true /*fReportErrors*/);
+    RTERRINFOSTATIC ErrInfo;
+    supR3HardenedWinInitSyscalls(true /*fReportErrors*/, RTErrInfoInitStatic(&ErrInfo));
 
     /*
      * Determine the executable path and name.  Will NOT determine the windows style
@@ -5760,14 +5801,16 @@ DECLASM(uintptr_t) supR3HardenedEarlyProcessInit(void)
      */
     SUP_DPRINTF(("supR3HardenedVmProcessInit: Restoring LdrInitializeThunk...\n"));
     PSUPHNTLDRCACHEENTRY pLdrEntry;
-    int rc = supHardNtLdrCacheOpen("ntdll.dll", &pLdrEntry);
+    int rc = supHardNtLdrCacheOpen("ntdll.dll", &pLdrEntry, RTErrInfoInitStatic(&ErrInfo));
     if (RT_FAILURE(rc))
-        supR3HardenedFatal("supR3HardenedVmProcessInit: supHardNtLdrCacheOpen failed on NTDLL: %Rrc\n", rc);
+        supR3HardenedFatal("supR3HardenedVmProcessInit: supHardNtLdrCacheOpen failed on NTDLL: %Rrc %s\n",
+                           rc, ErrInfo.Core.pszMsg);
 
     uint8_t *pbBits;
-    rc = supHardNtLdrCacheEntryGetBits(pLdrEntry, &pbBits, uNtDllAddr, NULL, NULL, NULL /*pErrInfo*/);
+    rc = supHardNtLdrCacheEntryGetBits(pLdrEntry, &pbBits, uNtDllAddr, NULL, NULL, RTErrInfoInitStatic(&ErrInfo));
     if (RT_FAILURE(rc))
-        supR3HardenedFatal("supR3HardenedVmProcessInit: supHardNtLdrCacheEntryGetBits failed on NTDLL: %Rrc\n", rc);
+        supR3HardenedFatal("supR3HardenedVmProcessInit: supHardNtLdrCacheEntryGetBits failed on NTDLL: %Rrc %s\n",
+                           rc, ErrInfo.Core.pszMsg);
 
     RTLDRADDR uValue;
     rc = RTLdrGetSymbolEx(pLdrEntry->hLdrMod, pbBits, uNtDllAddr, UINT32_MAX, "LdrInitializeThunk", &uValue);

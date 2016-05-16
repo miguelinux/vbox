@@ -471,7 +471,7 @@ static void rtldrPEFreePart(PRTLDRMODPE pThis, const void *pvBits, void const *p
 }
 
 
-/** @copydoc RTLDROPS::pfnGetImageSize */
+/** @interface_method_impl{RTLDROPS,pfnGetImageSize} */
 static DECLCALLBACK(size_t) rtldrPEGetImageSize(PRTLDRMODINTERNAL pMod)
 {
     PRTLDRMODPE pModPe = (PRTLDRMODPE)pMod;
@@ -568,7 +568,7 @@ static int rtldrPEReadBits(PRTLDRMODPE pModPe)
 }
 
 
-/** @copydoc RTLDROPS::pfnGetBits */
+/** @interface_method_impl{RTLDROPS,pfnGetBits} */
 static DECLCALLBACK(int) rtldrPEGetBits(PRTLDRMODINTERNAL pMod, void *pvBits, RTUINTPTR BaseAddress, PFNRTLDRIMPORT pfnGetImport, void *pvUser)
 {
     PRTLDRMODPE pModPe = (PRTLDRMODPE)pMod;
@@ -876,7 +876,7 @@ static int rtldrPEApplyFixups(PRTLDRMODPE pModPe, const void *pvBitsR, void *pvB
 }
 
 
-/** @copydoc RTLDROPS::pfnRelocate. */
+/** @interface_method_impl{RTLDROPS,pfnRelocate} */
 static DECLCALLBACK(int) rtldrPERelocate(PRTLDRMODINTERNAL pMod, void *pvBits, RTUINTPTR NewBaseAddress, RTUINTPTR OldBaseAddress,
                                          PFNRTLDRIMPORT pfnGetImport, void *pvUser)
 {
@@ -1010,7 +1010,7 @@ static int rtLdrPE_ExportToRva(PRTLDRMODPE pModPe, uint32_t iOrdinal, const char
 }
 
 
-/** @copydoc RTLDROPS::pfnGetSymbolEx. */
+/** @interface_method_impl{RTLDROPS,pfnGetSymbolEx} */
 static DECLCALLBACK(int) rtldrPEGetSymbolEx(PRTLDRMODINTERNAL pMod, const void *pvBits, RTUINTPTR BaseAddress,
                                             uint32_t iOrdinal, const char *pszSymbol, RTUINTPTR *pValue)
 {
@@ -1036,7 +1036,7 @@ static DECLCALLBACK(int) rtldrPEGetSymbolEx(PRTLDRMODINTERNAL pMod, const void *
 }
 
 
-/** @copydoc RTLDROPS::pfnQueryForwarderInfo. */
+/** @interface_method_impl{RTLDROPS,pfnQueryForwarderInfo} */
 static DECLCALLBACK(int) rtldrPE_QueryForwarderInfo(PRTLDRMODINTERNAL pMod, const void *pvBits,  uint32_t iOrdinal,
                                                     const char *pszSymbol, PRTLDRIMPORTINFO pInfo, size_t cbInfo)
 {
@@ -1263,7 +1263,7 @@ static int rtldrPEEnumSymbolsSlow(PRTLDRMODPE pThis, unsigned fFlags, RTUINTPTR 
 }
 
 
-/** @copydoc RTLDROPS::pfnEnumSymbols */
+/** @interface_method_impl{RTLDROPS,pfnEnumSymbols} */
 static DECLCALLBACK(int) rtldrPEEnumSymbols(PRTLDRMODINTERNAL pMod, unsigned fFlags, const void *pvBits, RTUINTPTR BaseAddress,
                                             PFNRTLDRENUMSYMS pfnCallback, void *pvUser)
 {
@@ -1368,7 +1368,7 @@ static DECLCALLBACK(int) rtldrPEEnumSymbols(PRTLDRMODINTERNAL pMod, unsigned fFl
 }
 
 
-/** @copydoc RTLDROPS::pfnEnumDbgInfo. */
+/** @interface_method_impl{RTLDROPS,pfnEnumDbgInfo} */
 static DECLCALLBACK(int) rtldrPE_EnumDbgInfo(PRTLDRMODINTERNAL pMod, const void *pvBits,
                                              PFNRTLDRENUMDBG pfnCallback, void *pvUser)
 {
@@ -1557,7 +1557,7 @@ static DECLCALLBACK(int) rtldrPE_EnumDbgInfo(PRTLDRMODINTERNAL pMod, const void 
 }
 
 
-/** @copydoc RTLDROPS::pfnEnumSegments. */
+/** @interface_method_impl{RTLDROPS,pfnEnumSegments} */
 static DECLCALLBACK(int) rtldrPE_EnumSegments(PRTLDRMODINTERNAL pMod, PFNRTLDRENUMSEGS pfnCallback, void *pvUser)
 {
     PRTLDRMODPE pModPe = (PRTLDRMODPE)pMod;
@@ -1649,7 +1649,7 @@ static DECLCALLBACK(int) rtldrPE_EnumSegments(PRTLDRMODINTERNAL pMod, PFNRTLDREN
 }
 
 
-/** @copydoc RTLDROPS::pfnLinkAddressToSegOffset. */
+/** @interface_method_impl{RTLDROPS,pfnLinkAddressToSegOffset} */
 static DECLCALLBACK(int) rtldrPE_LinkAddressToSegOffset(PRTLDRMODINTERNAL pMod, RTLDRADDR LinkAddress,
                                                         uint32_t *piSeg, PRTLDRADDR poffSeg)
 {
@@ -1689,7 +1689,7 @@ static DECLCALLBACK(int) rtldrPE_LinkAddressToSegOffset(PRTLDRMODINTERNAL pMod, 
 }
 
 
-/** @copydoc RTLDROPS::pfnLinkAddressToRva. */
+/** @interface_method_impl{RTLDROPS,pfnLinkAddressToRva} */
 static DECLCALLBACK(int) rtldrPE_LinkAddressToRva(PRTLDRMODINTERNAL pMod, RTLDRADDR LinkAddress, PRTLDRADDR pRva)
 {
     PRTLDRMODPE pModPe = (PRTLDRMODPE)pMod;
@@ -1703,7 +1703,7 @@ static DECLCALLBACK(int) rtldrPE_LinkAddressToRva(PRTLDRMODINTERNAL pMod, RTLDRA
 }
 
 
-/** @copydoc RTLDROPS::pfnSegOffsetToRva. */
+/** @interface_method_impl{RTLDROPS,pfnSegOffsetToRva} */
 static DECLCALLBACK(int) rtldrPE_SegOffsetToRva(PRTLDRMODINTERNAL pMod, uint32_t iSeg, RTLDRADDR offSeg,
                                                 PRTLDRADDR pRva)
 {
@@ -1723,7 +1723,7 @@ static DECLCALLBACK(int) rtldrPE_SegOffsetToRva(PRTLDRMODINTERNAL pMod, uint32_t
 }
 
 
-/** @copydoc RTLDROPS::pfnRvaToSegOffset. */
+/** @interface_method_impl{RTLDROPS,pfnRvaToSegOffset} */
 static DECLCALLBACK(int) rtldrPE_RvaToSegOffset(PRTLDRMODINTERNAL pMod, RTLDRADDR Rva,
                                                 uint32_t *piSeg, PRTLDRADDR poffSeg)
 {
@@ -2775,7 +2775,7 @@ static DECLCALLBACK(int) rtldrPE_HashImage(PRTLDRMODINTERNAL pMod, RTDIGESTTYPE 
 }
 
 
-/** @copydoc RTLDROPS::pfnDone */
+/** @interface_method_impl{RTLDROPS,pfnDone}   */
 static DECLCALLBACK(int) rtldrPEDone(PRTLDRMODINTERNAL pMod)
 {
     PRTLDRMODPE pModPe = (PRTLDRMODPE)pMod;
@@ -2788,7 +2788,7 @@ static DECLCALLBACK(int) rtldrPEDone(PRTLDRMODINTERNAL pMod)
 }
 
 
-/** @copydoc RTLDROPS::pfnClose */
+/** @interface_method_impl{RTLDROPS,pfnClose}  */
 static DECLCALLBACK(int) rtldrPEClose(PRTLDRMODINTERNAL pMod)
 {
     PRTLDRMODPE pModPe = (PRTLDRMODPE)pMod;
@@ -2930,32 +2930,36 @@ static void rtldrPEConvert32BitLoadConfigTo64Bit(PIMAGE_LOAD_CONFIG_DIRECTORY64 
     /*
      * volatile everywhere! Trying to prevent the compiler being a smarta$$ and reorder stuff.
      */
-    IMAGE_LOAD_CONFIG_DIRECTORY32_V4 volatile *pLoadCfg32 = (IMAGE_LOAD_CONFIG_DIRECTORY32_V4 volatile *)pLoadCfg;
-    IMAGE_LOAD_CONFIG_DIRECTORY64_V4 volatile *pLoadCfg64 = pLoadCfg;
+    IMAGE_LOAD_CONFIG_DIRECTORY32_V5 volatile *pLoadCfg32 = (IMAGE_LOAD_CONFIG_DIRECTORY32_V5 volatile *)pLoadCfg;
+    IMAGE_LOAD_CONFIG_DIRECTORY64_V5 volatile *pLoadCfg64 = pLoadCfg;
 
-    pLoadCfg64->CodeIntegrity.Reserved      = pLoadCfg32->CodeIntegrity.Reserved;
-    pLoadCfg64->CodeIntegrity.CatalogOffset = pLoadCfg32->CodeIntegrity.CatalogOffset;
-    pLoadCfg64->CodeIntegrity.Catalog       = pLoadCfg32->CodeIntegrity.Catalog;
-    pLoadCfg64->CodeIntegrity.Flags         = pLoadCfg32->CodeIntegrity.Flags;
-    pLoadCfg64->GuardFlags                  = pLoadCfg32->GuardFlags;
-    pLoadCfg64->GuardCFFunctionCount        = pLoadCfg32->GuardCFFunctionCount;
-    pLoadCfg64->GuardCFFunctionTable        = pLoadCfg32->GuardCFFunctionTable;
-    pLoadCfg64->Reserved2                   = pLoadCfg32->Reserved2;
-    pLoadCfg64->GuardCFCCheckFunctionPointer= pLoadCfg32->GuardCFCCheckFunctionPointer;
-    pLoadCfg64->SEHandlerCount              = pLoadCfg32->SEHandlerCount;
-    pLoadCfg64->SEHandlerTable              = pLoadCfg32->SEHandlerTable;
-    pLoadCfg64->SecurityCookie              = pLoadCfg32->SecurityCookie;
-    pLoadCfg64->EditList                    = pLoadCfg32->EditList;
-    pLoadCfg64->Reserved1                   = pLoadCfg32->Reserved1;
-    pLoadCfg64->CSDVersion                  = pLoadCfg32->CSDVersion;
-    pLoadCfg64->ProcessHeapFlags            = pLoadCfg32->ProcessHeapFlags; /* switched place with ProcessAffinityMask, but we're more than 16 byte off by now so it doesn't matter. */
-    pLoadCfg64->ProcessAffinityMask         = pLoadCfg32->ProcessAffinityMask;
-    pLoadCfg64->VirtualMemoryThreshold      = pLoadCfg32->VirtualMemoryThreshold;
-    pLoadCfg64->MaximumAllocationSize       = pLoadCfg32->MaximumAllocationSize;
-    pLoadCfg64->LockPrefixTable             = pLoadCfg32->LockPrefixTable;
-    pLoadCfg64->DeCommitTotalFreeThreshold  = pLoadCfg32->DeCommitTotalFreeThreshold;
-    uint32_t u32DeCommitFreeBlockThreshold  = pLoadCfg32->DeCommitFreeBlockThreshold;
-    pLoadCfg64->DeCommitFreeBlockThreshold  = u32DeCommitFreeBlockThreshold;
+    pLoadCfg64->GuardAddressTakenIatEntryTable  = pLoadCfg32->GuardAddressTakenIatEntryTable;
+    pLoadCfg64->GuardAddressTakenIatEntryCount  = pLoadCfg32->GuardAddressTakenIatEntryCount;
+    pLoadCfg64->GuardLongJumpTargetTable        = pLoadCfg32->GuardLongJumpTargetTable;
+    pLoadCfg64->GuardLongJumpTargetCount        = pLoadCfg32->GuardLongJumpTargetCount;
+    pLoadCfg64->CodeIntegrity.Reserved          = pLoadCfg32->CodeIntegrity.Reserved;
+    pLoadCfg64->CodeIntegrity.CatalogOffset     = pLoadCfg32->CodeIntegrity.CatalogOffset;
+    pLoadCfg64->CodeIntegrity.Catalog           = pLoadCfg32->CodeIntegrity.Catalog;
+    pLoadCfg64->CodeIntegrity.Flags             = pLoadCfg32->CodeIntegrity.Flags;
+    pLoadCfg64->GuardFlags                      = pLoadCfg32->GuardFlags;
+    pLoadCfg64->GuardCFFunctionCount            = pLoadCfg32->GuardCFFunctionCount;
+    pLoadCfg64->GuardCFFunctionTable            = pLoadCfg32->GuardCFFunctionTable;
+    pLoadCfg64->Reserved2                       = pLoadCfg32->Reserved2;
+    pLoadCfg64->GuardCFCCheckFunctionPointer    = pLoadCfg32->GuardCFCCheckFunctionPointer;
+    pLoadCfg64->SEHandlerCount                  = pLoadCfg32->SEHandlerCount;
+    pLoadCfg64->SEHandlerTable                  = pLoadCfg32->SEHandlerTable;
+    pLoadCfg64->SecurityCookie                  = pLoadCfg32->SecurityCookie;
+    pLoadCfg64->EditList                        = pLoadCfg32->EditList;
+    pLoadCfg64->Reserved1                       = pLoadCfg32->Reserved1;
+    pLoadCfg64->CSDVersion                      = pLoadCfg32->CSDVersion;
+    pLoadCfg64->ProcessHeapFlags                = pLoadCfg32->ProcessHeapFlags; /* switched place with ProcessAffinityMask, but we're more than 16 byte off by now so it doesn't matter. */
+    pLoadCfg64->ProcessAffinityMask             = pLoadCfg32->ProcessAffinityMask;
+    pLoadCfg64->VirtualMemoryThreshold          = pLoadCfg32->VirtualMemoryThreshold;
+    pLoadCfg64->MaximumAllocationSize           = pLoadCfg32->MaximumAllocationSize;
+    pLoadCfg64->LockPrefixTable                 = pLoadCfg32->LockPrefixTable;
+    pLoadCfg64->DeCommitTotalFreeThreshold      = pLoadCfg32->DeCommitTotalFreeThreshold;
+    uint32_t u32DeCommitFreeBlockThreshold      = pLoadCfg32->DeCommitFreeBlockThreshold;
+    pLoadCfg64->DeCommitFreeBlockThreshold      = u32DeCommitFreeBlockThreshold;
     /* the rest is equal. */
     Assert(     RT_OFFSETOF(IMAGE_LOAD_CONFIG_DIRECTORY32, DeCommitFreeBlockThreshold)
            ==   RT_OFFSETOF(IMAGE_LOAD_CONFIG_DIRECTORY64, DeCommitFreeBlockThreshold));
@@ -3419,13 +3423,16 @@ static int rtldrPEReadRVA(PRTLDRMODPE pModPe, void *pvBuf, uint32_t cb, uint32_t
  * @param   pModPe      The PE module instance.
  * @param   pOptHdr     Pointer to the optional header (valid).
  * @param   fFlags      Loader flags, RTLDR_O_XXX.
+ * @param   pErrInfo    Where to return extended error information. Optional.
  */
-static int rtldrPEValidateDirectoriesAndRememberStuff(PRTLDRMODPE pModPe, const IMAGE_OPTIONAL_HEADER64 *pOptHdr, uint32_t fFlags)
+static int rtldrPEValidateDirectoriesAndRememberStuff(PRTLDRMODPE pModPe, const IMAGE_OPTIONAL_HEADER64 *pOptHdr, uint32_t fFlags,
+                                                      PRTERRINFO pErrInfo)
 {
     const char *pszLogName = pModPe->Core.pReader->pfnLogName(pModPe->Core.pReader); NOREF(pszLogName);
     union /* combine stuff we're reading to help reduce stack usage. */
     {
         IMAGE_LOAD_CONFIG_DIRECTORY64   Cfg64;
+        uint8_t                         abZeros[sizeof(IMAGE_LOAD_CONFIG_DIRECTORY64_V5) * 4];
     } u;
 
     /*
@@ -3436,6 +3443,9 @@ static int rtldrPEValidateDirectoriesAndRememberStuff(PRTLDRMODPE pModPe, const 
     IMAGE_DATA_DIRECTORY Dir = pOptHdr->DataDirectory[IMAGE_DIRECTORY_ENTRY_LOAD_CONFIG];
     if (Dir.Size)
     {
+        const size_t cbExpectV5 = !pModPe->f64Bit
+                                ? sizeof(IMAGE_LOAD_CONFIG_DIRECTORY32_V5)
+                                : sizeof(IMAGE_LOAD_CONFIG_DIRECTORY64_V5);
         const size_t cbExpectV4 = !pModPe->f64Bit
                                 ? sizeof(IMAGE_LOAD_CONFIG_DIRECTORY32_V4)
                                 : sizeof(IMAGE_LOAD_CONFIG_DIRECTORY64_V4);
@@ -3449,77 +3459,103 @@ static int rtldrPEValidateDirectoriesAndRememberStuff(PRTLDRMODPE pModPe, const 
                                 ? sizeof(IMAGE_LOAD_CONFIG_DIRECTORY32_V1)
                                 : sizeof(IMAGE_LOAD_CONFIG_DIRECTORY64_V2) /*No V1*/;
 
-        if (   Dir.Size != cbExpectV4
+        bool fNewerStructureHack = false;
+        if (   Dir.Size != cbExpectV5
+            && Dir.Size != cbExpectV4
             && Dir.Size != cbExpectV3
             && Dir.Size != cbExpectV2
             && Dir.Size != cbExpectV1)
         {
-            Log(("rtldrPEOpen: %s: load cfg dir: unexpected dir size of %d bytes, expected %d, %d, %d, or %d.\n",
-                 pszLogName, Dir.Size, cbExpectV4, cbExpectV3, cbExpectV2, cbExpectV1));
-            return VERR_LDRPE_LOAD_CONFIG_SIZE;
+            fNewerStructureHack = Dir.Size > cbExpectV5  /* These structure changes are slowly getting to us! More futher down. */
+                               && Dir.Size <= sizeof(u);
+            Log(("rtldrPEOpen: %s: load cfg dir: unexpected dir size of %u bytes, expected %zu, %zu, %zu, %zu, or %zu.%s\n",
+                 pszLogName, Dir.Size, cbExpectV5, cbExpectV4, cbExpectV3, cbExpectV2, cbExpectV1,
+                 fNewerStructureHack ? " Will try ignore extra bytes if all zero." : ""));
+            if (!fNewerStructureHack)
+                return RTErrInfoSetF(pErrInfo, VERR_LDRPE_LOAD_CONFIG_SIZE,
+                                     "Unexpected load config dir size of %u bytes; supported sized: %zu, %zu, %zu, %zu, or %zu",
+                                     Dir.Size, cbExpectV5, cbExpectV4, cbExpectV3, cbExpectV2, cbExpectV1);
         }
 
         /*
-         * Read and convert to 64-bit.
+         * Read, check new stuff and convert to 64-bit.
+         *
+         * If we accepted a newer structure, we check whether the new bits are
+         * all zero.  This PRAYING/ASSUMING that the nothing new weird stuff is
+         * activated by a zero value and that it'll mostly be unused in areas
+         * we care about (which has been the case till now).
          */
         RT_ZERO(u.Cfg64);
         int rc = rtldrPEReadRVA(pModPe, &u.Cfg64, Dir.Size, Dir.VirtualAddress);
         if (RT_FAILURE(rc))
             return rc;
+        if (   fNewerStructureHack
+            && !ASMMemIsZero(&u.abZeros[cbExpectV5], Dir.Size - cbExpectV5))
+        {
+            Log(("rtldrPEOpen: %s: load cfg dir: Unexpected bytes are non-zero (%u bytes of which %u expected to be zero): %.*Rhxs\n",
+                 pszLogName, Dir.Size, Dir.Size - cbExpectV5, Dir.Size - cbExpectV5, &u.abZeros[cbExpectV5]));
+            return RTErrInfoSetF(pErrInfo, VERR_LDRPE_LOAD_CONFIG_SIZE,
+                                 "Grown load config (%u to %u bytes) includes non-zero bytes: %.*Rhxs",
+                                 cbExpectV5, Dir.Size, Dir.Size - cbExpectV5, &u.abZeros[cbExpectV5]);
+        }
         rtldrPEConvert32BitLoadConfigTo64Bit(&u.Cfg64);
 
         if (u.Cfg64.Size != Dir.Size)
         {
-            /* Kludge #1, seen ati shipping 32-bit DLLs and EXEs with Dir.Size=0x40
-               and Cfg64.Size=0x5c or 0x48.  Windows seems to deal with it, so
-               lets do so as well. */
-            if (   Dir.Size < u.Cfg64.Size
-                && (   u.Cfg64.Size == cbExpectV3
-                    || u.Cfg64.Size == cbExpectV2) )
-            {
-                Log(("rtldrPEOpen: %s: load cfg dir: Header (%d) and directory (%d) size mismatch, applying the ATI kludge\n",
-                     pszLogName, u.Cfg64.Size, Dir.Size));
-                Dir.Size = u.Cfg64.Size;
-                RT_ZERO(u.Cfg64);
-                rc = rtldrPEReadRVA(pModPe, &u.Cfg64, Dir.Size, Dir.VirtualAddress);
-                if (RT_FAILURE(rc))
-                    return rc;
-                rtldrPEConvert32BitLoadConfigTo64Bit(&u.Cfg64);
-            }
-
-            /* Kludge #2, ntdll.dll from XP seen with Dir.Size=0x40 and Cfg64.Size=0x00. */
+            /* Kludge #1: ntdll.dll from XP seen with Dir.Size=0x40 and Cfg64.Size=0x00. */
             if (Dir.Size == 0x40 && u.Cfg64.Size == 0x00 && !pModPe->f64Bit)
             {
-                Log(("rtldrPEOpen: %s: load cfg dir: Header (%d) and directory (%d) size mismatch, applying the XP kludge\n",
+                Log(("rtldrPEOpen: %s: load cfg dir: Header (%d) and directory (%d) size mismatch, applying the XP kludge.\n",
                      pszLogName, u.Cfg64.Size, Dir.Size));
-                u.Cfg64.Size = 0x40;
+                u.Cfg64.Size = Dir.Size;
             }
-
-            /* Kludge #3, imagehlp.dll from W10/32 seen with Dir.Size=0x40 (V1) and Cfg64.Size=0x68 (V3). */
-            if (Dir.Size == 0x40 && u.Cfg64.Size == 0x68 && !pModPe->f64Bit)
+            /* Kludge #2: This happens a lot. Structure changes, but the linker doesn't get
+               updated and stores some old size in the directory.  Use the header size. */
+            else if (   u.Cfg64.Size == cbExpectV5
+                     || u.Cfg64.Size == cbExpectV4
+                     || u.Cfg64.Size == cbExpectV3
+                     || u.Cfg64.Size == cbExpectV2
+                     || u.Cfg64.Size == cbExpectV1
+                     || (fNewerStructureHack = (u.Cfg64.Size > cbExpectV5 && u.Cfg64.Size <= sizeof(u))) )
             {
-                Log(("rtldrPEOpen: %s: load cfg dir: Header (%d) and directory (%d) size mismatch, applying the W10/32 kludge\n",
+                Log(("rtldrPEOpen: %s: load cfg dir: Header (%d) and directory (%d) size mismatch, applying the old linker kludge.\n",
                      pszLogName, u.Cfg64.Size, Dir.Size));
+
                 Dir.Size = u.Cfg64.Size;
+                uint32_t const uOrgDir = Dir.Size;
                 RT_ZERO(u.Cfg64);
                 rc = rtldrPEReadRVA(pModPe, &u.Cfg64, Dir.Size, Dir.VirtualAddress);
                 if (RT_FAILURE(rc))
                     return rc;
+                if (   fNewerStructureHack
+                    && !ASMMemIsZero(&u.abZeros[cbExpectV5], Dir.Size - cbExpectV5))
+                {
+                    Log(("rtldrPEOpen: %s: load cfg dir: Unknown bytes are non-zero (%u bytes of which %u expected to be zero): %.*Rhxs\n",
+                         pszLogName, Dir.Size, Dir.Size - cbExpectV5, Dir.Size - cbExpectV5, &u.abZeros[cbExpectV5]));
+                    return RTErrInfoSetF(pErrInfo, VERR_LDRPE_LOAD_CONFIG_SIZE,
+                                         "Grown load config (%u to %u bytes, dir %u) includes non-zero bytes: %.*Rhxs",
+                                         cbExpectV5, Dir.Size, uOrgDir, Dir.Size - cbExpectV5, &u.abZeros[cbExpectV5]);
+                }
                 rtldrPEConvert32BitLoadConfigTo64Bit(&u.Cfg64);
+                AssertReturn(u.Cfg64.Size == Dir.Size,
+                             RTErrInfoSetF(pErrInfo, VERR_LDRPE_LOAD_CONFIG_SIZE, "Data changed while reading! (%d vs %d)\n",
+                                           u.Cfg64.Size, Dir.Size));
             }
-
-            if (u.Cfg64.Size != Dir.Size)
+            else
             {
-                Log(("rtldrPEOpen: %s: load cfg dir: unexpected header size of %d bytes, expected %d.\n",
-                     pszLogName, u.Cfg64.Size, Dir.Size));
-                return VERR_LDRPE_LOAD_CONFIG_SIZE;
+                Log(("rtldrPEOpen: %s: load cfg hdr: unexpected hdr size of %u bytes (dir %u), expected %zu, %zu, %zu, %zu, or %zu.\n",
+                     pszLogName, u.Cfg64.Size, Dir.Size, cbExpectV5, cbExpectV4, cbExpectV3, cbExpectV2, cbExpectV1));
+                return RTErrInfoSetF(pErrInfo, VERR_LDRPE_LOAD_CONFIG_SIZE,
+                                     "Unexpected load config header size of %u bytes (dir %u); supported sized: %zu, %zu, %zu, %zu, or %zu",
+                                     u.Cfg64.Size, Dir.Size, cbExpectV5, cbExpectV4, cbExpectV3, cbExpectV2, cbExpectV1);
             }
         }
         if (u.Cfg64.LockPrefixTable && !(fFlags & (RTLDR_O_FOR_DEBUG | RTLDR_O_FOR_VALIDATION)))
         {
             Log(("rtldrPEOpen: %s: load cfg dir: lock prefix table at %RX64. We don't support lock prefix tables!\n",
                  pszLogName, u.Cfg64.LockPrefixTable));
-            return VERR_LDRPE_LOCK_PREFIX_TABLE;
+            return RTErrInfoSetF(pErrInfo, VERR_LDRPE_LOCK_PREFIX_TABLE,
+                                 "Lock prefix table not supported: %RX64", u.Cfg64.LockPrefixTable);
         }
 #if 0/* this seems to be safe to ignore. */
         if (    u.Cfg64.SEHandlerTable
@@ -3534,7 +3570,7 @@ static int rtldrPEValidateDirectoriesAndRememberStuff(PRTLDRMODPE pModPe, const 
         {
             Log(("rtldrPEOpen: %s: load cfg dir: EditList=%RX64 is unsupported!\n",
                  pszLogName, u.Cfg64.EditList));
-            return VERR_BAD_EXE_FORMAT;
+            return RTErrInfoSetF(pErrInfo, VERR_BAD_EXE_FORMAT, "Load config EditList=%RX64 is not supported", u.Cfg64.EditList);
         }
         /** @todo GuardCFC? Possibly related to:
          *         http://research.microsoft.com/pubs/69217/ccs05-cfi.pdf
@@ -3544,13 +3580,24 @@ static int rtldrPEValidateDirectoriesAndRememberStuff(PRTLDRMODPE pModPe, const 
                  || u.Cfg64.Reserved2
                  || u.Cfg64.GuardCFFunctionTable
                  || u.Cfg64.GuardCFFunctionCount
-                 || u.Cfg64.GuardFlags)
-            && !(fFlags & (RTLDR_O_FOR_DEBUG | RTLDR_O_FOR_VALIDATION)))
+                 || u.Cfg64.GuardFlags
+                 || u.Cfg64.GuardAddressTakenIatEntryTable
+                 || u.Cfg64.GuardAddressTakenIatEntryCount
+                 || u.Cfg64.GuardLongJumpTargetTable
+                 || u.Cfg64.GuardLongJumpTargetCount)
+            && !(fFlags & (RTLDR_O_FOR_DEBUG | RTLDR_O_FOR_VALIDATION)) )
         {
-            Log(("rtldrPEOpen: %s: load cfg dir: Guard stuff: %RX64,%RX64,%RX64,%RX64,%RX32!\n",
+            Log(("rtldrPEOpen: %s: load cfg dir: Guard stuff: %RX64,%RX64,%RX64,%RX64,%RX32,%RX64,%RX64,%RX64,%RX64!\n",
                  pszLogName, u.Cfg64.GuardCFCCheckFunctionPointer, u.Cfg64.Reserved2,
-                 u.Cfg64.GuardCFFunctionTable, u.Cfg64.GuardCFFunctionCount, u.Cfg64.GuardFlags));
-            return VERR_BAD_EXE_FORMAT;
+                 u.Cfg64.GuardCFFunctionTable, u.Cfg64.GuardCFFunctionCount, u.Cfg64.GuardFlags,
+                 u.Cfg64.GuardAddressTakenIatEntryTable, u.Cfg64.GuardAddressTakenIatEntryCount,
+                 u.Cfg64.GuardLongJumpTargetTable, u.Cfg64.GuardLongJumpTargetCount ));
+            return RTErrInfoSetF(pErrInfo, VERR_LDRPE_GUARD_CF_STUFF,
+                                 "Guard bits in load config: %RX64,%RX64,%RX64,%RX64,%RX32,%RX64,%RX64,%RX64,%RX64!",
+                                 u.Cfg64.GuardCFCCheckFunctionPointer, u.Cfg64.Reserved2,
+                                 u.Cfg64.GuardCFFunctionTable, u.Cfg64.GuardCFFunctionCount, u.Cfg64.GuardFlags,
+                                 u.Cfg64.GuardAddressTakenIatEntryTable, u.Cfg64.GuardAddressTakenIatEntryCount,
+                                 u.Cfg64.GuardLongJumpTargetTable, u.Cfg64.GuardLongJumpTargetCount);
         }
     }
 
@@ -3577,14 +3624,20 @@ static int rtldrPEValidateDirectoriesAndRememberStuff(PRTLDRMODPE pModPe, const 
                     || pCur->dwLength + off > Dir.Size)
                 {
                     Log(("rtldrPEOpen: %s: cert at %#x/%#x: dwLength=%#x\n", pszLogName, off, Dir.Size, pCur->dwLength));
-                    rc = VERR_LDRPE_CERT_MALFORMED;
+                    rc = RTErrInfoSetF(pErrInfo, VERR_LDRPE_CERT_MALFORMED,
+                                       "Cert at %#x LB %#x: Bad header length value: %#x", off, Dir.Size, pCur->dwLength);
                     break;
                 }
                 if (    pCur->wRevision != WIN_CERT_REVISION_2_0
                     &&  pCur->wRevision != WIN_CERT_REVISION_1_0)
                 {
                     Log(("rtldrPEOpen: %s: cert at %#x/%#x: wRevision=%#x\n", pszLogName, off, Dir.Size, pCur->wRevision));
-                    rc = pCur->wRevision >= WIN_CERT_REVISION_1_0 ? VERR_LDRPE_CERT_UNSUPPORTED : VERR_LDRPE_CERT_MALFORMED;
+                    if (pCur->wRevision >= WIN_CERT_REVISION_1_0)
+                        rc = RTErrInfoSetF(pErrInfo, VERR_LDRPE_CERT_UNSUPPORTED,
+                                           "Cert at %#x LB %#x: Unsupported revision: %#x", off, Dir.Size, pCur->wRevision);
+                    else
+                        rc = RTErrInfoSetF(pErrInfo, VERR_LDRPE_CERT_MALFORMED,
+                                           "Cert at %#x LB %#x: Malformed revision: %#x", off, Dir.Size, pCur->wRevision);
                     break;
                 }
                 if (    pCur->wCertificateType != WIN_CERT_TYPE_PKCS_SIGNED_DATA
@@ -3595,8 +3648,15 @@ static int rtldrPEValidateDirectoriesAndRememberStuff(PRTLDRMODPE pModPe, const 
                     &&  pCur->wCertificateType != WIN_CERT_TYPE_EFI_GUID
                    )
                 {
-                    Log(("rtldrPEOpen: %s: cert at %#x/%#x: wRevision=%#x\n", pszLogName, off, Dir.Size, pCur->wRevision));
-                    rc = pCur->wCertificateType ? VERR_LDRPE_CERT_UNSUPPORTED : VERR_LDRPE_CERT_MALFORMED;
+                    Log(("rtldrPEOpen: %s: cert at %#x/%#x: wCertificateType=%#x\n", pszLogName, off, Dir.Size, pCur->wCertificateType));
+                    if (pCur->wCertificateType)
+                        rc = RTErrInfoSetF(pErrInfo, VERR_LDRPE_CERT_UNSUPPORTED,
+                                           "Cert at %#x LB %#x: Unsupported certificate type: %#x",
+                                           off, Dir.Size, pCur->wCertificateType);
+                    else
+                        rc = RTErrInfoSetF(pErrInfo, VERR_LDRPE_CERT_MALFORMED,
+                                           "Cert at %#x LB %#x: Malformed certificate type: %#x",
+                                           off, Dir.Size, pCur->wCertificateType);
                     break;
                 }
 
@@ -3620,6 +3680,18 @@ static int rtldrPEValidateDirectoriesAndRememberStuff(PRTLDRMODPE pModPe, const 
 
     return VINF_SUCCESS;
 }
+
+
+static const char *rtldrPEGetArchName(uint16_t uMachine)
+{
+    switch (uMachine)
+    {
+        case IMAGE_FILE_MACHINE_I386:   return "X86_32";
+        case IMAGE_FILE_MACHINE_AMD64:  return "AMD64";
+        default:                        return "Unknown";
+    }
+}
+
 
 
 /**
@@ -3658,7 +3730,8 @@ int rtldrPEOpen(PRTLDRREADER pReader, uint32_t fFlags, RTLDRARCH enmArch, RTFOFF
              && !(fFlags & RTLDR_O_WHATEVER_ARCH)) )
     {
         if (!(fFlags & RTLDR_O_IGNORE_ARCH_IF_NO_CODE))
-            return VERR_LDR_ARCH_MISMATCH;
+            return RTErrInfoSetF(pErrInfo, VERR_LDR_ARCH_MISMATCH, "Image is for '%s', only accepting images for '%s'.",
+                                 rtldrPEGetArchName(FileHdr.Machine), rtLdrArchName(enmArch));
         fArchNoCodeCheckPending = true;
     }
 
@@ -3675,7 +3748,9 @@ int rtldrPEOpen(PRTLDRREADER pReader, uint32_t fFlags, RTLDRARCH enmArch, RTFOFF
     if (RT_FAILURE(rc))
         return rc;
     if (fArchNoCodeCheckPending && OptHdr.SizeOfCode != 0)
-        return VERR_LDR_ARCH_MISMATCH;
+        return RTErrInfoSetF(pErrInfo, VERR_LDR_ARCH_MISMATCH,
+                             "Image is for '%s' and contains code (%#x), only accepting images for '%s' with code.",
+                             rtldrPEGetArchName(FileHdr.Machine), OptHdr.SizeOfCode, rtLdrArchName(enmArch));
 
     /*
      * Read and validate section headers.
@@ -3745,7 +3820,7 @@ int rtldrPEOpen(PRTLDRREADER pReader, uint32_t fFlags, RTLDRARCH enmArch, RTFOFF
                  * inspection of the actual data.  This also saves some certificate
                  * information.
                  */
-                rc = rtldrPEValidateDirectoriesAndRememberStuff(pModPe, &OptHdr, fFlags);
+                rc = rtldrPEValidateDirectoriesAndRememberStuff(pModPe, &OptHdr, fFlags, pErrInfo);
                 if (RT_SUCCESS(rc))
                 {
                     *phLdrMod = &pModPe->Core;

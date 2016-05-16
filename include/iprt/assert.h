@@ -674,7 +674,7 @@ RT_C_DECLS_END
 
 /** @def AssertBreak
  * Assert that an expression is true and breaks if it isn't.
- * In RT_STRICT mode it will hit a breakpoint before returning.
+ * In RT_STRICT mode it will hit a breakpoint before breaking.
  *
  * @param   expr    Expression which should be true.
  */
@@ -694,6 +694,30 @@ RT_C_DECLS_END
     { /* likely */ } \
     else \
         break
+#endif
+
+/** @def AssertContinue
+ * Assert that an expression is true and continue if it isn't.
+ * In RT_STRICT mode it will hit a breakpoint before continuing.
+ *
+ * @param   expr    Expression which should be true.
+ */
+#ifdef RT_STRICT
+# define AssertContinue(expr) \
+    if (RT_LIKELY(!!(expr))) \
+    { /* likely */ } \
+    else if (1) \
+    { \
+        RTAssertMsg1Weak(#expr, __LINE__, __FILE__, __PRETTY_FUNCTION__); \
+        RTAssertPanic(); \
+        continue; \
+    } else do {} while (0)
+#else
+# define AssertContinue(expr) \
+    if (RT_LIKELY(!!(expr))) \
+    { /* likely */ } \
+    else \
+        continue
 #endif
 
 /** @def AssertBreakStmt
@@ -1589,7 +1613,7 @@ RT_C_DECLS_END
         return (rc); \
     } while (0)
 
-/** @def AssertLogRelMsgFailedReturn
+/** @def AssertLogRelMsgFailedReturnStmt
  * An assertion failed, execute @a stmt and return @a rc.
  * Strict builds will hit a breakpoint, non-strict will only do LogRel.
  *
@@ -1621,7 +1645,7 @@ RT_C_DECLS_END
         return; \
     } while (0)
 
-/** @def AssertLogRelMsgFailedReturnVoid
+/** @def AssertLogRelMsgFailedReturnVoidStmt
  * An assertion failed, execute @a stmt and return void.
  * Strict builds will hit a breakpoint, non-strict will only do LogRel.
  *
@@ -2095,7 +2119,7 @@ RT_C_DECLS_END
  */
 #define AssertRCReturn(rc, rcRet)   AssertMsgRCReturn(rc, ("%Rra\n", (rc)), rcRet)
 
-/** @def AssertRCReturn
+/** @def AssertRCReturnStmt
  * Asserts a iprt status code successful, bitch (RT_STRICT mode only), execute
  * @a stmt and returns @a rcRet if it isn't.
  *
@@ -2115,7 +2139,7 @@ RT_C_DECLS_END
  */
 #define AssertRCReturnVoid(rc)      AssertMsgRCReturnVoid(rc, ("%Rra\n", (rc)))
 
-/** @def AssertReturnVoidStmt
+/** @def AssertRCReturnVoidStmt
  * Asserts a iprt status code successful, bitch (RT_STRICT mode only), and
  * execute the given statement/return if it isn't.
  *

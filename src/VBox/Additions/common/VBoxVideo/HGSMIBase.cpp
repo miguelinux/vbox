@@ -169,6 +169,8 @@ RTDECL(int) VBoxHGSMIBufferSubmit(PHGSMIGUESTCOMMANDCONTEXT pCtx,
     {
         /* Submit the buffer to the host. */
         VBoxVideoCmnPortWriteUlong(pCtx->port, offBuffer);
+        /* Make the compiler aware that the host has changed memory. */
+        ASMCompilerBarrier();
         return VINF_SUCCESS;
     }
 
@@ -201,6 +203,23 @@ static int vboxHGSMIReportFlagsLocation(PHGSMIGUESTCOMMANDCONTEXT pCtx,
     else
         rc = VERR_NO_MEMORY;
     return rc;
+}
+
+
+/**
+ * Inform the host of the location of the host flags in VRAM via an HGSMI
+ * command.
+ * @returns  IPRT status value.
+ * @returns  VERR_NOT_IMPLEMENTED  if the host does not support the command.
+ * @returns  VERR_NO_MEMORY        if a heap allocation fails.
+ * @param    pCtx                  the context of the guest heap to use.
+ * @param    offLocation           the offset chosen for the flags withing guest
+ *                                 VRAM.
+ */
+RTDECL(int) VBoxHGSMIReportFlagsLocation(PHGSMIGUESTCOMMANDCONTEXT pCtx,
+                                         HGSMIOFFSET offLocation)
+{
+    return vboxHGSMIReportFlagsLocation(pCtx, offLocation);
 }
 
 
@@ -644,7 +663,7 @@ RTDECL(int) VBoxHGSMICursorPosition(PHGSMIGUESTCOMMANDCONTEXT pCtx, bool fReport
                 *pxHost = p->x;
             if (pyHost)
                 *pyHost = p->y;
-            Log(("%s: return: x=%u, y=%u\n", __PRETTY_FUNCTION__, (unsigned)x, (unsigned)y));
+            Log(("%s: return: x=%u, y=%u\n", __PRETTY_FUNCTION__, (unsigned)p->x, (unsigned)p->y));
         }
         /* Free the IO buffer. */
         VBoxHGSMIBufferFree(pCtx, p);

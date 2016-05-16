@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2008-2015 Oracle Corporation
+ * Copyright (C) 2008-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -4512,6 +4512,25 @@ Utf8Str Medium::i_getPreferredDiffFormat()
 }
 
 /**
+ * Returns a preferred variant for differencing media.
+ */
+MediumVariant_T Medium::i_getPreferredDiffVariant()
+{
+    AutoCaller autoCaller(this);
+    AssertComRCReturn(autoCaller.rc(), MediumVariant_Standard);
+
+    /* check that our own format supports diffs */
+    if (!(m->formatObj->i_getCapabilities() & MediumFormatCapabilities_Differencing))
+        return MediumVariant_Standard;
+
+    /* m->variant is const, no need to lock */
+    ULONG mediumVariantFlags = (ULONG)m->variant;
+    mediumVariantFlags &= ~MediumVariant_Fixed;
+    mediumVariantFlags |= MediumVariant_Diff;
+    return (MediumVariant_T)mediumVariantFlags;
+}
+
+/**
  * Implementation for the public Medium::Close() with the exception of calling
  * VirtualBox::saveRegistries(), in case someone wants to call this for several
  * media.
@@ -5092,7 +5111,7 @@ HRESULT Medium::i_prepareMergeTo(const ComObjPtr<Medium> &pTarget,
                                                  *aMediumLockList);
         else
             rc = i_createMediumLockList(true /* fFailIfInaccessible */,
-                                        false /* fMediumLockWrite */,
+                                        true /* fMediumLockWrite */,
                                         false /* fMediumLockWriteAll */,
                                         NULL,
                                         *aMediumLockList);
@@ -5510,6 +5529,13 @@ void Medium::i_cancelMergeTo(MediumLockList *aChildrenToReparent,
         if (pMedium->m->state == MediumState_Deleting)
         {
             rc = pMedium->i_unmarkForDeletion();
+            AssertComRC(rc);
+        }
+        else if (   (   pMedium->m->state == MediumState_LockedWrite
+                     || pMedium->m->state == MediumState_LockedRead)
+                 && pMedium->m->preLockState == MediumState_Deleting)
+        {
+            rc = pMedium->i_unmarkLockedForDeletion();
             AssertComRC(rc);
         }
     }

@@ -437,7 +437,7 @@ static NTSTATUS vboxUsbRtGetDeviceDescription(PVBOXUSBDEV_EXT pDevExt)
 
             if (pDr->iSerialNumber
 #ifdef DEBUG
-                    || pDr->iProduct || pDr->iManufacturer
+                || pDr->iProduct || pDr->iManufacturer
 #endif
                )
             {
@@ -445,7 +445,8 @@ static NTSTATUS vboxUsbRtGetDeviceDescription(PVBOXUSBDEV_EXT pDevExt)
                 Status = VBoxUsbToolGetLangID(pDevExt->pLowerDO, &langId, RT_INDEFINITE_WAIT);
                 if (NT_SUCCESS(Status))
                 {
-                    Status = VBoxUsbToolGetStringDescriptorA(pDevExt->pLowerDO, pDevExt->Rt.szSerial, sizeof (pDevExt->Rt.szSerial), pDr->iSerialNumber, langId, RT_INDEFINITE_WAIT);
+                    Status = VBoxUsbToolGetStringDescriptor(pDevExt->pLowerDO, pDevExt->Rt.szSerial, sizeof (pDevExt->Rt.szSerial),
+                                                            pDr->iSerialNumber, langId, RT_INDEFINITE_WAIT);
                 }
                 else
                 {
@@ -1342,7 +1343,14 @@ static NTSTATUS vboxUsbRtUrbSend(PVBOXUSBDEV_EXT pDevExt, PIRP pIrp, PUSBSUP_URB
                 iStartFrame = pPipeInfo->NextScheduledFrame;
                 if ((iFrame < iStartFrame) || (iStartFrame > iFrame + 512))
                     iFrame = iStartFrame;
-                pPipeInfo->NextScheduledFrame = iFrame + pUrbInfo->numIsoPkts;
+                /* For full-speed devices, there must be one transfer per frame (Windows USB
+                 * stack requirement), but URBs can contain multiple packets. For high-speed or
+                 * faster transfers, we expect one URB per frame, regardless of the interval.
+                 */
+                if (pDevExt->Rt.devdescr->bcdUSB < 0x300 && !pDevExt->Rt.fIsHighSpeed)
+                    pPipeInfo->NextScheduledFrame = iFrame + pUrbInfo->numIsoPkts;
+                else
+                    pPipeInfo->NextScheduledFrame = iFrame + 1;
                 pUrb->UrbIsochronousTransfer.StartFrame = iFrame;
                 break;
             }
