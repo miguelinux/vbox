@@ -525,21 +525,25 @@ VMMDECL(void)       PGMPhysReleasePageMappingLock(PVM pVM, PPGMPAGEMAPLOCK pLock
 # define PGM_PHYS_RW_IS_SUCCESS(a_rcStrict) \
     (   (a_rcStrict) == VINF_SUCCESS \
      || (a_rcStrict) == VINF_EM_DBG_STOP \
+     || (a_rcStrict) == VINF_EM_DBG_EVENT \
      || (a_rcStrict) == VINF_EM_DBG_BREAKPOINT \
     )
 #elif defined(IN_RING0)
 # define PGM_PHYS_RW_IS_SUCCESS(a_rcStrict) \
     (   (a_rcStrict) == VINF_SUCCESS \
+     || (a_rcStrict) == VINF_IOM_R3_MMIO_COMMIT_WRITE \
      || (a_rcStrict) == VINF_EM_OFF \
      || (a_rcStrict) == VINF_EM_SUSPEND \
      || (a_rcStrict) == VINF_EM_RESET \
      || (a_rcStrict) == VINF_EM_HALT \
      || (a_rcStrict) == VINF_EM_DBG_STOP \
+     || (a_rcStrict) == VINF_EM_DBG_EVENT \
      || (a_rcStrict) == VINF_EM_DBG_BREAKPOINT \
     )
 #elif defined(IN_RC)
 # define PGM_PHYS_RW_IS_SUCCESS(a_rcStrict) \
     (   (a_rcStrict) == VINF_SUCCESS \
+     || (a_rcStrict) == VINF_IOM_R3_MMIO_COMMIT_WRITE \
      || (a_rcStrict) == VINF_EM_OFF \
      || (a_rcStrict) == VINF_EM_SUSPEND \
      || (a_rcStrict) == VINF_EM_RESET \
@@ -547,6 +551,7 @@ VMMDECL(void)       PGMPhysReleasePageMappingLock(PVM pVM, PPGMPAGEMAPLOCK pLock
      || (a_rcStrict) == VINF_SELM_SYNC_GDT \
      || (a_rcStrict) == VINF_EM_RAW_EMULATE_INSTR_GDT_FAULT \
      || (a_rcStrict) == VINF_EM_DBG_STOP \
+     || (a_rcStrict) == VINF_EM_DBG_EVENT \
      || (a_rcStrict) == VINF_EM_DBG_BREAKPOINT \
     )
 #endif
@@ -569,6 +574,7 @@ VMMDECL(void)       PGMPhysReleasePageMappingLock(PVM pVM, PPGMPAGEMAPLOCK pLock
     do { \
         Assert(PGM_PHYS_RW_IS_SUCCESS(rcStrict)); \
         Assert(PGM_PHYS_RW_IS_SUCCESS(rcStrict2)); \
+        AssertCompile(VINF_IOM_R3_MMIO_COMMIT_WRITE > VINF_EM_LAST); \
         if ((a_rcStrict2) == VINF_SUCCESS || (a_rcStrict) == (a_rcStrict2)) \
         { /* likely */ } \
         else if (   (a_rcStrict) == VINF_SUCCESS \
@@ -583,10 +589,14 @@ VMMDECL(void)       PGMPhysReleasePageMappingLock(PVM pVM, PPGMPAGEMAPLOCK pLock
         AssertCompile(VINF_SELM_SYNC_GDT > VINF_EM_LAST); \
         AssertCompile(VINF_EM_RAW_EMULATE_INSTR_GDT_FAULT > VINF_EM_LAST); \
         AssertCompile(VINF_EM_RAW_EMULATE_INSTR_GDT_FAULT < VINF_SELM_SYNC_GDT); \
+        AssertCompile(VINF_IOM_R3_MMIO_COMMIT_WRITE > VINF_EM_LAST); \
+        AssertCompile(VINF_IOM_R3_MMIO_COMMIT_WRITE > VINF_SELM_SYNC_GDT); \
+        AssertCompile(VINF_IOM_R3_MMIO_COMMIT_WRITE > VINF_EM_RAW_EMULATE_INSTR_GDT_FAULT); \
         if ((a_rcStrict2) == VINF_SUCCESS || (a_rcStrict) == (a_rcStrict2)) \
         { /* likely */ } \
-        else if (   (a_rcStrict) == VINF_SUCCESS \
-                 || (   (a_rcStrict) > (a_rcStrict2) \
+        else if ((a_rcStrict) == VINF_SUCCESS) \
+            (a_rcStrict) = (a_rcStrict2); \
+        else if (   (   (a_rcStrict) > (a_rcStrict2) \
                      && (   (a_rcStrict2) <= VINF_EM_RESET  \
                          || (a_rcStrict) != VINF_EM_RAW_EMULATE_INSTR_GDT_FAULT) ) \
                  || (   (a_rcStrict2) == VINF_EM_RAW_EMULATE_INSTR_GDT_FAULT \
@@ -608,8 +618,22 @@ VMMDECL(int)        PGMPhysSimpleDirtyWriteGCPtr(PVMCPU pVCpu, RTGCPTR GCPtrDst,
 VMMDECL(int)        PGMPhysInterpretedRead(PVMCPU pVCpu, PCPUMCTXCORE pCtxCore, void *pvDst, RTGCPTR GCPtrSrc, size_t cb);
 VMMDECL(int)        PGMPhysInterpretedReadNoHandlers(PVMCPU pVCpu, PCPUMCTXCORE pCtxCore, void *pvDst, RTGCUINTPTR GCPtrSrc, size_t cb, bool fRaiseTrap);
 VMMDECL(int)        PGMPhysInterpretedWriteNoHandlers(PVMCPU pVCpu, PCPUMCTXCORE pCtxCore, RTGCPTR GCPtrDst, void const *pvSrc, size_t cb, bool fRaiseTrap);
+
 VMM_INT_DECL(int)   PGMPhysIemGCPhys2Ptr(PVM pVM, PVMCPU pVCpu, RTGCPHYS GCPhys, bool fWritable, bool fByPassHandlers, void **ppv, PPGMPAGEMAPLOCK pLock);
 VMM_INT_DECL(int)   PGMPhysIemQueryAccess(PVM pVM, RTGCPHYS GCPhys, bool fWritable, bool fByPassHandlers);
+VMM_INT_DECL(int)   PGMPhysIemGCPhys2PtrNoLock(PVM pVM, PVMCPU pVCpu, RTGCPHYS GCPhys, uint64_t const volatile *puTlbPhysRev,
+#if defined(IN_RC) || defined(VBOX_WITH_2X_4GB_ADDR_SPACE_IN_R0)
+                                               R3PTRTYPE(uint8_t *) *ppb,
+#else
+                                               R3R0PTRTYPE(uint8_t *) *ppb,
+#endif
+                                               uint64_t *pfTlb);
+/** @name Flags returned by PGMPhysIemGCPhys2PtrNoLock
+ * @{ */
+#define PGMIEMGCPHYS2PTR_F_NO_WRITE     RT_BIT_32(3)    /**< Not writable (IEMTLBE_F_PG_NO_WRITE). */
+#define PGMIEMGCPHYS2PTR_F_NO_READ      RT_BIT_32(4)    /**< Not readable (IEMTLBE_F_PG_NO_READ). */
+#define PGMIEMGCPHYS2PTR_F_NO_MAPPINGR3 RT_BIT_32(7)    /**< No ring-3 mapping (IEMTLBE_F_NO_MAPPINGR3). */
+/** @} */
 
 #ifdef VBOX_STRICT
 VMMDECL(unsigned)   PGMAssertHandlerAndFlagsInSync(PVM pVM);

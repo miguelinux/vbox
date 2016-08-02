@@ -1,10 +1,10 @@
-# $Id: qt4.kmk 2787 2015-08-13 09:16:00Z bird $
+# $Id: qt4.kmk 2805M 2016-05-30 11:17:42Z (local) $
 ## @file
 # Qt 4 unit.
 #
 
 #
-# Copyright (c) 2008-2014 knut st. osmundsen <bird-kBuild-spam-xiv@anduin.net>
+# Copyright (c) 2008-2016 knut st. osmundsen <bird-kBuild-spam-xiv@anduin.net>
 #
 # This file is part of kBuild.
 #
@@ -38,8 +38,8 @@ endif
 UNIT_qt4 = qt4
 
 
-ifndef UNIT_qt3
- # Add our target properties (same as qt3).
+if !defined(UNIT_qt3) && !defined(UNIT_qt5)
+ # Add our target properties (same as qt3 & qt5).
  PROPS_SINGLE += QTTOOL MOCTOOL UICTOOL LRCTOOL QT_TRANSLATIONS_INST QT_TRANSLATIONS_TEMPLATE QT_PREFIX
  PROPS_ACCUMULATE_R += MOCDEFS MOCFLAGS UICFLAGS LRCFLAGS QT_TRANSLATIONS QT_MOCSRCS QT_MOCHDRS
 endif
@@ -58,6 +58,10 @@ PROPS_ACCUMULATE_R += RCCFLAGS QT_MODULES
 ## @todo the SDK might actually not be necessary as it turns out... For now it servers
 # a purpose if the host differs from the target, in theory at least.
 SDK_QT4 = Qt4
+
+# This is required at least on Ubuntu / Debian to distinguish between Qt4 and Qt5
+# as the Qt5 tools don't have the -qt5 suffix
+export QT_SELECT=4
 
 # SDK Specific Properties
 #       PATH_SDK_QT4	       - The general Qt4 root directory.

@@ -42,7 +42,7 @@
 /*********************************************************************************************************************************
 *   Header Files                                                                                                                 *
 *********************************************************************************************************************************/
-#define LOG_GROUP LOG_GROUP_DEV_APIC
+#define LOG_GROUP LOG_GROUP_DEV_IOAPIC
 #include <VBox/vmm/pdmdev.h>
 
 #include <VBox/log.h>
@@ -74,6 +74,11 @@
 
 #define DEBUG_IOAPIC
 #define IOAPIC_NUM_PINS                 0x18
+
+/** The old code (this file) */
+#define IOAPIC_SAVED_STATE_VERSION_VBOX_50      1
+/** The new code (DevIOAPIC_New). We need to be able to load this SSM as well. */
+#define IOAPIC_SAVED_STATE_VERSION_NEW_CODE     2
 
 
 /*********************************************************************************************************************************
@@ -174,7 +179,7 @@ static void ioapic_service(PIOAPIC pThis)
                                                                         uTagSrc);
                 /* We must be sure that attempts to reschedule in R3
                    never get here */
-                Assert(rc == VINF_SUCCESS);
+                Assert(rc == VINF_SUCCESS || rc == VERR_APIC_INTR_DISCARDED);
             }
         }
     }
@@ -518,7 +523,7 @@ PDMBOTHCBDECL(void) ioapicSendMsi(PPDMDEVINS pDevIns, RTGCPHYS GCAddr, uint32_t 
                                                             uTagSrc);
     /* We must be sure that attempts to reschedule in R3
        never get here */
-    Assert(rc == VINF_SUCCESS);
+    Assert(rc == VINF_SUCCESS || rc == VERR_APIC_INTR_DISCARDED);
 }
 
 #ifdef IN_RING3
@@ -700,8 +705,13 @@ static DECLCALLBACK(int) ioapicSaveExec(PPDMDEVINS pDevIns, PSSMHANDLE pSSM)
 static DECLCALLBACK(int) ioapicLoadExec(PPDMDEVINS pDevIns, PSSMHANDLE pSSM, uint32_t uVersion, uint32_t uPass)
 {
     PIOAPIC pThis = PDMINS_2_DATA(pDevIns, PIOAPIC);
-    if (uVersion != 1)
+    if (   uVersion != IOAPIC_SAVED_STATE_VERSION_VBOX_50
+        && uVersion != IOAPIC_SAVED_STATE_VERSION_NEW_CODE)
         return VERR_SSM_UNSUPPORTED_DATA_UNIT_VERSION;
+
+    uint32_t ignore;
+    if (uVersion == IOAPIC_SAVED_STATE_VERSION_NEW_CODE)
+        SSMR3GetU32(pSSM, &ignore);
 
     SSMR3GetU8(pSSM, &pThis->id);
     SSMR3GetU8(pSSM, &pThis->ioregsel);
@@ -796,6 +806,9 @@ static DECLCALLBACK(int) ioapicConstruct(PPDMDEVINS pDevIns, int iInstance, PCFG
     IoApicReg.pfnSendMsiR3 = ioapicSendMsi;
     IoApicReg.pszSendMsiRC = fRZEnabled ? "ioapicSendMsi" : NULL;
     IoApicReg.pszSendMsiR0 = fRZEnabled ? "ioapicSendMsi" : NULL;
+    IoApicReg.pfnSetEoiR3  = NULL;
+    IoApicReg.pszSetEoiR0  = NULL;
+    IoApicReg.pszSetEoiRC  = NULL;
 
     rc = PDMDevHlpIOAPICRegister(pDevIns, &IoApicReg, &pThis->pIoApicHlpR3);
     if (RT_FAILURE(rc))
@@ -827,7 +840,8 @@ static DECLCALLBACK(int) ioapicConstruct(PPDMDEVINS pDevIns, int iInstance, PCFG
         AssertRCReturn(rc, rc);
     }
 
-    rc = PDMDevHlpSSMRegister(pDevIns, 1 /* version */, sizeof(*pThis), ioapicSaveExec, ioapicLoadExec);
+    rc = PDMDevHlpSSMRegister(pDevIns, IOAPIC_SAVED_STATE_VERSION_VBOX_50, sizeof(*pThis),
+                              ioapicSaveExec, ioapicLoadExec);
     if (RT_FAILURE(rc))
         return rc;
 

@@ -2,12 +2,12 @@
 /** @file
  * DevPCI - ICH9 southbridge PCI bus emulation device.
  *
- * @note    bird: I've cleaned up DevPCI.cpp to some extend, this file has not
+ * @note    bird: I've cleaned up DevPCI.cpp to some extent, this file has not
  *                be cleaned up and because of pending code merge.
  */
 
 /*
- * Copyright (C) 2010-2015 Oracle Corporation
+ * Copyright (C) 2010-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -893,10 +893,11 @@ static void ich9pciUpdateMappings(PCIDevice* pDev)
                 if (f64Bit)
                 {
                     uNew |= ((uint64_t)ich9pciGetDWord(pDev, uConfigReg+4)) << 32;
+                    /** @todo r=klaus Is this really true? Needs to be fixed properly. */
                     if (uNew > UINT64_C(0x0000010000000000))
                     {
-                        /* Workaround for REM being unhapping with mapping very lange 64-bit addresses */
-                        Log(("Ignoring too 64-bit BAR: %llx\n", uNew));
+                        /* Workaround for REM being unhapping with mapping very long 64-bit addresses */
+                        LogRel(("Ignoring too long 64-bit BAR: %llx\n", uNew));
                         uNew = INVALID_PCI_ADDRESS;
                     }
                 }
@@ -912,12 +913,14 @@ static void ich9pciUpdateMappings(PCIDevice* pDev)
                     /* XXX: as we cannot support really dynamic
                        mappings, we handle specific values as invalid
                        mappings. */
-                    if (uLast <= uNew || uNew == 0 || uLast == INVALID_PCI_ADDRESS)
+                    /* Unconditionally exclude I/O-APIC/HPET/ROM. Pessimistic, but better than causing a mess. */
+                    if (uLast <= uNew || uNew == 0 || (uNew <= UINT32_C(0xffffffff) && uLast >= UINT32_C(0xfec00000)))
                         uNew = INVALID_PCI_ADDRESS;
                 }
             } else
                 uNew = INVALID_PCI_ADDRESS;
         }
+        LogRel2(("PCI: config dev %u/%u BAR%i uOld=%#018llx uNew=%#018llx size=%llu\n", pDev->devfn >> 3, pDev->devfn & 7, iRegion, pRegion->addr, uNew, pRegion->size));
         /* now do the real mapping */
         if (uNew != pRegion->addr)
         {
@@ -935,6 +938,9 @@ static void ich9pciUpdateMappings(PCIDevice* pDev)
                 AssertRC(rc);
             }
         }
+
+        if (f64Bit)
+            iRegion++;
     }
 }
 
@@ -1041,7 +1047,8 @@ static DECLCALLBACK(int) ich9pciIORegionRegister(PPDMDEVINS pDevIns, PPCIDEVICE 
 
     if ((enmType & PCI_ADDRESS_SPACE_BAR64) != 0)
     {
-        AssertMsgReturn(iRegion  < 4,
+        /* VBOX_PCI_BASE_ADDRESS_5 and VBOX_PCI_ROM_ADDRESS are excluded. */
+        AssertMsgReturn(iRegion < (PCI_NUM_REGIONS-2),
                         ("Region %d cannot be 64-bit\n", iRegion),
                         VERR_INVALID_PARAMETER);
         /* Mark next region as continuation of this one. */
@@ -1613,18 +1620,9 @@ static void ich9pciSetRegionAddress(PICH9PCIGLOBALS pGlobals, uint8_t uBus, uint
 
     /* Read memory type first. */
     uint8_t uResourceType = ich9pciConfigRead(pGlobals, uBus, uDevFn, uReg, 1);
-    /* Read command register. */
-    uint16_t uCmd = ich9pciConfigRead(pGlobals, uBus, uDevFn, VBOX_PCI_COMMAND, 2);
 
     Log(("Set region address: %02x:%02x.%d region %d address=%lld\n",
          uBus, uDevFn >> 3, uDevFn & 7, iRegion, addr));
-
-    if ( iRegion == PCI_ROM_SLOT )
-        uCmd |= PCI_COMMAND_MEMACCESS;
-    else if ((uResourceType & PCI_ADDRESS_SPACE_IO) == PCI_ADDRESS_SPACE_IO)
-        uCmd |= PCI_COMMAND_IOACCESS; /* Enable I/O space access. */
-    else /* The region is MMIO. */
-        uCmd |= PCI_COMMAND_MEMACCESS; /* Enable MMIO access. */
 
     bool f64Bit = (uResourceType & PCI_ADDRESS_SPACE_BAR64) != 0;
 
@@ -1632,9 +1630,6 @@ static void ich9pciSetRegionAddress(PICH9PCIGLOBALS pGlobals, uint8_t uBus, uint
     ich9pciConfigWrite(pGlobals, uBus, uDevFn, uReg, (uint32_t)addr, 4);
     if (f64Bit)
         ich9pciConfigWrite(pGlobals, uBus, uDevFn, uReg + 4, (uint32_t)(addr >> 32), 4);
-
-    /* enable memory mappings */
-    ich9pciConfigWrite(pGlobals, uBus, uDevFn, VBOX_PCI_COMMAND, uCmd, 2);
 }
 
 
@@ -1736,15 +1731,14 @@ static void ich9pciBiosInitDevice(PICH9PCIGLOBALS pGlobals, uint8_t uBus, uint8_
             /*
              * Legacy VGA I/O ports are implicitly decoded by a VGA class device. But
              * only the framebuffer (i.e., a memory region) is explicitly registered via
-             * ich9pciSetRegionAddress, so I/O decoding must be enabled manually.
+             * ich9pciSetRegionAddress, so don't forget to enable I/O decoding.
              */
             uCmd = ich9pciConfigRead(pGlobals, uBus, uDevFn, VBOX_PCI_COMMAND, 1);
             ich9pciConfigWrite(pGlobals, uBus, uDevFn, VBOX_PCI_COMMAND,
-                               /* Enable I/O space access. */
-                               uCmd | PCI_COMMAND_IOACCESS,
+                               uCmd | PCI_COMMAND_IOACCESS | PCI_COMMAND_MEMACCESS,
                                1);
             break;
-       case 0x0604:
+        case 0x0604:
             /* PCI-to-PCI bridge. */
             AssertMsg(pGlobals->uBus < 255, ("Too many bridges on the bus\n"));
             ich9pciBiosInitBridge(pGlobals, uBus, uDevFn);
@@ -1753,6 +1747,8 @@ static void ich9pciBiosInitDevice(PICH9PCIGLOBALS pGlobals, uint8_t uBus, uint8_
         default_map:
         {
             /* default memory mappings */
+            bool fActiveMemRegion = false;
+            bool fActiveIORegion = false;
             /*
              * We ignore ROM region here.
              */
@@ -1761,7 +1757,7 @@ static void ich9pciBiosInitDevice(PICH9PCIGLOBALS pGlobals, uint8_t uBus, uint8_
                 uint32_t u32Address = ich9pciGetRegionReg(iRegion);
 
                 /* Calculate size - we write all 1s into the BAR, and then evaluate which bits
-                   are cleared. . */
+                   are cleared. */
                 uint8_t u8ResourceType = ich9pciConfigRead(pGlobals, uBus, uDevFn, u32Address, 1);
 
                 bool f64bit = (u8ResourceType & PCI_ADDRESS_SPACE_BAR64) != 0;
@@ -1812,18 +1808,47 @@ static void ich9pciBiosInitDevice(PICH9PCIGLOBALS pGlobals, uint8_t uBus, uint8_
 
                 if (cbRegSize64)
                 {
+                    /** @todo r=klaus make this code actually handle 64-bit BARs, especially MMIO which can't possibly fit into the memory hole. */
                     uint32_t  cbRegSize32 = (uint32_t)cbRegSize64;
                     uint32_t* paddr = fIsPio ? &pGlobals->uPciBiosIo : &pGlobals->uPciBiosMmio;
-                    *paddr = (*paddr + cbRegSize32 - 1) & ~(cbRegSize32 - 1);
-                    Log(("%s: Start address of %s region %u is %#x\n", __FUNCTION__, (fIsPio ? "I/O" : "MMIO"), iRegion, *paddr));
-                    ich9pciSetRegionAddress(pGlobals, uBus, uDevFn, iRegion, *paddr);
-                    *paddr += cbRegSize32;
-                    Log2(("%s: New address is %#x\n", __FUNCTION__, *paddr));
+                    uint32_t uNew = *paddr;
+                    uNew = (uNew + cbRegSize32 - 1) & ~(cbRegSize32 - 1);
+                    if (fIsPio)
+                        uNew &= UINT32_C(0xffff);
+                    /* Unconditionally exclude I/O-APIC/HPET/ROM. Pessimistic, but better than causing a mess. */
+                    if (!uNew || (uNew <= UINT32_C(0xffffffff) && uNew + cbRegSize32 - 1 >= UINT32_C(0xfec00000)))
+                    {
+                        LogRel(("PCI: no space left for BAR%u of device %u/%u/%u (vendor=%#06x device=%#06x)\n",
+                                iRegion, uBus, uDevFn >> 3, uDevFn & 7, uVendor, uDevice)); /** @todo make this a VM start failure later. */
+                        /* Undo the mapping mess caused by the size probing. */
+                        ich9pciConfigWrite(pGlobals, uBus, uDevFn, u32Address, UINT32_C(0), 4);
+                        if (f64bit)
+                            ich9pciConfigWrite(pGlobals, uBus, uDevFn, u32Address+4, UINT32_C(0), 4);
+                    }
+                    else
+                    {
+                        Log(("%s: Start address of %s region %u is %#x\n", __FUNCTION__, (fIsPio ? "I/O" : "MMIO"), iRegion, uNew));
+                        ich9pciSetRegionAddress(pGlobals, uBus, uDevFn, iRegion, uNew);
+                        if (fIsPio)
+                            fActiveIORegion = true;
+                        else
+                            fActiveMemRegion = true;
+                        *paddr = uNew + cbRegSize32;
+                        Log2(("%s: New address is %#x\n", __FUNCTION__, *paddr));
+                    }
 
                     if (f64bit)
                         iRegion++; /* skip next region */
                 }
             }
+
+            /* Update the command word appropriately. */
+            uCmd = ich9pciConfigRead(pGlobals, uBus, uDevFn, VBOX_PCI_COMMAND, 2);
+            if (fActiveMemRegion)
+                uCmd |= PCI_COMMAND_MEMACCESS; /* Enable MMIO access. */
+            if (fActiveIORegion)
+                uCmd |= PCI_COMMAND_IOACCESS; /* Enable I/O space access. */
+            ich9pciConfigWrite(pGlobals, uBus, uDevFn, VBOX_PCI_COMMAND, uCmd, 2);
             break;
         }
     }
@@ -2366,7 +2391,10 @@ static void ich9pciBusInfo(PICH9PCIBUS pBus, PCDBGFINFOHLP pHlp, int iIndent, bo
                             ich9pciGetWord(pPciDev, VBOX_PCI_VENDOR_ID), ich9pciGetWord(pPciDev, VBOX_PCI_DEVICE_ID)
                             );
             if (ich9pciGetByte(pPciDev, VBOX_PCI_INTERRUPT_PIN) != 0)
+            {
                 pHlp->pfnPrintf(pHlp, " IRQ%d", ich9pciGetByte(pPciDev, VBOX_PCI_INTERRUPT_LINE));
+                pHlp->pfnPrintf(pHlp, " (INTA#->IRQ%d)", 0x10 + ich9pciSlot2ApicIrq(iDev >> 3, 0));
+            }
             pHlp->pfnPrintf(pHlp, "\n");
 
             if (pciDevIsMsiCapable(pPciDev) || pciDevIsMsixCapable(pPciDev))

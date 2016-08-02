@@ -94,6 +94,13 @@ typedef struct _DISPLAYFBINFO
         ULONG height;
     } pendingViewportInfo;
 #endif /* VBOX_WITH_CROGL */
+
+#ifdef VBOX_WITH_VPX
+    struct
+    {
+        ComPtr<IDisplaySourceBitmap> pSourceBitmap;
+    } videoCapture;
+#endif
 } DISPLAYFBINFO;
 
 /* The legacy VBVA (VideoAccel) data.
@@ -194,6 +201,9 @@ public:
     int  i_VideoCaptureStart();
     void i_VideoCaptureStop();
     int  i_VideoCaptureEnableScreens(ComSafeArrayIn(BOOL, aScreens));
+#ifdef VBOX_WITH_VPX
+    void videoCaptureScreenChanged(unsigned uScreenId);
+#endif
 
     void i_notifyPowerDown(void);
 
@@ -216,6 +226,7 @@ public:
 
 private:
     // Wrapped IDisplay properties
+    virtual HRESULT getGuestScreenLayout(std::vector<ComPtr<IGuestScreenInfo> > &aGuestScreenLayout);
 
     // Wrapped IDisplay methods
     virtual HRESULT getScreenResolution(ULONG aScreenId,
@@ -271,6 +282,8 @@ private:
                                             ULONG aScaleFactorWMultiplied,
                                             ULONG aScaleFactorHMultiplied);
     virtual HRESULT notifyHiDPIOutputPolicyChange(BOOL fUnscaledHiDPI);
+    virtual HRESULT setScreenLayout(ScreenLayoutMode_T aScreenLayoutMode,
+                                    const std::vector<ComPtr<IGuestScreenInfo> > &aGuestScreenInfo);
 
     // Wrapped IEventListener properties
 
@@ -342,7 +355,8 @@ private:
     static DECLCALLBACK(void)  i_displayVBVAUpdateEnd(PPDMIDISPLAYCONNECTOR pInterface, unsigned uScreenId, int32_t x, int32_t y,
                                                       uint32_t cx, uint32_t cy);
     static DECLCALLBACK(int)   i_displayVBVAResize(PPDMIDISPLAYCONNECTOR pInterface, const PVBVAINFOVIEW pView,
-                                                   const PVBVAINFOSCREEN pScreen, void *pvVRAM);
+                                                   const PVBVAINFOSCREEN pScreen, void *pvVRAM,
+                                                   bool fResetInputMapping);
     static DECLCALLBACK(int)   i_displayVBVAMousePointerShape(PPDMIDISPLAYCONNECTOR pInterface, bool fVisible, bool fAlpha,
                                                               uint32_t xHot, uint32_t yHot, uint32_t cx, uint32_t cy,
                                                               const void *pvShape);
@@ -444,6 +458,10 @@ private:
 
     /* Serializes access to mVideoAccelLegacy and mfVideoAccelVRDP, etc between VRDP and Display. */
     RTCRITSECT mVideoAccelLock;
+#ifdef VBOX_WITH_VPX
+    /* Serializes access to video capture source bitmaps. */
+    RTCRITSECT mVideoCaptureLock;
+#endif
 
 public:
 

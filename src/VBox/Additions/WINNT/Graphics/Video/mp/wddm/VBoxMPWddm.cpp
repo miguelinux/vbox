@@ -1111,7 +1111,7 @@ NTSTATUS DxgkDdiStartDevice(
                 {
                     pDevExt->fTexPresentEnabled = !!(VBoxMpCrGetHostCaps() & CR_VBOX_CAP_TEX_PRESENT);
                     pDevExt->fCmdVbvaEnabled = !!(VBoxMpCrGetHostCaps() & CR_VBOX_CAP_CMDVBVA);
-# if 1
+# if 0
                     pDevExt->fComplexTopologiesEnabled = pDevExt->fCmdVbvaEnabled;
 # else
                     pDevExt->fComplexTopologiesEnabled = FALSE;
@@ -5080,7 +5080,7 @@ DxgkDdiIsSupportedVidPn(
         return Status;
     }
 
-    LOGF(("LEAVE, status(0x%x), context(0x%x)", Status, hAdapter));
+    LOGF(("LEAVE, isSupported(%d), context(0x%x)", pIsSupportedVidPnArg->IsVidPnSupported, hAdapter));
 
     return STATUS_SUCCESS;
 }

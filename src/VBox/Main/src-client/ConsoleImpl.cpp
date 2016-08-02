@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2005-2015 Oracle Corporation
+ * Copyright (C) 2005-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -55,7 +55,9 @@
 #include "USBDeviceImpl.h"
 #include "RemoteUSBDeviceImpl.h"
 #include "SharedFolderImpl.h"
-#include "DrvAudioVRDE.h"
+#ifdef VBOX_WITH_VRDE_AUDIO
+# include "DrvAudioVRDE.h"
+#endif
 #include "Nvram.h"
 #ifdef VBOX_WITH_USB_CARDREADER
 # include "UsbCardReader.h"
@@ -67,11 +69,13 @@
 # include "ExtPackManagerImpl.h"
 #endif
 #include "BusAssignmentManager.h"
+#include "PCIDeviceAttachmentImpl.h"
 #include "EmulatedUSBImpl.h"
 
 #include "VBoxEvents.h"
 #include "AutoCaller.h"
 #include "Logging.h"
+#include "ThreadTask.h"
 
 #include <VBox/com/array.h>
 #include "VBox/com/ErrorInfo.h"
@@ -95,6 +99,7 @@
 #include <VBox/vmm/pdmapi.h>
 #include <VBox/vmm/pdmasynccompletion.h>
 #include <VBox/vmm/pdmnetifs.h>
+#include <VBox/vmm/pdmstorageifs.h>
 #ifdef VBOX_WITH_USB
 # include <VBox/vmm/pdmusb.h>
 #endif
@@ -125,7 +130,7 @@
 #include <algorithm>
 #include <memory> // for auto_ptr
 #include <vector>
-
+#include <exception>// std::exception
 
 // VMTask and friends
 ////////////////////////////////////////////////////////////////////////////////
@@ -137,8 +142,7 @@
  *
  * 1. The user must check for #rc() before using the created structure
  *    (e.g. passing it as a thread function argument). If #rc() returns a
- *    failure, the Console object may not be used by the task (see
- *    Console::addCaller() for more details).
+ *    failure, the Console object may not be used by the task.
  * 2. On successful initialization, the structure keeps the Console caller
  *    until destruction (to ensure Console remains in the Ready state and won't
  *    be accidentally uninitialized). Forgetting to delete the created task
@@ -149,13 +153,15 @@
  * as a Console::mpUVM caller with the same meaning as above. See
  * Console::addVMCaller() for more info.
  */
-struct VMTask
+class VMTask: public ThreadTask
 {
+public:
     VMTask(Console *aConsole,
            Progress *aProgress,
            const ComPtr<IProgress> &aServerProgress,
            bool aUsesVMPtr)
-        : mConsole(aConsole),
+        : ThreadTask("GenericVMTask"),
+          mConsole(aConsole),
           mConsoleCaller(aConsole),
           mProgress(aProgress),
           mServerProgress(aServerProgress),
@@ -174,7 +180,7 @@ struct VMTask
         }
     }
 
-    ~VMTask()
+    virtual ~VMTask()
     {
         releaseVMCaller();
     }
@@ -204,8 +210,9 @@ private:
 };
 
 
-struct VMPowerUpTask : public VMTask
+class VMPowerUpTask : public VMTask
 {
+public:
     VMPowerUpTask(Console *aConsole,
                   Progress *aProgress)
         : VMTask(aConsole, aProgress, NULL /* aServerProgress */,
@@ -214,7 +221,9 @@ struct VMPowerUpTask : public VMTask
           mStartPaused(false),
           mTeleporterEnabled(FALSE),
           mEnmFaultToleranceState(FaultToleranceState_Inactive)
-    {}
+    {
+        m_strTaskName = "VMPwrUp";
+    }
 
     PFNCFGMCONSTRUCTOR mConfigConstructor;
     Utf8Str mSavedStateFile;
@@ -226,15 +235,29 @@ struct VMPowerUpTask : public VMTask
     /* array of progress objects for hard disk reset operations */
     typedef std::list<ComPtr<IProgress> > ProgressList;
     ProgressList hardDiskProgresses;
+
+    void handler()
+    {
+        int vrc = Console::i_powerUpThread(NULL, this);
+    }
+
 };
 
-struct VMPowerDownTask : public VMTask
+class VMPowerDownTask : public VMTask
 {
+public:
     VMPowerDownTask(Console *aConsole,
                     const ComPtr<IProgress> &aServerProgress)
         : VMTask(aConsole, NULL /* aProgress */, aServerProgress,
                  true /* aUsesVMPtr */)
-    {}
+    {
+        m_strTaskName = "VMPwrDwn";
+    }
+
+    void handler()
+    {
+        int vrc = Console::i_powerDownThread(NULL, this);
+    }
 };
 
 // Handler for global events
@@ -282,7 +305,6 @@ public:
                 pNREv->COMGETTER(Proto)(&proto);
                 BOOL fRemove;
                 pNREv->COMGETTER(Remove)(&fRemove);
-                bool fUdp = (proto == NATProtocol_UDP);
                 Bstr hostIp, guestIp;
                 LONG hostPort, guestPort;
                 pNREv->COMGETTER(HostIP)(hostIp.asOutParam());
@@ -548,9 +570,10 @@ HRESULT Console::init(IMachine *aMachine, IInternalMachineControl *aControl, Loc
         for (ULONG slot = 0; slot < maxNetworkAdapters; ++slot)
             meAttachmentType[slot] = NetworkAttachmentType_Null;
 
+#ifdef VBOX_WITH_VRDE_AUDIO
         unconst(mAudioVRDE) = new AudioVRDE(this);
         AssertReturn(mAudioVRDE, E_FAIL);
-
+#endif
         FirmwareType_T enmFirmwareType;
         mMachine->COMGETTER(FirmwareType)(&enmFirmwareType);
         if (   enmFirmwareType == FirmwareType_EFI
@@ -646,7 +669,6 @@ void Console::uninit()
     if (mpUVM)
     {
         i_powerDown();
-//        AssertReleaseMsgFailed(("THIS MUST NOT HAPPEN!"));
         Assert(mpUVM == NULL);
     }
 
@@ -688,11 +710,13 @@ void Console::uninit()
     }
 #endif
 
+#ifdef VBOX_WITH_VRDE_AUDIO
     if (mAudioVRDE)
     {
         delete mAudioVRDE;
         unconst(mAudioVRDE) = NULL;
     }
+#endif
 
     // if the VM had a VMMDev with an HGCM thread, then remove that here
     if (m_pVMMDev)
@@ -1383,11 +1407,13 @@ void Console::i_VRDPClientDisconnect(uint32_t u32ClientId,
         mConsoleVRDPServer->ClipboardDelete(u32ClientId);
     }
 
+#ifdef VBOX_WITH_VRDE_AUDIO
     if (fu32Intercepted & VRDE_CLIENT_INTERCEPT_AUDIO)
     {
         if (mAudioVRDE)
             mAudioVRDE->onVRDEControl(false /* fEnable */, 0 /* uFlags */);
     }
+#endif
 
     AuthType_T authType = AuthType_Null;
     HRESULT hrc = mVRDEServer->COMGETTER(AuthType)(&authType);
@@ -1418,8 +1444,10 @@ void Console::i_VRDPInterceptAudio(uint32_t u32ClientId)
 
     LogFlowFunc(("u32ClientId=%RU32\n", u32ClientId));
 
+#ifdef VBOX_WITH_VRDE_AUDIO
     if (mAudioVRDE)
         mAudioVRDE->onVRDEControl(true /* fEnable */, 0 /* uFlags */);
+#endif
 
     LogFlowFuncLeave();
     return;
@@ -1980,7 +2008,22 @@ HRESULT Console::getAttachedPCIDevices(std::vector<ComPtr<IPCIDeviceAttachment> 
     AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
 
     if (mBusMgr)
-        mBusMgr->listAttachedPCIDevices(aAttachedPCIDevices);
+    {
+        std::vector<BusAssignmentManager::PCIDeviceInfo> devInfos;
+        mBusMgr->listAttachedPCIDevices(devInfos);
+        ComObjPtr<PCIDeviceAttachment> dev;
+        aAttachedPCIDevices.resize(devInfos.size());
+        for (size_t i = 0; i < devInfos.size(); i++)
+        {
+            const BusAssignmentManager::PCIDeviceInfo &devInfo = devInfos[i];
+            dev.createObject();
+            dev->init(NULL, devInfo.strDeviceName,
+                      devInfo.hostAddress.valid() ? devInfo.hostAddress.asLong() : -1,
+                      devInfo.guestAddress.asLong(),
+                      devInfo.hostAddress.valid());
+            dev.queryInterfaceTo(aAttachedPCIDevices[i].asOutParam());
+        }
+    }
     else
         aAttachedPCIDevices.resize(0);
 
@@ -2093,7 +2136,6 @@ HRESULT Console::powerDown(ComPtr<IProgress> &aProgress)
                             tr("Invalid machine state: %s (must be Running, Paused or Stuck)"),
                             Global::stringifyMachineState(mMachineState));
     }
-
     LogFlowThisFunc(("Initiating SHUTDOWN request...\n"));
 
     /* memorize the current machine state */
@@ -2101,6 +2143,7 @@ HRESULT Console::powerDown(ComPtr<IProgress> &aProgress)
 
     HRESULT rc = S_OK;
     bool fBeganPowerDown = false;
+    VMPowerDownTask* task = NULL;
 
     do
     {
@@ -2133,23 +2176,22 @@ HRESULT Console::powerDown(ComPtr<IProgress> &aProgress)
 
         /* sync the state with the server */
         i_setMachineStateLocally(MachineState_Stopping);
-
-        /* setup task object and thread to carry out the operation asynchronously */
-        std::auto_ptr<VMPowerDownTask> task(new VMPowerDownTask(this, pProgress));
-        AssertBreakStmt(task->isOk(), rc = E_FAIL);
-
-        int vrc = RTThreadCreate(NULL, Console::i_powerDownThread,
-                                 (void *) task.get(), 0,
-                                 RTTHREADTYPE_MAIN_WORKER, 0,
-                                 "VMPwrDwn");
-        if (RT_FAILURE(vrc))
+        try
         {
-            rc = setError(E_FAIL, "Could not create VMPowerDown thread (%Rrc)", vrc);
+            task = new VMPowerDownTask(this, pProgress);
+            if (!task->isOk())
+            {
+                throw E_FAIL;
+            }
+        }
+        catch(...)
+        {
+            delete task;
+            rc = setError(E_FAIL, "Could not create VMPowerDownTask object \n");
             break;
         }
 
-        /* task is now owned by powerDownThread(), so release it */
-        task.release();
+        rc = task->createThread();
 
         /* pass the progress to the caller */
         pProgress.queryInterfaceTo(aProgress.asOutParam());
@@ -3224,6 +3266,8 @@ const char *Console::i_convertControllerTypeToDev(StorageControllerType_T enmCtr
             return "i82078";
         case StorageControllerType_USB:
             return "Msd";
+        case StorageControllerType_NVMe:
+            return "nvme";
         default:
             return NULL;
     }
@@ -3244,6 +3288,7 @@ HRESULT Console::i_convertBusPortDeviceToLun(StorageBus_T enmBus, LONG port, LON
         case StorageBus_SATA:
         case StorageBus_SCSI:
         case StorageBus_SAS:
+        case StorageBus_PCIe:
         {
             uLun = port;
             return S_OK;
@@ -3281,8 +3326,9 @@ HRESULT Console::i_suspendBeforeConfigChange(PUVM pUVM, AutoWriteLock *pAlock, b
     VMSTATE enmVMState = VMR3GetStateU(pUVM);
     switch (enmVMState)
     {
-        case VMSTATE_RESETTING:
         case VMSTATE_RUNNING:
+        case VMSTATE_RESETTING:
+        case VMSTATE_SOFT_RESETTING:
         {
             LogFlowFunc(("Suspending the VM...\n"));
             /* disable the callback to prevent Console-level state change */
@@ -3861,7 +3907,6 @@ DECLCALLBACK(int) Console::i_detachStorageDevice(Console *pThis,
     LONG lPort;
     DeviceType_T lType;
     PCFGMNODE pLunL0 = NULL;
-    PCFGMNODE pCfg = NULL;
 
     hrc = pMediumAtt->COMGETTER(Device)(&lDev);                             H();
     hrc = pMediumAtt->COMGETTER(Port)(&lPort);                              H();
@@ -4770,6 +4815,7 @@ void Console::i_removeSecretKeysOnSuspend()
 {
     /* Remove keys which are supposed to be removed on a suspend. */
     int rc = m_pKeyStore->deleteAllSecretKeys(true /* fSuspend */, true /* fForce */);
+    AssertRC(rc); NOREF(rc);
 }
 
 /**
@@ -5125,6 +5171,47 @@ HRESULT Console::i_onDnDModeChange(DnDMode_T aDnDMode)
 }
 
 /**
+ * Check the return code of mConsoleVRDPServer->Launch. LogRel() the error reason and
+ * return an error message appropriate for setError().
+ */
+Utf8Str Console::VRDPServerErrorToMsg(int vrc)
+{
+    Utf8Str errMsg;
+    if (vrc == VERR_NET_ADDRESS_IN_USE)
+    {
+        /* Not fatal if we start the VM, fatal if the VM is already running. */
+        Bstr bstr;
+        mVRDEServer->GetVRDEProperty(Bstr("TCP/Ports").raw(), bstr.asOutParam());
+        errMsg = Utf8StrFmt(tr("VirtualBox Remote Desktop Extension server can't bind to the port(s): %s"),
+                                Utf8Str(bstr).c_str());
+        LogRel(("VRDE: Warning: failed to launch VRDE server (%Rrc): %s\n", vrc, errMsg.c_str()));
+    }
+    else if (vrc == VINF_NOT_SUPPORTED)
+    {
+        /* This means that the VRDE is not installed.
+         * Not fatal if we start the VM, fatal if the VM is already running. */
+        LogRel(("VRDE: VirtualBox Remote Desktop Extension is not available.\n"));
+        errMsg = Utf8Str("VirtualBox Remote Desktop Extension is not available");
+    }
+    else if (RT_FAILURE(vrc))
+    {
+        /* Fail if the server is installed but can't start. Always fatal. */
+        switch (vrc)
+        {
+            case VERR_FILE_NOT_FOUND:
+                errMsg = Utf8StrFmt(tr("Could not find the VirtualBox Remote Desktop Extension library"));
+                break;
+            default:
+                errMsg = Utf8StrFmt(tr("Failed to launch the Remote Desktop Extension server (%Rrc)"), vrc);
+                break;
+        }
+        LogRel(("VRDE: Failed: (%Rrc): %s\n", vrc, errMsg.c_str()));
+    }
+
+    return errMsg;
+}
+
+/**
  * Called by IInternalSessionControl::OnVRDEServerChange().
  *
  * @note Locks this object for writing.
@@ -5176,8 +5263,12 @@ HRESULT Console::i_onVRDEServerChange(BOOL aRestart)
                             // we have to restart the server.
                             mConsoleVRDPServer->Stop();
 
-                            if (RT_FAILURE(mConsoleVRDPServer->Launch()))
-                                rc = E_FAIL;
+                            int vrc = mConsoleVRDPServer->Launch();
+                            if (vrc != VINF_SUCCESS)
+                            {
+                                Utf8Str errMsg = VRDPServerErrorToMsg(vrc);
+                                rc = setError(E_FAIL, errMsg.c_str());
+                            }
                             else
                                 mConsoleVRDPServer->EnableConnections();
                         }
@@ -6533,6 +6624,8 @@ HRESULT Console::i_getNominalState(MachineState_T &aNominalState)
         case VMSTATE_RUNNING_FT:
         case VMSTATE_RESETTING:
         case VMSTATE_RESETTING_LS:
+        case VMSTATE_SOFT_RESETTING:
+        case VMSTATE_SOFT_RESETTING_LS:
         case VMSTATE_DEBUGGING:
         case VMSTATE_DEBUGGING_LS:
             enmMachineState = MachineState_Running;
@@ -6954,7 +7047,6 @@ HRESULT Console::i_consoleInitReleaseLog(const ComPtr<IMachine> aMachine)
  */
 HRESULT Console::i_powerUp(IProgress **aProgress, bool aPaused)
 {
-
     LogFlowThisFuncEnter();
 
     CheckComArgOutPointerValid(aProgress);
@@ -6971,6 +7063,7 @@ HRESULT Console::i_powerUp(IProgress **aProgress, bool aPaused)
 
     LONG cOperations = 1;
     LONG ulTotalOperationsWeight = 1;
+    VMPowerUpTask* task = NULL;
 
     try
     {
@@ -7086,10 +7179,23 @@ HRESULT Console::i_powerUp(IProgress **aProgress, bool aPaused)
             }
         }
 
+
         /* Setup task object and thread to carry out the operation
          * asynchronously */
-        std::auto_ptr<VMPowerUpTask> task(new VMPowerUpTask(this, pPowerupProgress));
-        ComAssertComRCRetRC(task->rc());
+        try
+        {
+            task = new VMPowerUpTask(this, pPowerupProgress);
+            if (!task->isOk())
+            {
+                throw E_FAIL;
+            }
+        }
+        catch(...)
+        {
+            delete task;
+            rc = setError(E_FAIL, "Could not create VMPowerUpTask object \n");
+            throw rc;
+        }
 
         task->mConfigConstructor = i_configConstructor;
         task->mSharedFolders = sharedFolders;
@@ -7347,6 +7453,7 @@ HRESULT Console::i_powerUp(IProgress **aProgress, bool aPaused)
         }
 #endif // 0
 
+
         /* setup task object and thread to carry out the operation
          * asynchronously */
         if (aProgress){
@@ -7354,14 +7461,10 @@ HRESULT Console::i_powerUp(IProgress **aProgress, bool aPaused)
                 AssertComRCReturnRC(rc);
         }
 
-        int vrc = RTThreadCreate(NULL, Console::i_powerUpThread,
-                                 (void *)task.get(), 0,
-                                 RTTHREADTYPE_MAIN_WORKER, 0, "VMPwrUp");
-        if (RT_FAILURE(vrc))
-            throw setError(E_FAIL, "Could not create VMPowerUp thread (%Rrc)", vrc);
+        rc = task->createThread();
 
-        /* task is now owned by powerUpThread(), so release it */
-        task.release();
+        if (FAILED(rc))
+            throw rc;
 
         /* finally, set the state: no right to fail in this method afterwards
          * since we've already started the thread and it is now responsible for
@@ -7449,7 +7552,7 @@ HRESULT Console::i_powerDown(IProgress *aProgress /*= NULL*/)
     Assert(mVMDestroying == false);
 
     PUVM     pUVM  = mpUVM;                 Assert(pUVM != NULL);
-    uint32_t cRefs = VMR3RetainUVM(pUVM);   Assert(cRefs != UINT32_MAX);
+    uint32_t cRefs = VMR3RetainUVM(pUVM);   Assert(cRefs != UINT32_MAX);  NOREF(cRefs);
 
     AssertMsg(   mMachineState == MachineState_Running
               || mMachineState == MachineState_Paused
@@ -7925,8 +8028,7 @@ HRESULT Console::i_fetchSharedFolders(BOOL aGlobal)
     {
         rc = rc2;
         if (online)
-            i_setVMRuntimeErrorCallbackF(0, "BrokenSharedFolder",
-                                         N_("Broken shared folder!"));
+            i_atVMRuntimeErrorCallbackF(0, "BrokenSharedFolder", N_("Broken shared folder!"));
     }
 
     LogFlowThisFunc(("Leaving\n"));
@@ -8027,7 +8129,7 @@ HRESULT Console::i_createSharedFolder(const Utf8Str &strName, const SharedFolder
     memcpy(pFolderName->String.ucs2, bstrHostPath.raw(), cbString);
 
     pFolderName->u16Size   = (uint16_t)cbString;
-    pFolderName->u16Length = (uint16_t)cbString - sizeof(RTUTF16);
+    pFolderName->u16Length = (uint16_t)(cbString - sizeof(RTUTF16));
 
     parms[0].type = VBOX_HGCM_SVC_PARM_PTR;
     parms[0].u.pointer.addr = pFolderName;
@@ -8044,7 +8146,7 @@ HRESULT Console::i_createSharedFolder(const Utf8Str &strName, const SharedFolder
     memcpy(pMapName->String.ucs2, bstrName.raw(), cbString);
 
     pMapName->u16Size   = (uint16_t)cbString;
-    pMapName->u16Length = (uint16_t)cbString - sizeof(RTUTF16);
+    pMapName->u16Length = (uint16_t)(cbString - sizeof(RTUTF16));
 
     parms[1].type = VBOX_HGCM_SVC_PARM_PTR;
     parms[1].u.pointer.addr = pMapName;
@@ -8107,7 +8209,7 @@ HRESULT Console::i_removeSharedFolder(const Utf8Str &strName)
     memcpy(pMapName->String.ucs2, bstrName.raw(), cbString);
 
     pMapName->u16Size   = (uint16_t)cbString;
-    pMapName->u16Length = (uint16_t)cbString - sizeof(RTUTF16);
+    pMapName->u16Length = (uint16_t)(cbString - sizeof(RTUTF16));
 
     parms.type = VBOX_HGCM_SVC_PARM_PTR;
     parms.u.pointer.addr = pMapName;
@@ -8216,28 +8318,35 @@ DECLCALLBACK(void) Console::i_vmstateChangeCallback(PUVM pUVM, VMSTATE enmState,
                  * is one or more mpUVM callers (added with addVMCaller()) we'll
                  * deadlock).
                  */
-                std::auto_ptr<VMPowerDownTask> task(new VMPowerDownTask(that, pProgress));
-
-                 /* If creating a task failed, this can currently mean one of
-                  * two: either Console::uninit() has been called just a ms
-                  * before (so a powerDown() call is already on the way), or
-                  * powerDown() itself is being already executed. Just do
-                  * nothing.
-                  */
-                if (!task->isOk())
+                VMPowerDownTask* task = NULL;
+                try
                 {
-                    LogFlowFunc(("Console is already being uninitialized.\n"));
-                    return;
+                    task = new VMPowerDownTask(that, pProgress);
+                     /* If creating a task failed, this can currently mean one of
+                      * two: either Console::uninit() has been called just a ms
+                      * before (so a powerDown() call is already on the way), or
+                      * powerDown() itself is being already executed. Just do
+                      * nothing.
+                      */
+                    if (!task->isOk())
+                    {
+                        LogFlowFunc(("Console is already being uninitialized. \n"));
+                        throw E_FAIL;
+                    }
+                }
+                catch(...)
+                {
+                    delete task;
+                    LogFlowFunc(("Problem with creating VMPowerDownTask object. \n"));
                 }
 
-                int vrc = RTThreadCreate(NULL, Console::i_powerDownThread,
-                                         (void *)task.get(), 0,
-                                         RTTHREADTYPE_MAIN_WORKER, 0,
-                                         "VMPwrDwn");
-                AssertMsgRCReturnVoid(vrc, ("Could not create VMPowerDown thread (%Rrc)\n", vrc));
+                rc = task->createThread();
 
-                /* task is now owned by powerDownThread(), so release it */
-                task.release();
+                if (FAILED(rc))
+                {
+                    LogFlowFunc(("Problem with creating thread for VMPowerDownTask. \n"));
+                }
+
             }
             break;
         }
@@ -8307,6 +8416,7 @@ DECLCALLBACK(void) Console::i_vmstateChangeCallback(PUVM pUVM, VMSTATE enmState,
         }
 
         case VMSTATE_RESETTING:
+        /** @todo shouldn't VMSTATE_RESETTING_LS be here?   */
         {
 #ifdef VBOX_WITH_GUEST_PROPS
             /* Do not take any read/write locks here! */
@@ -8314,6 +8424,11 @@ DECLCALLBACK(void) Console::i_vmstateChangeCallback(PUVM pUVM, VMSTATE enmState,
 #endif
             break;
         }
+
+        case VMSTATE_SOFT_RESETTING:
+        case VMSTATE_SOFT_RESETTING_LS:
+            /* Shouldn't do anything here! */
+            break;
 
         case VMSTATE_SUSPENDED:
         {
@@ -8592,6 +8707,12 @@ HRESULT Console::i_attachUSBDevice(IUSBDevice *aHostDevice, ULONG aMaskedIfs,
     hrc = aHostDevice->COMGETTER(Remote)(&fRemote);
     ComAssertComRCRetRC(hrc);
 
+    Bstr BstrBackend;
+    hrc = aHostDevice->COMGETTER(Backend)(BstrBackend.asOutParam());
+    ComAssertComRCRetRC(hrc);
+
+    Utf8Str Backend(BstrBackend);
+
     /* Get the VM handle. */
     SafeVMPtr ptrVM(this);
     if (!ptrVM.isOk())
@@ -8616,7 +8737,7 @@ HRESULT Console::i_attachUSBDevice(IUSBDevice *aHostDevice, ULONG aMaskedIfs,
 
     int vrc = VMR3ReqCallWaitU(ptrVM.rawUVM(), 0 /* idDstCpu (saved state, see #6232) */,
                                (PFNRT)i_usbAttachCallback, 10,
-                               this, ptrVM.rawUVM(), aHostDevice, uuid.raw(), fRemote,
+                               this, ptrVM.rawUVM(), aHostDevice, uuid.raw(), Backend.c_str(),
                                Address.c_str(), pvRemoteBackend, portVersion, aMaskedIfs,
                                aCaptureFilename.isEmpty() ? NULL : aCaptureFilename.c_str());
     if (RT_SUCCESS(vrc))
@@ -8667,7 +8788,7 @@ HRESULT Console::i_attachUSBDevice(IUSBDevice *aHostDevice, ULONG aMaskedIfs,
  */
 //static
 DECLCALLBACK(int)
-Console::i_usbAttachCallback(Console *that, PUVM pUVM, IUSBDevice *aHostDevice, PCRTUUID aUuid, bool aRemote,
+Console::i_usbAttachCallback(Console *that, PUVM pUVM, IUSBDevice *aHostDevice, PCRTUUID aUuid, const char *pszBackend,
                              const char *aAddress, void *pvRemoteBackend, USHORT aPortVersion, ULONG aMaskedIfs,
                              const char *pszCaptureFilename)
 {
@@ -8677,7 +8798,7 @@ Console::i_usbAttachCallback(Console *that, PUVM pUVM, IUSBDevice *aHostDevice, 
     AssertReturn(that && aUuid, VERR_INVALID_PARAMETER);
     AssertReturn(!that->isWriteLockOnCurrentThread(), VERR_GENERAL_FAILURE);
 
-    int vrc = PDMR3UsbCreateProxyDevice(pUVM, aUuid, aRemote, aAddress, pvRemoteBackend,
+    int vrc = PDMR3UsbCreateProxyDevice(pUVM, aUuid, pszBackend, aAddress, pvRemoteBackend,
                                         aPortVersion == 3 ? VUSB_STDVER_30 :
                                         aPortVersion == 2 ? VUSB_STDVER_20 : VUSB_STDVER_11,
                                         aMaskedIfs, pszCaptureFilename);
@@ -9113,7 +9234,8 @@ Console::i_genericVMSetErrorCallback(PUVM pUVM, void *pvUser, int rc, RT_SRC_POS
 }
 
 /**
- * VM runtime error callback function.
+ * VM runtime error callback function (FNVMATRUNTIMEERROR).
+ *
  * See VMSetRuntimeError for the detailed description of parameters.
  *
  * @param   pUVM            The user mode VM handle.  Ignored, so passing NULL
@@ -9126,9 +9248,8 @@ Console::i_genericVMSetErrorCallback(PUVM pUVM, void *pvUser, int rc, RT_SRC_POS
  * @thread EMT.
  */
 /* static */ DECLCALLBACK(void)
-Console::i_setVMRuntimeErrorCallback(PUVM pUVM, void *pvUser, uint32_t fFlags,
-                                     const char *pszErrorId,
-                                     const char *pszFormat, va_list va)
+Console::i_atVMRuntimeErrorCallback(PUVM pUVM, void *pvUser, uint32_t fFlags,
+                                    const char *pszErrorId, const char *pszFormat, va_list va)
 {
     bool const fFatal = !!(fFlags & VMSETRTERR_FLAGS_FATAL);
     LogFlowFuncEnter();
@@ -9397,8 +9518,8 @@ DECLCALLBACK(int) Console::i_powerUpThread(RTTHREAD Thread, void *pvUser)
 {
     LogFlowFuncEnter();
 
-    std::auto_ptr<VMPowerUpTask> task(static_cast<VMPowerUpTask *>(pvUser));
-    AssertReturn(task.get(), VERR_INVALID_PARAMETER);
+    VMPowerUpTask* task = static_cast<VMPowerUpTask *>(pvUser);
+    AssertReturn(task, VERR_INVALID_PARAMETER);
 
     AssertReturn(!task->mConsole.isNull(), VERR_INVALID_PARAMETER);
     AssertReturn(!task->mProgress.isNull(), VERR_INVALID_PARAMETER);
@@ -9410,13 +9531,13 @@ DECLCALLBACK(int) Console::i_powerUpThread(RTTHREAD Thread, void *pvUser)
 
     /* Set up a build identifier so that it can be seen from core dumps what
      * exact build was used to produce the core. */
-    static char saBuildID[40];
+    static char saBuildID[48];
     RTStrPrintf(saBuildID, sizeof(saBuildID), "%s%s%s%s VirtualBox %s r%u %s%s%s%s",
                 "BU", "IL", "DI", "D", RTBldCfgVersion(), RTBldCfgRevision(), "BU", "IL", "DI", "D");
 
     ComObjPtr<Console> pConsole = task->mConsole;
 
-    /* Note: no need to use addCaller() because VMPowerUpTask does that */
+    /* Note: no need to use AutoCaller because VMPowerUpTask does that */
 
     /* The lock is also used as a signal from the task initiator (which
      * releases it only after RTThreadCreate()) that we can start the job */
@@ -9477,41 +9598,12 @@ DECLCALLBACK(int) Console::i_powerUpThread(RTTHREAD Thread, void *pvUser)
         vrc = server->Launch();
         alock.acquire();
 
-        if (vrc == VERR_NET_ADDRESS_IN_USE)
+        if (vrc != VINF_SUCCESS)
         {
-            Utf8Str errMsg;
-            Bstr bstr;
-            pConsole->mVRDEServer->GetVRDEProperty(Bstr("TCP/Ports").raw(), bstr.asOutParam());
-            Utf8Str ports = bstr;
-            errMsg = Utf8StrFmt(tr("VirtualBox Remote Desktop Extension server can't bind to the port: %s"),
-                                ports.c_str());
-            LogRel(("VRDE: Warning: failed to launch VRDE server (%Rrc): '%s'\n",
-                    vrc, errMsg.c_str()));
-        }
-        else if (vrc == VINF_NOT_SUPPORTED)
-        {
-            /* This means that the VRDE is not installed. */
-            LogRel(("VRDE: VirtualBox Remote Desktop Extension is not available.\n"));
-        }
-        else if (RT_FAILURE(vrc))
-        {
-            /* Fail, if the server is installed but can't start. */
-            Utf8Str errMsg;
-            switch (vrc)
-            {
-                case VERR_FILE_NOT_FOUND:
-                {
-                    /* VRDE library file is missing. */
-                    errMsg = Utf8StrFmt(tr("Could not find the VirtualBox Remote Desktop Extension library."));
-                    break;
-                }
-                default:
-                    errMsg = Utf8StrFmt(tr("Failed to launch Remote Desktop Extension server (%Rrc)"),
-                                        vrc);
-            }
-            LogRel(("VRDE: Failed: (%Rrc), error message: '%s'\n",
-                     vrc, errMsg.c_str()));
-            throw i_setErrorStatic(E_FAIL, errMsg.c_str());
+            Utf8Str errMsg = pConsole->VRDPServerErrorToMsg(vrc);
+            if (   RT_FAILURE(vrc)
+                && vrc != VERR_NET_ADDRESS_IN_USE) /* not fatal */
+                throw i_setErrorStatic(E_FAIL, errMsg.c_str());
         }
 
         ComPtr<IMachine> pMachine = pConsole->i_machine();
@@ -9584,7 +9676,7 @@ DECLCALLBACK(int) Console::i_powerUpThread(RTTHREAD Thread, void *pvUser)
                         if (FAILED(rc))
                         {
                             ErrorInfoKeeper eik;
-                            pConsole->i_setVMRuntimeErrorCallbackF(0, "BrokenSharedFolder",
+                            pConsole->i_atVMRuntimeErrorCallbackF(0, "BrokenSharedFolder",
                                    N_("The shared folder '%s' could not be set up: %ls.\n"
                                       "The shared folder setup will not be complete. It is recommended to power down the virtual "
                                       "machine and fix the shared folder settings while the machine is not running"),
@@ -9774,8 +9866,7 @@ DECLCALLBACK(int) Console::i_powerUpThread(RTTHREAD Thread, void *pvUser)
                  * appropriate error message themselves.
                  */
                 AssertMsgFailed(("Missing error message during powerup for status code %Rrc\n", vrc));
-                task->mErrorMsg = Utf8StrFmt(tr("Failed to start VM execution (%Rrc)"),
-                                             vrc);
+                task->mErrorMsg = Utf8StrFmt(tr("Failed to start VM execution (%Rrc)"), vrc);
             }
 
             /* Set the error message as the COM error.
@@ -9930,35 +10021,42 @@ DECLCALLBACK(int) Console::i_powerDownThread(RTTHREAD Thread, void *pvUser)
 {
     LogFlowFuncEnter();
 
-    std::auto_ptr<VMPowerDownTask> task(static_cast<VMPowerDownTask *>(pvUser));
-    AssertReturn(task.get(), VERR_INVALID_PARAMETER);
+    int rc = VINF_SUCCESS;
+    //we get pvUser pointer from another thread (see Console::powerDown) where one was allocated.
+    //and here we are in charge of correct deletion this pointer.
+    VMPowerDownTask* task = static_cast<VMPowerDownTask *>(pvUser);
+    try
+    {
+        if (task->isOk() == false)
+            rc = VERR_GENERAL_FAILURE;
 
-    AssertReturn(task->isOk(), VERR_GENERAL_FAILURE);
+        const ComObjPtr<Console> &that = task->mConsole;
 
-    Assert(task->mProgress.isNull());
+        /* Note: no need to use AutoCaller to protect Console because VMTask does
+         * that */
 
-    const ComObjPtr<Console> &that = task->mConsole;
+        /* wait until the method tat started us returns */
+        AutoWriteLock thatLock(that COMMA_LOCKVAL_SRC_POS);
 
-    /* Note: no need to use addCaller() to protect Console because VMTask does
-     * that */
+        /* release VM caller to avoid the powerDown() deadlock */
+        task->releaseVMCaller();
 
-    /* wait until the method tat started us returns */
-    AutoWriteLock thatLock(that COMMA_LOCKVAL_SRC_POS);
+        thatLock.release();
 
-    /* release VM caller to avoid the powerDown() deadlock */
-    task->releaseVMCaller();
+        that->i_powerDown(task->mServerProgress);
 
-    thatLock.release();
+        /* complete the operation */
+        that->mControl->EndPoweringDown(S_OK, Bstr().raw());
 
-    that->i_powerDown(task->mServerProgress);
-
-    /* complete the operation */
-    that->mControl->EndPoweringDown(S_OK, Bstr().raw());
+    }
+    catch(const std::exception &e)
+    {
+        AssertMsgFailed(("Exception %s was cought, rc=%Rrc\n", e.what(), rc));
+    }
 
     LogFlowFuncLeave();
-    return VINF_SUCCESS;
+    return rc;
 }
-
 
 /**
  * @interface_method_impl{VMM2USERMETHODS,pfnSaveState}
@@ -10182,7 +10280,6 @@ DECLCALLBACK(void) Console::i_drvStatus_UnitChanged(PPDMILEDCONNECTORS pInterfac
 DECLCALLBACK(int) Console::i_drvStatus_MediumEjected(PPDMIMEDIANOTIFY pInterface, unsigned uLUN)
 {
     PDRVMAINSTATUS pThis = RT_FROM_MEMBER(pInterface, DRVMAINSTATUS, IMediaNotify);
-    PPDMDRVINS pDrvIns = pThis->pDrvIns;
     LogFunc(("uLUN=%d\n", uLUN));
     if (pThis->pmapMediumAttachments)
     {

@@ -71,7 +71,7 @@ instmod := $(if $(filter _Ubuntu_lucid _Ubuntu_maverick _Ubuntu_natty _Ubuntu_on
 qtstdc6  := /home/vbox/Qt-4.8.6-stdc++6-$(arch)
 
 cfg_flags := $(if $(NOQT),--disable-qt,) \
-	     $(if $(filter _Debian_squeeze,$(debrel)),--with-qt4-dir=$(qtstdc6)) \
+	     $(if $(filter _Debian_squeeze,$(debrel)),--with-qt-dir=$(qtstdc6)) \
 	     $(if $(filter _Debian_squeeze,$(debrel)),--build-libvpx,) \
 	     $(if $(ose),--ose,) $(if $(LINUX),--with-linux=$(LINUX),) \
 	     $(if $(HEADLESS),--build-headless,) \
@@ -219,7 +219,6 @@ endif
 	mv $(archdir) $(prefix)/usr/lib/$(package)
 	ln -s ../VBoxVMM.so $(prefix)/usr/lib/$(package)/components/VBoxVMM.so
 	rmdir $(prefix)/opt
-	dh_desktop
 	$(if $(NOMODS),,dh_installmodules)
 	sed \
 	    -e 's|%NOLSB%||g' \
@@ -251,7 +250,10 @@ endif
 	dh_installmime
 	dh_link
 ifeq ($(DEBUG),)
-	dh_strip --keep-debug --exclude=libQtCoreVBox.so.4 --exclude=libQtGuiVBox.so.4 --exclude=libQtNetworkVBox.so.4 --exclude=libQtOpenGLVBox.so.4 --exclude=libqtaccessiblewidgets.so
+	dh_strip --keep-debug \
+	    $(addprefix --exclude=lib,$(addsuffix VBox.so.5,\
+	      Qt5Core Qt5Gui Qt5Widgets Qt5PrintSupport Qt5OpenGL Qt5DBus Qt5XcbQpa Qt5X11Extras)) \
+	    --exclude=libqxcb.so
 endif
 	mkdir -p $(current)/debian/$(verpkg)-dbg/usr/lib
 ifeq ($(DEBUG),)

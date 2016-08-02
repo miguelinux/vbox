@@ -170,7 +170,7 @@ my_wildcard()
     else
         MY_FOLDER="$1-All.lst"
     fi
-    EXCLUDES="*.log;*.kup;*~;*.pyc;*.exe;*.sys;*.dll;*.o;*.obj;*.lib;*.a;*.ko;*.class;*.cvsignore;*.done;*.project;*.actionScriptProperties;*.scm-settings;*.svn-base;.svn/*"
+    EXCLUDES="*.log;*.kup;*~;*.pyc;*.exe;*.sys;*.dll;*.o;*.obj;*.lib;*.a;*.ko;*.class;*.cvsignore;*.done;*.project;*.actionScriptProperties;*.scm-settings;*.svnpatch.rej;*.svn-base;.svn/*;*.gitignore"
     echo '        <F N="'"${2}"'/*" Recurse="1" Excludes="'"${EXCLUDES}"'"/>' >> "${MY_FOLDER}"
 }
 
@@ -625,12 +625,130 @@ EOF
 #define IEM_MC_LOCAL(a_Type, a_Name)                       a_Type a_Name
 #define IEM_MC_ARG(a_Type, a_Name, a_iArg)                 a_Type a_Name
 #define IEM_MC_ARG_CONST(a_Type, a_Name, a_Value, a_iArg)  a_Type const a_Name = a_Value
-#define IEM_STATIC 
+#define IEM_STATIC
 
 #define RTASN1_IMPL_GEN_SEQ_OF_TYPEDEFS_AND_PROTOS(a_SeqOfType, a_ItemType, a_DeclMacro, a_ImplExtNm) typedef struct a_SeqOfType { RTASN1SEQUENCECORE SeqCore; RTASN1ALLOCATION Allocation; uint32_t cItems; RT_CONCAT(P,a_ItemType) paItems; } a_SeqOfType; typedef a_SeqOfType *P##a_SeqOfType, const *PC##a_SeqOfType; int a_ImplExtNm##_DecodeAsn1(struct RTASN1CURSOR *pCursor, uint32_t fFlags, P##a_SeqOfType pThis, const char *pszErrorTag); int a_ImplExtNm##_Compare(PC##a_SeqOfType pLeft, PC##a_SeqOfType pRight)
 #define RTASN1_IMPL_GEN_SET_OF_TYPEDEFS_AND_PROTOS(a_SetOfType, a_ItemType, a_DeclMacro, a_ImplExtNm) typedef struct a_SetOfType { RTASN1SETCORE SetCore; RTASN1ALLOCATION Allocation; uint32_t cItems; RT_CONCAT(P,a_ItemType) paItems; } a_SetOfType; typedef a_SetOfType *P##a_SetOfType, const *PC##a_SetOfType; int a_ImplExtNm##_DecodeAsn1(struct RTASN1CURSOR *pCursor, uint32_t fFlags, P##a_SetOfType pThis, const char *pszErrorTag); int a_ImplExtNm##_Compare(PC##a_SetOfType pLeft, PC##a_SetOfType pRight)
 #define RTASN1TYPE_STANDARD_PROTOTYPES_NO_GET_CORE(a_TypeNm, a_DeclMacro, a_ImplExtNm) int  a_ImplExtNm##_Init(P##a_TypeNm pThis, PCRTASN1ALLOCATORVTABLE pAllocator); int  a_ImplExtNm##_Clone(P##a_TypeNm pThis, PC##a_TypeNm) pSrc, PCRTASN1ALLOCATORVTABLE pAllocator); void a_ImplExtNm##_Delete(P##a_TypeNm pThis); int  a_ImplExtNm##_Enum(P##a_TypeNm pThis, PFNRTASN1ENUMCALLBACK pfnCallback, uint32_t uDepth, void *pvUser); int  a_ImplExtNm##_Compare(PC##a_TypeNm) pLeft, PC##a_TypeNm pRight); int  a_ImplExtNm##_DecodeAsn1(PRTASN1CURSOR pCursor, uint32_t fFlags, P##a_TypeNm pThis, const char *pszErrorTag); int  a_ImplExtNm##_CheckSanity(PC##a_TypeNm pThis, uint32_t fFlags, PRTERRINFO pErrInfo, const char *pszErrorTag)
 #define RTASN1TYPE_STANDARD_PROTOTYPES(a_TypeNm, a_DeclMacro, a_ImplExtNm, a_Asn1CoreNm) inline PRTASN1CORE a_ImplExtNm##_GetAsn1Core(PC##a_TypeNm pThis) { return (PRTASN1CORE)&pThis->a_Asn1CoreNm; } inline bool a_ImplExtNm##_IsPresent(PC##a_TypeNm pThis) { return pThis && RTASN1CORE_IS_PRESENT(&pThis->a_Asn1CoreNm); } RTASN1TYPE_STANDARD_PROTOTYPES_NO_GET_CORE(a_TypeNm, a_DeclMacro, a_ImplExtNm)
+
+#define BS3_DECL(type)                  type
+#define BS3_DECL_CALLBACK(type)         type
+#define TMPL_NM(name)                   name##_mmm
+#define TMPL_FAR_NM(name)               name##_mmm_far
+#define BS3_CMN_NM(name)                name
+#define BS3_CMN_FAR_NM(name)            name
+#define BS3_CMN_FN_NM(name)             name
+#define BS3_DATA_NM(name)               name
+#define BS3_FAR
+#define BS3_FAR_CODE
+#define BS3_FAR_DATA
+#define BS3_NEAR
+#define BS3_NEAR_CODE
+#define BS3_CMN_PROTO_STUB(a_RetType, a_Name, a_Params) a_RetType a_Name a_Params
+#define BS3_CMN_PROTO_NOSB(a_RetType, a_Name, a_Params) a_RetType a_Name a_Params
+#define BS3_CMN_DEF(       a_RetType, a_Name, a_Params) a_RetType a_Name a_Params
+#define BS3_MODE_PROTO_STUB(a_RetType, a_Name, a_Params) \
+    a_RetType a_Name##_mmm           a_Params; \
+    a_RetType a_Name##_mmm_far       a_Params; \
+    a_RetType a_Name##_rm            a_Params; \
+    a_RetType a_Name##_pe16          a_Params; \
+    a_RetType a_Name##_pe16_32       a_Params; \
+    a_RetType a_Name##_pe16_v86      a_Params; \
+    a_RetType a_Name##_pe32          a_Params; \
+    a_RetType a_Name##_pe32_16       a_Params; \
+    a_RetType a_Name##_pev86         a_Params; \
+    a_RetType a_Name##_pp16          a_Params; \
+    a_RetType a_Name##_pp16_32       a_Params; \
+    a_RetType a_Name##_pp16_v86      a_Params; \
+    a_RetType a_Name##_pp32          a_Params; \
+    a_RetType a_Name##_pp32_16       a_Params; \
+    a_RetType a_Name##_ppv86         a_Params; \
+    a_RetType a_Name##_pae16         a_Params; \
+    a_RetType a_Name##_pae16_32      a_Params; \
+    a_RetType a_Name##_pae16_v86     a_Params; \
+    a_RetType a_Name##_pae32         a_Params; \
+    a_RetType a_Name##_pae32_16      a_Params; \
+    a_RetType a_Name##_paev86        a_Params; \
+    a_RetType a_Name##_lm16          a_Params; \
+    a_RetType a_Name##_lm32          a_Params; \
+    a_RetType a_Name##_lm64          a_Params; \
+    a_RetType a_Name##_rm_far        a_Params; \
+    a_RetType a_Name##_pe16_far      a_Params; \
+    a_RetType a_Name##_pe16_v86_far  a_Params; \
+    a_RetType a_Name##_pe32_16_far   a_Params; \
+    a_RetType a_Name##_pev86_far     a_Params; \
+    a_RetType a_Name##_pp16_far      a_Params; \
+    a_RetType a_Name##_pp16_v86_far  a_Params; \
+    a_RetType a_Name##_pp32_16_far   a_Params; \
+    a_RetType a_Name##_ppv86_far     a_Params; \
+    a_RetType a_Name##_pae16_far     a_Params; \
+    a_RetType a_Name##_pae16_v86_far a_Params; \
+    a_RetType a_Name##_pae32_16_far  a_Params; \
+    a_RetType a_Name##_paev86_far    a_Params; \
+    a_RetType a_Name##_lm16_far      a_Params
+#define BS3_MODE_PROTO_NOSB(a_RetType, a_Name, a_Params) \
+    a_RetType a_Name##_mmm           a_Params; \
+    a_RetType a_Name##_mmm_far       a_Params; \
+    a_RetType a_Name##_rm            a_Params; \
+    a_RetType a_Name##_pe16          a_Params; \
+    a_RetType a_Name##_pe16_32       a_Params; \
+    a_RetType a_Name##_pe16_v86      a_Params; \
+    a_RetType a_Name##_pe32          a_Params; \
+    a_RetType a_Name##_pe32_16       a_Params; \
+    a_RetType a_Name##_pev86         a_Params; \
+    a_RetType a_Name##_pp16          a_Params; \
+    a_RetType a_Name##_pp16_32       a_Params; \
+    a_RetType a_Name##_pp16_v86      a_Params; \
+    a_RetType a_Name##_pp32          a_Params; \
+    a_RetType a_Name##_pp32_16       a_Params; \
+    a_RetType a_Name##_ppv86         a_Params; \
+    a_RetType a_Name##_pae16         a_Params; \
+    a_RetType a_Name##_pae16_32      a_Params; \
+    a_RetType a_Name##_pae16_v86     a_Params; \
+    a_RetType a_Name##_pae32         a_Params; \
+    a_RetType a_Name##_pae32_16      a_Params; \
+    a_RetType a_Name##_paev86        a_Params; \
+    a_RetType a_Name##_lm16          a_Params; \
+    a_RetType a_Name##_lm32          a_Params; \
+    a_RetType a_Name##_lm64          a_Params; \
+    a_RetType a_Name##_rm_far        a_Params; \
+    a_RetType a_Name##_pe16_far      a_Params; \
+    a_RetType a_Name##_pe16_v86_far  a_Params; \
+    a_RetType a_Name##_pe32_16_far   a_Params; \
+    a_RetType a_Name##_pev86_far     a_Params; \
+    a_RetType a_Name##_pp16_far      a_Params; \
+    a_RetType a_Name##_pp16_v86_far  a_Params; \
+    a_RetType a_Name##_pp32_16_far   a_Params; \
+    a_RetType a_Name##_ppv86_far     a_Params; \
+    a_RetType a_Name##_pae16_far     a_Params; \
+    a_RetType a_Name##_pae16_v86_far a_Params; \
+    a_RetType a_Name##_pae32_16_far  a_Params; \
+    a_RetType a_Name##_paev86_far    a_Params; \
+    a_RetType a_Name##_lm16_far      a_Params
+#define BS3_MODE_EXPAND_EXTERN_DATA16(a_VarType, a_VarName, a_Suffix) \
+    extern a_VarType a_VarName##_rm        a_Suffix; \
+    extern a_VarType a_VarName##_pe16      a_Suffix; \
+    extern a_VarType a_VarName##_pe16_32   a_Suffix; \
+    extern a_VarType a_VarName##_pe16_v86  a_Suffix; \
+    extern a_VarType a_VarName##_pe32      a_Suffix; \
+    extern a_VarType a_VarName##_pe32_16   a_Suffix; \
+    extern a_VarType a_VarName##_pev86     a_Suffix; \
+    extern a_VarType a_VarName##_pp16      a_Suffix; \
+    extern a_VarType a_VarName##_pp16_32   a_Suffix; \
+    extern a_VarType a_VarName##_pp16_v86  a_Suffix; \
+    extern a_VarType a_VarName##_pp32      a_Suffix; \
+    extern a_VarType a_VarName##_pp32_16   a_Suffix; \
+    extern a_VarType a_VarName##_ppv86     a_Suffix; \
+    extern a_VarType a_VarName##_pae16     a_Suffix; \
+    extern a_VarType a_VarName##_pae16_32  a_Suffix; \
+    extern a_VarType a_VarName##_pae16_v86 a_Suffix; \
+    extern a_VarType a_VarName##_pae32     a_Suffix; \
+    extern a_VarType a_VarName##_pae32_16  a_Suffix; \
+    extern a_VarType a_VarName##_paev86    a_Suffix; \
+    extern a_VarType a_VarName##_lm16      a_Suffix; \
+    extern a_VarType a_VarName##_lm32      a_Suffix; \
+    extern a_VarType a_VarName##_lm64      a_Suffix
 
 EOF
 
@@ -829,6 +947,8 @@ my_generate_project "VMM"           "src/VBox/VMM"                          --be
     "include/VBox/vmm/cpum.*" \
     "include/VBox/vmm/dbgf.h" \
     "include/VBox/vmm/em.h" \
+    "include/VBox/vmm/gim.h" \
+    "include/VBox/vmm/apic.h" \
     "include/VBox/vmm/gmm.*" \
     "include/VBox/vmm/gvm.*" \
     "include/VBox/vmm/hm*.*" \
@@ -951,6 +1071,9 @@ my_generate_project "RDP-Server"    "src/VBox/RDP/server"                   --be
 my_generate_project "RDP-WebClient" "src/VBox/RDP/webclient"                --begin-incs "include" "src/VBox/RDP/webclient"                 --end-includes "src/VBox/RDP/webclient"
 my_generate_project "RDP-Misc"      "src/VBox/RDP"                          --begin-incs "include"                                          --end-includes "src/VBox/RDP/auth" "src/VBox/RDP/tscpasswd" "src/VBox/RDP/x11server"
 
+# src/VBox/Storage
+my_generate_project "Storage"       "src/VBox/Storage"                      --begin-incs "include" "src/VBox/Storage"                       --end-includes "src/VBox/Storage"
+
 # src/VBox/ValidationKit
 my_generate_project "ValidationKit" "src/VBox/ValidationKit"                --begin-incs "include"                                          --end-includes "src/VBox/ValidationKit"
 
@@ -964,10 +1087,11 @@ my_generate_project "adpctl"        "src/apps/adpctl"                       --be
 my_generate_project "bldprogs"      "src/bldprogs"                          --begin-incs "include"                                          --end-includes "src/bldprogs"
 
 # A few things from src/lib
-my_generate_project "zlib"          "src/libs/zlib-1.2.6"                   --begin-incs "include"                                          --end-includes "src/libs/zlib-1.2.6/*.c" "src/libs/zlib-1.2.6/*.h"
+my_generate_project "zlib"          "src/libs/zlib-1.2.8"                   --begin-incs "include"                                          --end-includes "src/libs/zlib-1.2.8/*.c" "src/libs/zlib-1.2.8/*.h"
 my_generate_project "liblzf"        "src/libs/liblzf-3.4"                   --begin-incs "include"                                          --end-includes "src/libs/liblzf-3.4"
-my_generate_project "libpng"        "src/libs/libpng-1.2.8"                 --begin-incs "include"                                          --end-includes "src/libs/libpng-1.2.8/*.c" "src/libs/libpng-1.2.8/*.h"
-my_generate_project "openssl"       "src/libs/openssl-1.0.1r"               --begin-incs "include" "src/libs/openssl-1.0.1r/crypto"         --end-includes "src/libs/openssl-1.0.1r"
+my_generate_project "libpng"        "src/libs/libpng-1.2.54"                --begin-incs "include"                                          --end-includes "src/libs/libpng-1.2.54/*.c" "src/libs/libpng-1.2.54/*.h"
+my_generate_project "openssl"       "src/libs/openssl-1.0.1t"               --begin-incs "include" "src/libs/openssl-1.0.1t/crypto"         --end-includes "src/libs/openssl-1.0.1t"
+my_generate_project "curl"          "src/libs/curl-7.47.0"                  --begin-incs "include" "src/libs/curl-7.47.0/include"           --end-includes "src/libs/curl-7.47.0"
 my_generate_project "kStuff"        "src/libs/kStuff"                       --begin-incs "include" "src/libs/kStuff/kStuff/include"         --end-includes "src/libs/kStuff"
 
 
@@ -1037,4 +1161,3 @@ my_generate_usercpp_h
 
 
 echo "done"
-

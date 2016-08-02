@@ -24,6 +24,7 @@
 # include <QTimer>
 # include <QContextMenuEvent>
 # include <QResizeEvent>
+# include <QScrollBar>
 
 /* GUI includes: */
 # include "VBoxGlobal.h"
@@ -39,13 +40,13 @@
 # include "UISession.h"
 # include "QIStatusBar.h"
 # include "QIStatusBarIndicator.h"
-# ifndef Q_WS_MAC
+# ifndef VBOX_WS_MAC
 #  include "UIMenuBar.h"
-# else  /* Q_WS_MAC */
+# else  /* VBOX_WS_MAC */
 #  include "VBoxUtils.h"
 #  include "UIImageTools.h"
 #  include "UICocoaApplication.h"
-# endif /* Q_WS_MAC */
+# endif /* VBOX_WS_MAC */
 
 /* COM includes: */
 # include "CConsole.h"
@@ -114,6 +115,12 @@ void UIMachineWindowNormal::sltVideoCaptureChange()
 }
 
 void UIMachineWindowNormal::sltCPUExecutionCapChange()
+{
+    /* Update virtualization stuff: */
+    updateAppearanceOf(UIVisualElement_FeaturesStuff);
+}
+
+void UIMachineWindowNormal::sltHandleSessionInitialized()
 {
     /* Update virtualization stuff: */
     updateAppearanceOf(UIVisualElement_FeaturesStuff);
@@ -208,6 +215,14 @@ void UIMachineWindowNormal::sltHandleIndicatorContextMenuRequest(IndicatorType i
         pAction->menu()->exec(position);
 }
 
+#ifdef VBOX_WS_MAC
+void UIMachineWindowNormal::sltActionHovered(UIAction *pAction)
+{
+    /* Show the action message for a ten seconds: */
+    statusBar()->showMessage(pAction->statusTip(), 10000);
+}
+#endif /* VBOX_WS_MAC */
+
 void UIMachineWindowNormal::prepareSessionConnections()
 {
     /* Call to base-class: */
@@ -228,9 +243,11 @@ void UIMachineWindowNormal::prepareSessionConnections()
             this, SLOT(sltVideoCaptureChange()));
     connect(machineLogic()->uisession(), SIGNAL(sigCPUExecutionCapChange()),
             this, SLOT(sltCPUExecutionCapChange()));
+    connect(machineLogic()->uisession(), SIGNAL(sigInitialized()),
+            this, SLOT(sltHandleSessionInitialized()));
 }
 
-#ifndef Q_WS_MAC
+#ifndef VBOX_WS_MAC
 void UIMachineWindowNormal::prepareMenu()
 {
     /* Create menu-bar: */
@@ -247,7 +264,7 @@ void UIMachineWindowNormal::prepareMenu()
         updateMenu();
     }
 }
-#endif /* !Q_WS_MAC */
+#endif /* !VBOX_WS_MAC */
 
 void UIMachineWindowNormal::prepareStatusBar()
 {
@@ -275,12 +292,17 @@ void UIMachineWindowNormal::prepareStatusBar()
         /* Post-configure status-bar: */
         connect(gEDataManager, SIGNAL(sigStatusBarConfigurationChange(const QString&)),
                 this, SLOT(sltHandleStatusBarConfigurationChange(const QString&)));
+#ifdef VBOX_WS_MAC
+        /* Make sure the status-bar is aware of action hovering: */
+        connect(actionPool(), SIGNAL(sigActionHovered(UIAction *)),
+                this, SLOT(sltActionHovered(UIAction *)));
+#endif /* VBOX_WS_MAC */
     }
 
-#ifdef Q_WS_MAC
+#ifdef VBOX_WS_MAC
     /* For the status-bar on Cocoa: */
     setUnifiedTitleAndToolBarOnMac(true);
-#endif /* Q_WS_MAC */
+#endif /* VBOX_WS_MAC */
 }
 
 void UIMachineWindowNormal::prepareVisualState()
@@ -297,7 +319,7 @@ void UIMachineWindowNormal::prepareVisualState()
     setAutoFillBackground(true);
 #endif /* VBOX_GUI_WITH_CUSTOMIZATIONS1 */
 
-#ifdef Q_WS_MAC
+#ifdef VBOX_WS_MAC
     /* Beta label? */
     if (vboxGlobal().isBeta())
     {
@@ -315,7 +337,7 @@ void UIMachineWindowNormal::prepareVisualState()
         UICocoaApplication::instance()->registerCallbackForStandardWindowButton(this, StandardWindowButtonType_Zoom,
                                                                                 UIMachineWindow::handleStandardWindowButtonCallback);
     }
-#endif /* Q_WS_MAC */
+#endif /* VBOX_WS_MAC */
 }
 
 void UIMachineWindowNormal::loadSettings()
@@ -325,10 +347,10 @@ void UIMachineWindowNormal::loadSettings()
 
     /* Load GUI customizations: */
     {
-#ifndef Q_WS_MAC
+#ifndef VBOX_WS_MAC
         /* Update menu-bar visibility: */
         menuBar()->setVisible(actionPool()->action(UIActionIndexRT_M_View_M_MenuBar_T_Visibility)->isChecked());
-#endif /* !Q_WS_MAC */
+#endif /* !VBOX_WS_MAC */
         /* Update status-bar visibility: */
         statusBar()->setVisible(actionPool()->action(UIActionIndexRT_M_View_M_StatusBar_T_Visibility)->isChecked());
         m_pIndicatorsPool->setAutoUpdateIndicatorStates(statusBar()->isVisible() && uisession()->isRunning());
@@ -381,11 +403,11 @@ void UIMachineWindowNormal::loadSettings()
         }
 
         /* Normalize to the optimal size: */
-#ifdef Q_WS_X11
+#ifdef VBOX_WS_X11
         QTimer::singleShot(0, this, SLOT(sltNormalizeGeometry()));
-#else /* !Q_WS_X11 */
+#else /* !VBOX_WS_X11 */
         normalizeGeometry(true /* adjust position */);
-#endif /* !Q_WS_X11 */
+#endif /* !VBOX_WS_X11 */
     }
 }
 
@@ -404,11 +426,11 @@ void UIMachineWindowNormal::saveSettings()
 
 void UIMachineWindowNormal::cleanupVisualState()
 {
-#ifdef Q_WS_MAC
+#ifdef VBOX_WS_MAC
     /* Unregister 'Zoom' button from using our full-screen since Yosemite: */
     if (vboxGlobal().osRelease() >= MacOSXRelease_Yosemite)
         UICocoaApplication::instance()->unregisterCallbackForStandardWindowButton(this, StandardWindowButtonType_Zoom);
-#endif /* Q_WS_MAC */
+#endif /* VBOX_WS_MAC */
 }
 
 void UIMachineWindowNormal::cleanupSessionConnections()
@@ -490,10 +512,6 @@ void UIMachineWindowNormal::showInNecessaryMode()
     m_pMachineView->setFocus();
 }
 
-/**
- * Adjusts machine-window size to correspond current guest screen size.
- * @param fAdjustPosition determines whether is it necessary to adjust position too.
- */
 void UIMachineWindowNormal::normalizeGeometry(bool fAdjustPosition)
 {
 #ifndef VBOX_GUI_WITH_CUSTOMIZATIONS1
@@ -502,28 +520,54 @@ void UIMachineWindowNormal::normalizeGeometry(bool fAdjustPosition)
         return;
 
     /* Calculate client window offsets: */
-    QRect frameGeo = frameGeometry();
+    QRect frGeo = frameGeometry();
     const QRect geo = geometry();
-    int dl = geo.left() - frameGeo.left();
-    int dt = geo.top() - frameGeo.top();
-    int dr = frameGeo.right() - geo.right();
-    int db = frameGeo.bottom() - geo.bottom();
+    const int dl = geo.left() - frGeo.left();
+    const int dt = geo.top() - frGeo.top();
+    const int dr = frGeo.right() - geo.right();
+    const int db = frGeo.bottom() - geo.bottom();
 
     /* Get the best size w/o scroll-bars: */
-    QSize s = sizeHint();
+    QSize sh = sizeHint();
+
+    /* If guest-screen auto-resize is not enabled
+     * or the guest-additions doesn't support graphics
+     * we should take scroll-bars size-hints into account: */
+    if (!machineView()->isGuestAutoresizeEnabled() || !uisession()->isGuestSupportsGraphics())
+    {
+        if (machineView()->verticalScrollBar()->isVisible())
+            sh -= QSize(machineView()->verticalScrollBar()->sizeHint().width(), 0);
+        if (machineView()->horizontalScrollBar()->isVisible())
+            sh -= QSize(0, machineView()->horizontalScrollBar()->sizeHint().height());
+    }
 
     /* Resize the frame to fit the contents: */
-    s -= size();
-    frameGeo.setRight(frameGeo.right() + s.width());
-    frameGeo.setBottom(frameGeo.bottom() + s.height());
+    sh -= size();
+    frGeo.setRight(frGeo.right() + sh.width());
+    frGeo.setBottom(frGeo.bottom() + sh.height());
+
+    /* Calculate common bound region: */
+    QRegion region;
+    for (int iScreenIndex = 0; iScreenIndex < vboxGlobal().screenCount(); ++iScreenIndex)
+    {
+        /* Get enumerated screen's available area: */
+        QRect rect = vboxGlobal().availableGeometry(iScreenIndex);
+#ifdef VBOX_WS_WIN
+        /* On Windows host window can exceed the available
+         * area in maximized/sticky-borders state: */
+        rect.adjust(-10, -10, 10, 10);
+#endif /* VBOX_WS_WIN */
+        /* Append rectangle: */
+        region += rect;
+    }
 
     /* Adjust position if necessary: */
     if (fAdjustPosition)
-        frameGeo = VBoxGlobal::normalizeGeometry(frameGeo, vboxGlobal().availableGeometry(pos()));
+        frGeo = VBoxGlobal::normalizeGeometry(frGeo, region);
 
     /* Finally, set the frame geometry: */
-    setGeometry(frameGeo.left() + dl, frameGeo.top() + dt,
-                frameGeo.width() - dl - dr, frameGeo.height() - dt - db);
+    setGeometry(frGeo.left() + dl, frGeo.top() + dt,
+                frGeo.width() - dl - dr, frGeo.height() - dt - db);
 #else /* VBOX_GUI_WITH_CUSTOMIZATIONS1 */
     /* Customer request: There should no be
      * machine-window resize on machine-view resize: */
@@ -563,7 +607,7 @@ void UIMachineWindowNormal::updateAppearanceOf(int iElement)
     }
 }
 
-#ifndef Q_WS_MAC
+#ifndef VBOX_WS_MAC
 void UIMachineWindowNormal::updateMenu()
 {
     /* Rebuild menu-bar: */
@@ -571,16 +615,16 @@ void UIMachineWindowNormal::updateMenu()
     foreach (QMenu *pMenu, actionPool()->menus())
         menuBar()->addMenu(pMenu);
 }
-#endif /* !Q_WS_MAC */
+#endif /* !VBOX_WS_MAC */
 
 bool UIMachineWindowNormal::isMaximizedChecked()
 {
-#ifdef Q_WS_MAC
+#ifdef VBOX_WS_MAC
     /* On the Mac the WindowStateChange signal doesn't seems to be delivered
      * when the user get out of the maximized state. So check this ourself. */
     return ::darwinIsWindowMaximized(this);
-#else /* Q_WS_MAC */
+#else /* VBOX_WS_MAC */
     return isMaximized();
-#endif /* !Q_WS_MAC */
+#endif /* !VBOX_WS_MAC */
 }
 

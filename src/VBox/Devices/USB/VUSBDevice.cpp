@@ -136,20 +136,23 @@ void vusbDevMapEndpoint(PVUSBDEV pDev, PCVUSBDESCENDPOINTEX pEndPtDesc)
     {
         Log(("vusb: map input pipe on address %u\n", i8Addr));
         pPipe->in = pEndPtDesc;
-
-        ///@todo: This is currently utterly broken and causes untold damage.
-#if 0 //defined(RT_OS_LINUX) || defined(RT_OS_SOLARIS) || defined(RT_OS_DARWIN)
-        /*
-         * For high-speed isochronous input endpoints, spin off a read-ahead buffering thread.
-         */
-        if ((pEndPtDesc->Core.bmAttributes & 0x03) == 1)
-            pPipe->hReadAhead = vusbReadAheadStart(pDev, pPipe);
-#endif
     }
     else
     {
         Log(("vusb: map output pipe on address %u\n", i8Addr));
         pPipe->out = pEndPtDesc;
+
+#if 0
+        if ((pEndPtDesc->Core.bmAttributes & 0x03) == 1)
+        {
+            int rc = vusbBufferedPipeCreate(pDev, pPipe, VUSBDIRECTION_OUT, pDev->pUsbIns->enmSpeed,
+                                            32 /* cLatencyMs*/, &pPipe->hBuffer);
+            if (RT_SUCCESS(rc))
+                LogRel(("VUSB: Created a buffered pipe for isochronous output endpoint\n"));
+            else
+                LogRel(("VUSB: Failed to create a buffered pipe for isochronous output endpoint with rc=%Rrc\n", rc));
+        }
+#endif
     }
 
     if (pPipe->pCtrl)
@@ -178,18 +181,24 @@ static void unmap_endpoint(PVUSBDEV pDev, PCVUSBDESCENDPOINTEX pEndPtDesc)
         Log(("vusb: unmap IN pipe from address %u (%#x)\n", EndPt, pEndPtDesc->Core.bEndpointAddress));
         pPipe->in = NULL;
 
-        /* If there was a read-ahead thread associated with this endpoint, tell it to go away. */
-        if (pPipe->hReadAhead)
+        /* Terminate the pipe buffer if created. */
+        if (pPipe->hBuffer)
         {
-            Log(("vusb: and tell read-ahead thread for the endpoint to terminate\n"));
-            vusbReadAheadStop(pPipe->hReadAhead);
-            pPipe->hReadAhead = NULL;
+            vusbBufferedPipeDestroy(pPipe->hBuffer);
+            pPipe->hBuffer = NULL;
         }
     }
     else
     {
         Log(("vusb: unmap OUT pipe from address %u (%#x)\n", EndPt, pEndPtDesc->Core.bEndpointAddress));
         pPipe->out = NULL;
+
+        /* Terminate the pipe buffer if created. */
+        if (pPipe->hBuffer)
+        {
+            vusbBufferedPipeDestroy(pPipe->hBuffer);
+            pPipe->hBuffer = NULL;
+        }
     }
 
     if (pPipe->pCtrl)
@@ -227,10 +236,10 @@ static void vusbDevResetPipeData(PVUSBPIPE pPipe)
     vusbMsgFreeExtraData(pPipe->pCtrl);
     pPipe->pCtrl = NULL;
 
-    if (pPipe->hReadAhead)
+    if (pPipe->hBuffer)
     {
-        vusbReadAheadStop(pPipe->hReadAhead);
-        pPipe->hReadAhead = NULL;
+        vusbBufferedPipeDestroy(pPipe->hBuffer);
+        pPipe->hBuffer = NULL;
     }
 
     RT_ZERO(pPipe->in);
@@ -653,7 +662,8 @@ static PCPDMUSBDESCCACHESTRING FindCachedString(PCPDMUSBDESCCACHELANG paLanguage
     do { \
         uint32_t cbSrc_ = cbSrc; \
         uint32_t cbCopy = RT_MIN(cbLeft, cbSrc_); \
-        memcpy(pbBuf, pvSrc, cbCopy); \
+        if (cbCopy) \
+            memcpy(pbBuf, pvSrc, cbCopy); \
         cbLeft -= cbCopy; \
         if (!cbLeft) \
             return; \
@@ -955,6 +965,7 @@ static void vusbDevAddressUnHash(PVUSBDEV pDev)
     pDev->u8Address = VUSB_INVALID_ADDRESS;
     pDev->u8NewAddress = VUSB_INVALID_ADDRESS;
 
+    RTCritSectEnter(&pDev->pHub->pRootHub->CritSectDevices);
     PVUSBDEV pCur = pDev->pHub->pRootHub->apAddrHash[u8Hash];
     if (pCur == pDev)
     {
@@ -978,6 +989,7 @@ static void vusbDevAddressUnHash(PVUSBDEV pDev)
             }
         }
     }
+    RTCritSectLeave(&pDev->pHub->pRootHub->CritSectDevices);
 }
 
 /**
@@ -1025,7 +1037,7 @@ void vusbDevSetAddress(PVUSBDEV pDev, uint8_t u8Address)
         if (pRh->pDefaultAddress != NULL)
         {
             vusbDevAddressUnHash(pRh->pDefaultAddress);
-            vusbDevSetState(pRh->pDefaultAddress, VUSB_DEVICE_STATE_POWERED);
+            vusbDevSetStateCmp(pRh->pDefaultAddress, VUSB_DEVICE_STATE_POWERED, VUSB_DEVICE_STATE_DEFAULT);
             Log(("2 DEFAULT ADDRS\n"));
         }
 
@@ -1048,17 +1060,16 @@ static DECLCALLBACK(int) vusbDevCancelAllUrbsWorker(PVUSBDEV pDev, bool fDetachi
     /*
      * Iterate the URBs and cancel them.
      */
-    PVUSBURB pUrb = pDev->pAsyncUrbHead;
-    while (pUrb)
+    PVUSBURBVUSB pVUsbUrb, pVUsbUrbNext;
+    RTListForEachSafe(&pDev->LstAsyncUrbs, pVUsbUrb, pVUsbUrbNext, VUSBURBVUSBINT, NdLst)
     {
-        PVUSBURB pNext = pUrb->VUsb.pNext;
+        PVUSBURB pUrb = pVUsbUrb->pUrb;
 
-        Assert(pUrb->VUsb.pDev == pDev);
+        Assert(pUrb->pVUsb->pDev == pDev);
 
         LogFlow(("%s: vusbDevCancelAllUrbs: CANCELING URB\n", pUrb->pszDesc));
         int rc = vusbUrbCancelWorker(pUrb, CANCELMODE_FAIL);
         AssertRC(rc);
-        pUrb = pNext;
     }
 
     /*
@@ -1069,11 +1080,12 @@ static DECLCALLBACK(int) vusbDevCancelAllUrbsWorker(PVUSBDEV pDev, bool fDetachi
     do
     {
         cReaped = 0;
-        pUrb = pDev->pAsyncUrbHead;
-        while (pUrb)
+        pVUsbUrb = RTListGetFirst(&pDev->LstAsyncUrbs, VUSBURBVUSBINT, NdLst);
+        while (pVUsbUrb)
         {
-            PVUSBURB pNext = pUrb->VUsb.pNext;
-            Assert(pUrb->VUsb.pDev == pDev);
+            PVUSBURBVUSB pNext = RTListGetNext(&pDev->LstAsyncUrbs, pVUsbUrb, VUSBURBVUSBINT, NdLst);
+            PVUSBURB pUrb = pVUsbUrb->pUrb;
+            Assert(pUrb->pVUsb->pDev == pDev);
 
             PVUSBURB pRipe = NULL;
             if (pUrb->enmState == VUSBURBSTATE_REAPED)
@@ -1089,13 +1101,14 @@ static DECLCALLBACK(int) vusbDevCancelAllUrbsWorker(PVUSBDEV pDev, bool fDetachi
                 AssertMsgFailed(("pUrb=%p enmState=%d\n", pUrb, pUrb->enmState));
             if (pRipe)
             {
-                if (pRipe == pNext)
-                    pNext = pNext->VUsb.pNext;
+                if (   pNext
+                    && pRipe == pNext->pUrb)
+                    pNext = RTListGetNext(&pDev->LstAsyncUrbs, pNext, VUSBURBVUSBINT, NdLst);
                 vusbUrbRipe(pRipe);
                 cReaped++;
             }
 
-            pUrb = pNext;
+            pVUsbUrb = pNext;
         }
     } while (cReaped > 0);
 
@@ -1104,11 +1117,10 @@ static DECLCALLBACK(int) vusbDevCancelAllUrbsWorker(PVUSBDEV pDev, bool fDetachi
      */
     if (fDetaching)
     {
-        pUrb = pDev->pAsyncUrbHead;
-        while (pUrb)
+        RTListForEachSafe(&pDev->LstAsyncUrbs, pVUsbUrb, pVUsbUrbNext, VUSBURBVUSBINT, NdLst)
         {
-            PVUSBURB pNext = pUrb->VUsb.pNext;
-            Assert(pUrb->VUsb.pDev == pDev);
+            PVUSBURB pUrb = pVUsbUrb->pUrb;
+            Assert(pUrb->pVUsb->pDev == pDev);
 
             AssertMsgFailed(("%s: Leaking left over URB! state=%d pDev=%p[%s]\n",
                              pUrb->pszDesc, pUrb->enmState, pDev, pDev->pUsbIns->pszName));
@@ -1117,8 +1129,7 @@ static DECLCALLBACK(int) vusbDevCancelAllUrbsWorker(PVUSBDEV pDev, bool fDetachi
              * It was tested with MSD & iphone attachment to vSMP guest, if
              * it breaks anything, please add comment here, why we should unlink only.
              */
-            pUrb->VUsb.pfnFree(pUrb);
-            pUrb = pNext;
+            pUrb->pVUsb->pfnFree(pUrb);
         }
     }
     RTCritSectLeave(&pDev->CritSectAsyncUrbs);
@@ -1133,7 +1144,7 @@ static DECLCALLBACK(int) vusbDevCancelAllUrbsWorker(PVUSBDEV pDev, bool fDetachi
  * @param   fDetaching  If set, we will unconditionally unlink (and leak)
  *                      any URBs which isn't reaped.
  */
-static void vusbDevCancelAllUrbs(PVUSBDEV pDev, bool fDetaching)
+DECLHIDDEN(void) vusbDevCancelAllUrbs(PVUSBDEV pDev, bool fDetaching)
 {
     int rc = vusbDevIoThreadExecSync(pDev, (PFNRT)vusbDevCancelAllUrbsWorker, 2, pDev, fDetaching);
     AssertRC(rc);
@@ -1254,23 +1265,12 @@ int vusbDevDetach(PVUSBDEV pDev)
  * Destroys a device, detaching it from the hub if necessary.
  *
  * @param   pDev    The device.
- * @thread  EMT
+ * @thread any.
  */
 void vusbDevDestroy(PVUSBDEV pDev)
 {
     LogFlow(("vusbDevDestroy: pDev=%p[%s] enmState=%d\n", pDev, pDev->pUsbIns->pszName, pDev->enmState));
 
-    /*
-     * Deal with pending async reset.
-     * (anything but reset)
-     */
-    vusbDevSetStateCmp(pDev, VUSB_DEVICE_STATE_DEFAULT, VUSB_DEVICE_STATE_RESET);
-
-    /*
-     * Detach and free resources.
-     */
-    if (pDev->pHub)
-        vusbDevDetach(pDev);
     RTMemFree(pDev->paIfStates);
     TMR3TimerDestroy(pDev->pResetTimer);
     pDev->pResetTimer = NULL;
@@ -1292,9 +1292,13 @@ void vusbDevDestroy(PVUSBDEV pDev)
     if (pDev->hSniffer != VUSBSNIFFER_NIL)
         VUSBSnifferDestroy(pDev->hSniffer);
 
+    vusbUrbPoolDestroy(&pDev->UrbPool);
+
     RTCritSectDelete(&pDev->CritSectAsyncUrbs);
     /* Not using vusbDevSetState() deliberately here because it would assert on the state. */
     pDev->enmState = VUSB_DEVICE_STATE_DESTROYED;
+    pDev->pUsbIns->pvVUsbDev2 = NULL;
+    RTMemFree(pDev);
 }
 
 
@@ -1646,7 +1650,16 @@ DECLHIDDEN(int) vusbDevIoThreadExecV(PVUSBDEV pDev, uint32_t fFlags, PFNRT pfnFu
         rc = RTReqQueueCallV(pDev->hReqQueueSync, &hReq, 0 /* cMillies */, fReqFlags, pfnFunction, cArgs, Args);
         Assert(RT_SUCCESS(rc) || rc == VERR_TIMEOUT);
 
-        vusbDevUrbIoThreadWakeup(pDev);
+        /* In case we are called on the I/O thread just process the request. */
+        if (   pDev->hUrbIoThread == RTThreadSelf()
+            && (fFlags & VUSB_DEV_IO_THREAD_EXEC_FLAGS_SYNC))
+        {
+            int rc2 = RTReqQueueProcess(pDev->hReqQueueSync, 0);
+            Assert(RT_SUCCESS(rc2) || rc2 == VERR_TIMEOUT);
+        }
+        else
+            vusbDevUrbIoThreadWakeup(pDev);
+
         if (   rc == VERR_TIMEOUT
             && (fFlags & VUSB_DEV_IO_THREAD_EXEC_FLAGS_SYNC))
         {
@@ -1745,6 +1758,7 @@ int vusbDevInit(PVUSBDEV pDev, PPDMUSBINS pUsbIns, const char *pszCaptureFilenam
     pDev->pNextHash = NULL;
     pDev->pHub = NULL;
     pDev->enmState = VUSB_DEVICE_STATE_DETACHED;
+    pDev->cRefs = 1;
     pDev->u8Address = VUSB_INVALID_ADDRESS;
     pDev->u8NewAddress = VUSB_INVALID_ADDRESS;
     pDev->i16Port = -1;
@@ -1752,6 +1766,7 @@ int vusbDevInit(PVUSBDEV pDev, PPDMUSBINS pUsbIns, const char *pszCaptureFilenam
     pDev->pDescCache = NULL;
     pDev->pCurCfgDesc = NULL;
     pDev->paIfStates = NULL;
+    RTListInit(&pDev->LstAsyncUrbs);
     memset(&pDev->aPipes[0], 0, sizeof(pDev->aPipes));
     for (unsigned i = 0; i < RT_ELEMENTS(pDev->aPipes); i++)
     {
@@ -1762,6 +1777,10 @@ int vusbDevInit(PVUSBDEV pDev, PPDMUSBINS pUsbIns, const char *pszCaptureFilenam
     pDev->hSniffer = VUSBSNIFFER_NIL;
 
     int rc = RTCritSectInit(&pDev->CritSectAsyncUrbs);
+    AssertRCReturn(rc, rc);
+
+    /* Create the URB pool. */
+    rc = vusbUrbPoolInit(&pDev->UrbPool);
     AssertRCReturn(rc, rc);
 
     /* Setup request queue executing synchronous tasks on the I/O thread. */
@@ -1781,7 +1800,7 @@ int vusbDevInit(PVUSBDEV pDev, PPDMUSBINS pUsbIns, const char *pszCaptureFilenam
 
     if (pszCaptureFilename)
     {
-        rc = VUSBSnifferCreate(&pDev->hSniffer, 0, pszCaptureFilename, NULL);
+        rc = VUSBSnifferCreate(&pDev->hSniffer, 0, pszCaptureFilename, NULL, NULL);
         AssertRCReturn(rc, rc);
     }
 

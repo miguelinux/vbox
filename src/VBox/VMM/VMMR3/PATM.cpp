@@ -17,6 +17,18 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
+/** @page pg_patm   PATM - Patch Manager
+ *
+ * The patch manager (PATM) patches privileged guest code to allow it to execute
+ * directly in raw-mode.
+ *
+ * The PATM works closely together with the @ref pg_csam "CSAM" detect code
+ * needing patching and detected changes to the patch.  It also interfaces with
+ * other components, like @ref pg_trpm "TRPM" and @ref pg_rem "REM", for these
+ * purposes.
+ *
+ * @sa @ref grp_patm
+ */
 
 /*********************************************************************************************************************************
 *   Header Files                                                                                                                 *
@@ -50,7 +62,6 @@
 #include <iprt/asm.h>
 #include <VBox/dis.h>
 #include <VBox/disopcode.h>
-#include "internal/pgm.h"
 
 #include <iprt/string.h>
 #include "PATMA.h"

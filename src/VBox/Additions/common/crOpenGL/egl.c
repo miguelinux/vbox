@@ -20,14 +20,19 @@
 *   Header Files                                                               *
 *******************************************************************************/
 #include <iprt/cdefs.h>
-#include <iprt/initterm.h>
-#include <iprt/mem.h>
-#include <iprt/once.h>
-#include <iprt/thread.h>
+#include <iprt/types.h>
 
 #include <EGL/egl.h>
 #include <GL/glx.h>
 #include <X11/Xlib.h>
+
+#include <dlfcn.h>
+#include <pthread.h>
+#include <stdio.h>
+#include <stdlib.h>
+
+#define EGL_ASSERT(expr) \
+    if (!(expr)) { printf("Assertion failed: %s\n", #expr); exit(1); }
 
 /*******************************************************************************
 *   Structures and Typedefs                                                    *
@@ -69,27 +74,25 @@ struct VBEGLTLS
 *   Global variables                                                           *
 *******************************************************************************/
 
-static RTTLS    g_tls = NIL_RTTLS;
-static RTONCE   g_tlsOnce = RTONCE_INITIALIZER;
-static Display *g_pDefaultDisplay = NULL;
-static RTONCE   g_defaultDisplayOnce = RTONCE_INITIALIZER;
+static pthread_key_t  g_tls;
+static pthread_once_t g_tlsOnce = PTHREAD_ONCE_INIT;
+static Display       *g_pDefaultDisplay = NULL;
+static pthread_once_t g_defaultDisplayOnce = PTHREAD_ONCE_INIT;
 
-static int32_t tlsInitOnce(void *pv)
+static void tlsInitOnce(void)
 {
-    NOREF(pv);
-    g_tls = RTTlsAlloc();
-    return VINF_SUCCESS;
+    pthread_key_create(&g_tls, NULL);
 }
 
 static struct VBEGLTLS *getTls(void)
 {
     struct VBEGLTLS *pTls;
 
-    RTOnce(&g_tlsOnce, tlsInitOnce, NULL);
-    pTls = (struct VBEGLTLS *)RTTlsGet(g_tls);
+    pthread_once(&g_tlsOnce, tlsInitOnce);
+    pTls = (struct VBEGLTLS *)pthread_getspecific(g_tls);
     if (RT_LIKELY(pTls))
         return pTls;
-    pTls = (struct VBEGLTLS *)RTMemAlloc(sizeof(*pTls));
+    pTls = (struct VBEGLTLS *)malloc(sizeof(*pTls));
     if (!VALID_PTR(pTls))
         return NULL;
     pTls->cErr = EGL_SUCCESS;
@@ -98,15 +101,15 @@ static struct VBEGLTLS *getTls(void)
     pTls->hCurrentDisplay = EGL_NO_DISPLAY;
     pTls->hCurrentDraw = EGL_NO_SURFACE;
     pTls->hCurrentRead = EGL_NO_SURFACE;
-    RTTlsSet(g_tls, pTls);
-    return pTls;
+    if (pthread_setspecific(g_tls, pTls) == 0)
+        return pTls;
+    free(pTls);
+    return NULL;
 }
 
-static int32_t defaultDisplayInitOnce(void *pv)
+static void defaultDisplayInitOnce(void)
 {
-    NOREF(pv);
     g_pDefaultDisplay = XOpenDisplay(NULL);
-    return VINF_SUCCESS;
 }
 
 static EGLBoolean clearEGLError(void)
@@ -128,13 +131,26 @@ static EGLBoolean setEGLError(EGLint cErr)
     return EGL_FALSE;
 }
 
+static EGLBoolean testValidDisplay(EGLNativeDisplayType hDisplay)
+{
+    if (hDisplay == EGL_DEFAULT_DISPLAY)
+        return EGL_TRUE;
+    if ((void *)hDisplay == NULL)
+        return EGL_FALSE;
+    /* This is the test that Mesa uses to see if this is a GBM "display".  Not
+     * very pretty, but since no one can afford to break Mesa it should be
+     * safe. Obviously we can't support GBM for now. */
+    if (*(void **)hDisplay == dlsym(NULL, "gbm_create_device"))
+        return EGL_FALSE;
+    return EGL_TRUE;
+}
+
 DECLEXPORT(EGLDisplay) eglGetDisplay(EGLNativeDisplayType hDisplay)
 {
     Display *pDisplay;
     int rc, cError, cEvent, cMajor, cMinor;
 
-    rc = RTR3InitDll(RTR3INIT_FLAGS_UNOBTRUSIVE);
-    if (RT_FAILURE(rc))
+    if (!testValidDisplay(hDisplay))
         return EGL_NO_DISPLAY;
     if (!clearEGLError())  /* Set up our tls. */
         return EGL_NO_DISPLAY;
@@ -142,7 +158,7 @@ DECLEXPORT(EGLDisplay) eglGetDisplay(EGLNativeDisplayType hDisplay)
         pDisplay = hDisplay;
     else
     {
-        RTOnce(&g_defaultDisplayOnce, defaultDisplayInitOnce, NULL);
+        pthread_once(&g_defaultDisplayOnce, defaultDisplayInitOnce);
         pDisplay = g_pDefaultDisplay;
     }
     if (pDisplay && glXQueryExtension(pDisplay, &cError, &cEvent))
@@ -163,6 +179,8 @@ DECLEXPORT(EGLint) eglGetError(void)
 
 DECLEXPORT(EGLBoolean) eglInitialize (EGLDisplay hDisplay, EGLint *pcMajor, EGLint *pcMinor)
 {
+    if (hDisplay == EGL_NO_DISPLAY)
+        return EGL_FALSE;
     if (!VALID_PTR(hDisplay))
         return setEGLError(EGL_BAD_DISPLAY);
     if (pcMajor)
@@ -210,7 +228,8 @@ DECLEXPORT(EGLBoolean) eglGetConfigs (EGLDisplay hDisplay, EGLConfig *paConfigs,
     if (caConfigs > 0 && !VALID_PTR(paConfigs))
         return setEGLError(EGL_BAD_PARAMETER);
     paFBConfigs = glXGetFBConfigs(pDisplay, DefaultScreen(pDisplay), &caFBConfigs);
-    AssertPtrReturn(paFBConfigs, setEGLError(EGL_BAD_PARAMETER));
+    if (!VALID_PTR(paFBConfigs))
+        return setEGLError(EGL_BAD_PARAMETER);
     if (caFBConfigs > caConfigs)
         caFBConfigs = caConfigs;
     *pcaConfigs = caFBConfigs;
@@ -339,15 +358,15 @@ DECLEXPORT(EGLBoolean) eglChooseConfig (EGLDisplay hDisplay, const EGLint *paAtt
         {
             switch (*pAttrib)
             {
-        if (   *pAttrib == EGL_COLOR_BUFFER_TYPE
-            && pAttrib[1] != EGL_DONT_CARE && pAttrib[1] != EGL_RGB_BUFFER)
-            return setEGLError(EGL_BAD_ACCESS);
                 case EGL_COLOR_BUFFER_TYPE:
                     aAttribList[cAttribs] = GLX_X_VISUAL_TYPE;
                     aAttribList[cAttribs + 1] =   pAttrib[1] == EGL_DONT_CARE ? GLX_DONT_CARE
                                                 : pAttrib[1] == EGL_RGB_BUFFER ? GLX_TRUE_COLOR
                                                 : pAttrib[1] == EGL_LUMINANCE_BUFFER ? GLX_GRAY_SCALE
                                                 : GL_FALSE;
+                    if (   *pAttrib == EGL_COLOR_BUFFER_TYPE
+                        && pAttrib[1] != EGL_DONT_CARE && pAttrib[1] != EGL_RGB_BUFFER)
+                        return setEGLError(EGL_BAD_ACCESS);
                     break;
                 case EGL_CONFIG_CAVEAT:
                     cConfigCaveat =   pAttrib[1] == EGL_DONT_CARE ? GLX_DONT_CARE
@@ -414,7 +433,7 @@ DECLEXPORT(EGLBoolean) eglChooseConfig (EGLDisplay hDisplay, const EGLint *paAtt
     if (paAttribs != NULL)
     {
         aAttribList[cAttribs] = None;
-        AssertRelease(cAttribs < RT_ELEMENTS(aAttribList));
+        EGL_ASSERT(cAttribs < RT_ELEMENTS(aAttribList));
         if (!(cRenderableType & EGL_OPENGL_BIT))
             return setEGLError(EGL_BAD_ACCESS);
     }
@@ -547,7 +566,7 @@ DECLEXPORT(EGLSurface) eglCreateWindowSurface(EGLDisplay hDisplay, EGLConfig con
         setEGLError(EGL_BAD_ALLOC);
         return EGL_NO_SURFACE;
     }
-    AssertRelease(hGLXWindow < VBEGL_WINDOW_SURFACE);  /* Greater than the maximum XID. */
+    EGL_ASSERT(hGLXWindow < VBEGL_WINDOW_SURFACE);  /* Greater than the maximum XID. */
     clearEGLError();
     return (EGLSurface)(hGLXWindow | VBEGL_WINDOW_SURFACE);
 }
@@ -615,7 +634,7 @@ DECLEXPORT(EGLSurface) eglCreatePbufferSurface(EGLDisplay hDisplay, EGLConfig co
             }
             paAttributes += 2;
         }
-    AssertRelease(cIndex < RT_ELEMENTS(aAttributes) - 1);
+    EGL_ASSERT(cIndex < RT_ELEMENTS(aAttributes) - 1);
     aAttributes[cIndex + 1] = None;
     hPbuffer = glXCreatePbuffer(pDisplay, (GLXFBConfig)config, aAttributes);
     if (hPbuffer == None)
@@ -623,7 +642,7 @@ DECLEXPORT(EGLSurface) eglCreatePbufferSurface(EGLDisplay hDisplay, EGLConfig co
         setEGLError(EGL_BAD_ALLOC);
         return EGL_NO_SURFACE;
     }
-    AssertRelease(hPbuffer < VBEGL_WINDOW_SURFACE);  /* Greater than the maximum XID. */
+    EGL_ASSERT(hPbuffer < VBEGL_WINDOW_SURFACE);  /* Greater than the maximum XID. */
     clearEGLError();
     return (EGLSurface)(hPbuffer | VBEGL_PBUFFER_SURFACE);
 }
@@ -659,7 +678,7 @@ DECLEXPORT(EGLSurface) eglCreatePixmapSurface(EGLDisplay hDisplay, EGLConfig con
         setEGLError(EGL_BAD_MATCH);
         return EGL_NO_SURFACE;
     }
-    AssertRelease(hGLXPixmap < VBEGL_WINDOW_SURFACE);  /* Greater than the maximum XID. */
+    EGL_ASSERT(hGLXPixmap < VBEGL_WINDOW_SURFACE);  /* Greater than the maximum XID. */
     clearEGLError();
     return (EGLSurface)(hGLXPixmap | VBEGL_PIXMAP_SURFACE);
 }
@@ -825,8 +844,9 @@ DECLEXPORT(EGLSurface) eglGetCurrentSurface(EGLint cOp)
 
 DECLEXPORT(EGLDisplay) eglGetCurrentDisplay(void)
 {
-    struct VBEGLTLS *pTls = getTls();
+    struct VBEGLTLS *pTls;
 
+    pTls = getTls();
     if (!VALID_PTR(pTls))
         return EGL_NO_DISPLAY;
     clearEGLError();
@@ -930,7 +950,8 @@ DECLEXPORT(EGLBoolean) eglReleaseThread()
 
     if (!(pTls))
         return EGL_TRUE;
-    RTMemFree(pTls);
-    RTTlsSet(g_tls, NULL);
+    free(pTls);
+    /* Can this fail with ENOMEM? */
+    pthread_setspecific(g_tls, NULL);
     return EGL_TRUE;
 }

@@ -173,7 +173,8 @@ HRESULT MousePointerShape::getHeight(ULONG *aHeight)
 HRESULT MousePointerShape::getShape(std::vector<BYTE> &aShape)
 {
     aShape.resize(m.shape.size());
-    memcpy(&aShape.front(), &m.shape.front(), aShape.size());
+    if (m.shape.size())
+        memcpy(&aShape.front(), &m.shape.front(), aShape.size());
     return S_OK;
 }
 
@@ -1007,8 +1008,8 @@ HRESULT Mouse::i_putEventMultiTouch(LONG aCount,
 
                 if (fValid)
                 {
-                    uint8_t fu8 =   (fInContact? 0x01: 0x00)
-                                  | (fInRange?   0x02: 0x00);
+                    uint8_t fu8 = (uint8_t)(  (fInContact? 0x01: 0x00)
+                                            | (fInRange?   0x02: 0x00));
                     pau64Contacts[cContacts] = RT_MAKE_U64_FROM_U16((uint16_t)xAdj,
                                                                     (uint16_t)yAdj,
                                                                     RT_MAKE_U16(contactId, fu8),

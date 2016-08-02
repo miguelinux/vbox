@@ -280,7 +280,7 @@ public:
         /* The remainder must be zero padded. */
         if (RT_SUCCESS(rc))
         {
-            if (ASMMemIsAll8(pszzBlock, cbBlock, 0))
+            if (ASMMemIsZero(pszzBlock, cbBlock))
                 return VINF_SUCCESS;
             return VERR_TOO_MUCH_DATA;
         }
@@ -941,6 +941,7 @@ public:
         {
             RTMemFree(pvData);
             cbData = 0;
+            pvData = NULL;
         }
         uType = 0;
     }
